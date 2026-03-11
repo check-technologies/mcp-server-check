@@ -13,15 +13,21 @@ from mcp_server_check.helpers import (
 
 
 async def list_forms(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    company: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> dict:
-    """List forms across all companies.
+    """List forms, optionally filtered by company.
 
     Args:
+        company: Filter to forms belonging to this Check company ID (e.g. "com_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     params: dict = {}
+    if company is not None:
+        params["company"] = company
     if limit is not None:
         params["limit"] = limit
     if cursor:

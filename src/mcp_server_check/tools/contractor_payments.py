@@ -16,18 +16,26 @@ from mcp_server_check.helpers import (
 
 async def list_contractor_payments(
     ctx: Ctx,
+    company: str | None = None,
+    contractor: str | None = None,
     limit: int | None = None,
     ids: list[str] | None = None,
     cursor: str | None = None,
 ) -> dict:
-    """List contractor payments across all companies.
+    """List contractor payments, optionally filtered by company or contractor.
 
     Args:
+        company: Filter to contractor payments belonging to this Check company ID (e.g. "com_xxxxx").
+        contractor: Filter to payments for this Check contractor ID (e.g. "ctr_xxxxx").
         limit: Maximum number of results to return (default 10, max 100).
         ids: Filter to specific contractor payment IDs.
         cursor: Pagination cursor from a previous response.
     """
     params: dict = {}
+    if company is not None:
+        params["company"] = company
+    if contractor is not None:
+        params["contractor"] = contractor
     if limit is not None:
         params["limit"] = limit
     if ids:

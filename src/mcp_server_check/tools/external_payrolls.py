@@ -16,18 +16,22 @@ from mcp_server_check.helpers import (
 
 async def list_external_payrolls(
     ctx: Ctx,
+    company: str | None = None,
     limit: int | None = None,
     ids: list[str] | None = None,
     cursor: str | None = None,
 ) -> dict:
-    """List external payrolls across all companies.
+    """List external payrolls, optionally filtered by company.
 
     Args:
+        company: Filter to external payrolls belonging to this Check company ID (e.g. "com_xxxxx").
         limit: Maximum number of results to return (default 10, max 100).
         ids: Filter to specific external payroll IDs.
         cursor: Pagination cursor from a previous response.
     """
     params: dict = {}
+    if company is not None:
+        params["company"] = company
     if limit is not None:
         params["limit"] = limit
     if ids:

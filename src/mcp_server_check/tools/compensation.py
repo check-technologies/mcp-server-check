@@ -18,15 +18,21 @@ from mcp_server_check.helpers import (
 
 
 async def list_pay_schedules(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    company: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> dict:
-    """List pay schedules across all companies.
+    """List pay schedules, optionally filtered by company.
 
     Args:
+        company: Filter to pay schedules belonging to this Check company ID (e.g. "com_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     params: dict = {}
+    if company is not None:
+        params["company"] = company
     if limit is not None:
         params["limit"] = limit
     if cursor:
@@ -155,15 +161,25 @@ async def get_pay_schedule_paydays(
 
 
 async def list_benefits(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    company: str | None = None,
+    employee: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> dict:
-    """List employee benefits across all companies.
+    """List employee benefits, optionally filtered by company or employee.
 
     Args:
+        company: Filter to benefits belonging to this Check company ID (e.g. "com_xxxxx").
+        employee: Filter to benefits for this Check employee ID (e.g. "emp_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     params: dict = {}
+    if company is not None:
+        params["company"] = company
+    if employee is not None:
+        params["employee"] = employee
     if limit is not None:
         params["limit"] = limit
     if cursor:
@@ -325,15 +341,25 @@ async def delete_benefit(ctx: Ctx, benefit_id: str) -> dict:
 
 
 async def list_post_tax_deductions(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    company: str | None = None,
+    employee: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> dict:
-    """List post-tax deductions across all companies.
+    """List post-tax deductions, optionally filtered by company or employee.
 
     Args:
+        company: Filter to post-tax deductions belonging to this Check company ID (e.g. "com_xxxxx").
+        employee: Filter to post-tax deductions for this Check employee ID (e.g. "emp_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     params: dict = {}
+    if company is not None:
+        params["company"] = company
+    if employee is not None:
+        params["employee"] = employee
     if limit is not None:
         params["limit"] = limit
     if cursor:
@@ -461,15 +487,21 @@ async def delete_post_tax_deduction(ctx: Ctx, deduction_id: str) -> dict:
 
 
 async def list_company_benefits(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    company: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> dict:
-    """List company-level benefits across all companies.
+    """List company-level benefits, optionally filtered by company.
 
     Args:
+        company: Filter to company benefits belonging to this Check company ID (e.g. "com_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     params: dict = {}
+    if company is not None:
+        params["company"] = company
     if limit is not None:
         params["limit"] = limit
     if cursor:
@@ -623,15 +655,25 @@ async def delete_company_benefit(ctx: Ctx, company_benefit_id: str) -> dict:
 
 
 async def list_earning_rates(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    company: str | None = None,
+    employee: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> dict:
-    """List earning rates across all companies.
+    """List earning rates, optionally filtered by company or employee.
 
     Args:
+        company: Filter to earning rates belonging to this Check company ID (e.g. "com_xxxxx").
+        employee: Filter to earning rates for this Check employee ID (e.g. "emp_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     params: dict = {}
+    if company is not None:
+        params["company"] = company
+    if employee is not None:
+        params["employee"] = employee
     if limit is not None:
         params["limit"] = limit
     if cursor:
@@ -702,15 +744,21 @@ async def update_earning_rate(
 
 
 async def list_earning_codes(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    company: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> dict:
-    """List earning codes across all companies.
+    """List earning codes, optionally filtered by company.
 
     Args:
+        company: Filter to earning codes belonging to this Check company ID (e.g. "com_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     params: dict = {}
+    if company is not None:
+        params["company"] = company
     if limit is not None:
         params["limit"] = limit
     if cursor:
@@ -783,15 +831,25 @@ async def update_earning_code(
 
 
 async def list_net_pay_splits(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    company: str | None = None,
+    employee: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> dict:
-    """List net pay splits across all companies.
+    """List net pay splits, optionally filtered by company or employee.
 
     Args:
+        company: Filter to net pay splits belonging to this Check company ID (e.g. "com_xxxxx").
+        employee: Filter to net pay splits for this Check employee ID (e.g. "emp_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     params: dict = {}
+    if company is not None:
+        params["company"] = company
+    if employee is not None:
+        params["employee"] = employee
     if limit is not None:
         params["limit"] = limit
     if cursor:

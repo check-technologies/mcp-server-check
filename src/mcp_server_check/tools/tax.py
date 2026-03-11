@@ -112,15 +112,21 @@ async def list_company_jurisdictions(
 
 
 async def list_employee_tax_params(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    employee: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> dict:
-    """List employee tax parameters across all companies.
+    """List employee tax parameters, optionally filtered by employee.
 
     Args:
+        employee: Filter to tax parameters for this Check employee ID (e.g. "emp_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     params: dict = {}
+    if employee is not None:
+        params["employee"] = employee
     if limit is not None:
         params["limit"] = limit
     if cursor:
@@ -352,15 +358,21 @@ async def update_employee_tax_elections(
 
 
 async def list_tax_filings(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    company: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> dict:
-    """List tax filings across all companies.
+    """List tax filings, optionally filtered by company.
 
     Args:
+        company: Filter to tax filings belonging to this Check company ID (e.g. "com_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     params: dict = {}
+    if company is not None:
+        params["company"] = company
     if limit is not None:
         params["limit"] = limit
     if cursor:
@@ -428,15 +440,21 @@ async def update_exempt_status(ctx: Ctx, employee_id: str, data: dict) -> dict:
 
 
 async def list_exemptible_taxes(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    company: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> dict:
-    """List exemptible taxes.
+    """List exemptible taxes, optionally filtered by company.
 
     Args:
+        company: Filter to exemptible taxes belonging to this Check company ID (e.g. "com_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     params: dict = {}
+    if company is not None:
+        params["company"] = company
     if limit is not None:
         params["limit"] = limit
     if cursor:
@@ -471,15 +489,21 @@ async def bulk_update_exemptible_taxes(ctx: Ctx, data: dict) -> dict:
 
 
 async def list_employee_tax_statements(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    employee: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> dict:
-    """List employee tax statements.
+    """List employee tax statements, optionally filtered by employee.
 
     Args:
+        employee: Filter to tax statements for this Check employee ID (e.g. "emp_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     params: dict = {}
+    if employee is not None:
+        params["employee"] = employee
     if limit is not None:
         params["limit"] = limit
     if cursor:
