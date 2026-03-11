@@ -16,18 +16,30 @@ from mcp_server_check.helpers import (
 
 async def list_payroll_items(
     ctx: Ctx,
+    company: str | None = None,
+    employee: str | None = None,
+    payroll: str | None = None,
     limit: int | None = None,
     ids: list[str] | None = None,
     cursor: str | None = None,
 ) -> dict:
-    """List payroll items across all payrolls.
+    """List payroll items, optionally filtered by company, employee, or payroll.
 
     Args:
+        company: Filter to payroll items belonging to this Check company ID (e.g. "com_xxxxx").
+        employee: Filter to payroll items for this Check employee ID (e.g. "emp_xxxxx").
+        payroll: Filter to payroll items for this Check payroll ID (e.g. "prl_xxxxx").
         limit: Maximum number of results to return (default 10, max 100).
         ids: Filter to specific payroll item IDs.
         cursor: Pagination cursor from a previous response.
     """
     params: dict = {}
+    if company is not None:
+        params["company"] = company
+    if employee is not None:
+        params["employee"] = employee
+    if payroll is not None:
+        params["payroll"] = payroll
     if limit is not None:
         params["limit"] = limit
     if ids:

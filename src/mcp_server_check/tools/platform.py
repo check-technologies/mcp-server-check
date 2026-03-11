@@ -17,15 +17,21 @@ from mcp_server_check.helpers import (
 
 
 async def list_notifications(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    company: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> dict:
-    """List notifications.
+    """List notifications, optionally filtered by company.
 
     Args:
+        company: Filter to notifications belonging to this Check company ID (e.g. "com_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     params: dict = {}
+    if company is not None:
+        params["company"] = company
     if limit is not None:
         params["limit"] = limit
     if cursor:
@@ -46,15 +52,21 @@ async def get_notification(ctx: Ctx, notification_id: str) -> dict:
 
 
 async def list_communications(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    company: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> dict:
-    """List communications.
+    """List communications, optionally filtered by company.
 
     Args:
+        company: Filter to communications belonging to this Check company ID (e.g. "com_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     params: dict = {}
+    if company is not None:
+        params["company"] = company
     if limit is not None:
         params["limit"] = limit
     if cursor:
@@ -425,15 +437,21 @@ async def validate_address(
 
 
 async def list_setups(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    company: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> dict:
-    """List setups.
+    """List setups, optionally filtered by company.
 
     Args:
+        company: Filter to setups belonging to this Check company ID (e.g. "com_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     params: dict = {}
+    if company is not None:
+        params["company"] = company
     if limit is not None:
         params["limit"] = limit
     if cursor:
@@ -454,15 +472,21 @@ async def get_setup(ctx: Ctx, setup_id: str) -> dict:
 
 
 async def list_requirements(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    company: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> dict:
-    """List requirements.
+    """List requirements, optionally filtered by company.
 
     Args:
+        company: Filter to requirements belonging to this Check company ID (e.g. "com_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     params: dict = {}
+    if company is not None:
+        params["company"] = company
     if limit is not None:
         params["limit"] = limit
     if cursor:

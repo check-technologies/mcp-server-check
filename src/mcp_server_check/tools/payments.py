@@ -13,15 +13,21 @@ from mcp_server_check.helpers import (
 
 
 async def list_payments(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    company: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> dict:
-    """List payments across all companies.
+    """List payments, optionally filtered by company.
 
     Args:
+        company: Filter to payments belonging to this Check company ID (e.g. "com_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     params: dict = {}
+    if company is not None:
+        params["company"] = company
     if limit is not None:
         params["limit"] = limit
     if cursor:
