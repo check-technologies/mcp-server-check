@@ -24,6 +24,7 @@ CHECK_API_KEY=your-key uv run mcp-server-check
 |---|---|---|---|
 | `CHECK_API_KEY` | Yes | — | Your Check API key (Bearer token) |
 | `CHECK_API_BASE_URL` | No | `https://sandbox.checkhq.com` | API base URL |
+| `CHECK_READ_ONLY` | No | — | Set to `1`, `true`, or `yes` to disable all write/mutating tools |
 
 ### Sandbox vs Production
 
@@ -33,6 +34,14 @@ To point at production, set:
 
 ```bash
 CHECK_API_BASE_URL=https://api.checkhq.com
+```
+
+### Read-Only Mode
+
+Set `CHECK_READ_ONLY=1` to run the server with only read-only tools (list, get, download, preview, etc.). All create, update, delete, and other mutating tools are excluded. This is useful when you want to allow exploration of your Check data without risk of modifications.
+
+```bash
+CHECK_READ_ONLY=1 CHECK_API_KEY=your-key uvx mcp-server-check
 ```
 
 ## Usage with Claude Desktop

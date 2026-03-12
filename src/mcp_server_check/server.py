@@ -28,14 +28,18 @@ async def lifespan(server: FastMCP) -> AsyncIterator[CheckContext]:
         yield CheckContext(client=client, base_url=base_url)
 
 
+read_only = os.environ.get("CHECK_READ_ONLY", "").lower() in ("1", "true", "yes")
+
 mcp = FastMCP("Check Payroll API", lifespan=lifespan)
-register_all(mcp)
+register_all(mcp, read_only=read_only)
 
 
 def main():
     if not os.environ.get("CHECK_API_KEY"):
         print("Error: CHECK_API_KEY environment variable is required", file=sys.stderr)
         sys.exit(1)
+    if read_only:
+        print("Running in read-only mode (CHECK_READ_ONLY is set)", file=sys.stderr)
     mcp.run(transport="stdio")
 
 

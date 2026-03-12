@@ -69,7 +69,7 @@ async def validate_form(
     return await check_api_post(ctx, f"/forms/{form_id}/validate", data=body)
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     mcp.add_tool(list_forms)
     mcp.add_tool(get_form)
     mcp.add_tool(render_form)

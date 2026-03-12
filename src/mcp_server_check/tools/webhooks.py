@@ -109,11 +109,12 @@ async def retry_webhook_events(ctx: Ctx, data: dict) -> dict:
     return await check_api_post(ctx, "/webhook_events/retry", data=data)
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     mcp.add_tool(list_webhook_configs)
     mcp.add_tool(get_webhook_config)
-    mcp.add_tool(create_webhook_config)
-    mcp.add_tool(update_webhook_config)
-    mcp.add_tool(delete_webhook_config)
-    mcp.add_tool(ping_webhook_config)
-    mcp.add_tool(retry_webhook_events)
+    if not read_only:
+        mcp.add_tool(create_webhook_config)
+        mcp.add_tool(update_webhook_config)
+        mcp.add_tool(delete_webhook_config)
+        mcp.add_tool(ping_webhook_config)
+        mcp.add_tool(retry_webhook_events)

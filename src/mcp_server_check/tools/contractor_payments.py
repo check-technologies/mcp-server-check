@@ -159,10 +159,11 @@ async def get_contractor_payment_paper_check(
     )
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     mcp.add_tool(list_contractor_payments)
     mcp.add_tool(get_contractor_payment)
-    mcp.add_tool(create_contractor_payment)
-    mcp.add_tool(update_contractor_payment)
-    mcp.add_tool(delete_contractor_payment)
     mcp.add_tool(get_contractor_payment_paper_check)
+    if not read_only:
+        mcp.add_tool(create_contractor_payment)
+        mcp.add_tool(update_contractor_payment)
+        mcp.add_tool(delete_contractor_payment)

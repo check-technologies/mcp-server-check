@@ -749,12 +749,9 @@ async def request_embedded_setup(ctx: Ctx, company_id: str) -> dict:
     return await check_api_post(ctx, f"/companies/{company_id}/request_embedded_setup")
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     mcp.add_tool(list_companies)
     mcp.add_tool(get_company)
-    mcp.add_tool(create_company)
-    mcp.add_tool(update_company)
-    mcp.add_tool(onboard_company)
     mcp.add_tool(get_company_paydays)
     mcp.add_tool(list_company_tax_deposits)
     mcp.add_tool(get_company_benefit_aggregations)
@@ -769,10 +766,14 @@ def register(mcp: FastMCP) -> None:
     mcp.add_tool(list_federal_ein_verifications)
     mcp.add_tool(get_federal_ein_verification)
     mcp.add_tool(list_signatories)
-    mcp.add_tool(create_signatory)
     mcp.add_tool(get_enrollment_profile)
-    mcp.add_tool(create_enrollment_profile)
-    mcp.add_tool(update_enrollment_profile)
-    mcp.add_tool(start_implementation)
-    mcp.add_tool(cancel_implementation)
-    mcp.add_tool(request_embedded_setup)
+    if not read_only:
+        mcp.add_tool(create_company)
+        mcp.add_tool(update_company)
+        mcp.add_tool(onboard_company)
+        mcp.add_tool(create_signatory)
+        mcp.add_tool(create_enrollment_profile)
+        mcp.add_tool(update_enrollment_profile)
+        mcp.add_tool(start_implementation)
+        mcp.add_tool(cancel_implementation)
+        mcp.add_tool(request_embedded_setup)

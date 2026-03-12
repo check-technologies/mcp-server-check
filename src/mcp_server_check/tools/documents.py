@@ -278,7 +278,7 @@ async def upload_company_provided_document_file(
     )
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     # Company Tax Documents
     mcp.add_tool(list_company_tax_documents)
     mcp.add_tool(get_company_tax_document)
@@ -302,5 +302,6 @@ def register(mcp: FastMCP) -> None:
     # Company Provided Documents
     mcp.add_tool(list_company_provided_documents)
     mcp.add_tool(get_company_provided_document)
-    mcp.add_tool(create_company_provided_document)
-    mcp.add_tool(upload_company_provided_document_file)
+    if not read_only:
+        mcp.add_tool(create_company_provided_document)
+        mcp.add_tool(upload_company_provided_document_file)

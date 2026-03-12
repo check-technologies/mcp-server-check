@@ -45,7 +45,12 @@ _MODULES = [
 ]
 
 
-def register_all(mcp: FastMCP) -> None:
-    """Register tools from every module."""
+def register_all(mcp: FastMCP, *, read_only: bool = False) -> None:
+    """Register tools from every module.
+
+    Args:
+        read_only: When True, only register read-only tools (list/get/download/preview).
+            Write, update, delete, and other mutating tools are skipped.
+    """
     for mod in _MODULES:
-        mod.register(mcp)
+        mod.register(mcp, read_only=read_only)

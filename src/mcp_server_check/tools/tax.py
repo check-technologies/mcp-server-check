@@ -551,45 +551,46 @@ async def get_tax_package(ctx: Ctx, tax_package_id: str) -> dict:
     return await check_api_get(ctx, f"/tax_packages/{tax_package_id}")
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     # Company Tax Params
     mcp.add_tool(get_company_tax_params)
-    mcp.add_tool(update_company_tax_params)
     mcp.add_tool(list_company_tax_param_settings)
     mcp.add_tool(get_company_tax_param_setting)
     mcp.add_tool(list_company_jurisdictions)
     # Employee Tax Params
     mcp.add_tool(list_employee_tax_params)
     mcp.add_tool(get_employee_tax_params)
-    mcp.add_tool(update_employee_tax_params)
     mcp.add_tool(list_employee_tax_param_settings)
     mcp.add_tool(get_employee_tax_param_setting)
     mcp.add_tool(list_employee_jurisdictions)
     mcp.add_tool(bulk_get_employee_tax_param_settings)
-    mcp.add_tool(bulk_update_employee_tax_param_settings)
     # Company Tax Elections
     mcp.add_tool(list_company_tax_elections)
-    mcp.add_tool(create_company_tax_elections)
-    mcp.add_tool(update_company_tax_elections)
     # Employee Tax Elections
     mcp.add_tool(list_employee_tax_elections)
-    mcp.add_tool(update_employee_tax_elections)
     # Tax Filings
     mcp.add_tool(list_tax_filings)
     mcp.add_tool(get_tax_filing)
-    mcp.add_tool(request_tax_filing_refile)
     # Tax Filing Events
     mcp.add_tool(get_tax_filing_event)
     # Exempt Status
     mcp.add_tool(get_exempt_status)
-    mcp.add_tool(update_exempt_status)
     # Exemptible Taxes
     mcp.add_tool(list_exemptible_taxes)
-    mcp.add_tool(update_exemptible_tax)
-    mcp.add_tool(bulk_update_exemptible_taxes)
     # Employee Tax Statements
     mcp.add_tool(list_employee_tax_statements)
     mcp.add_tool(get_employee_tax_statement)
     # Tax Packages
-    mcp.add_tool(request_tax_package)
     mcp.add_tool(get_tax_package)
+    if not read_only:
+        mcp.add_tool(update_company_tax_params)
+        mcp.add_tool(update_employee_tax_params)
+        mcp.add_tool(bulk_update_employee_tax_param_settings)
+        mcp.add_tool(create_company_tax_elections)
+        mcp.add_tool(update_company_tax_elections)
+        mcp.add_tool(update_employee_tax_elections)
+        mcp.add_tool(request_tax_filing_refile)
+        mcp.add_tool(update_exempt_status)
+        mcp.add_tool(update_exemptible_tax)
+        mcp.add_tool(bulk_update_exemptible_taxes)
+        mcp.add_tool(request_tax_package)

@@ -511,36 +511,28 @@ async def get_applied_for_ids_report(ctx: Ctx) -> dict:
     return await check_api_get(ctx, "/reports/applied_for_ids")
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     # Notifications
     mcp.add_tool(list_notifications)
     mcp.add_tool(get_notification)
     # Communications
     mcp.add_tool(list_communications)
     mcp.add_tool(get_communication)
-    mcp.add_tool(create_communication)
     # Usage
     mcp.add_tool(list_usage_summaries)
     mcp.add_tool(list_usage_records)
     # Integrations
     mcp.add_tool(list_integration_partners)
     mcp.add_tool(get_integration_partner)
-    mcp.add_tool(authorize_integration_partner)
     mcp.add_tool(list_integration_permissions)
     mcp.add_tool(get_integration_permission)
     mcp.add_tool(list_integration_accesses)
     # Accounting Integrations
     mcp.add_tool(list_accounting_accounts)
-    mcp.add_tool(refresh_accounting_accounts)
     mcp.add_tool(get_accounting_mappings)
-    mcp.add_tool(update_accounting_mappings)
-    mcp.add_tool(toggle_accounting_mappings)
-    mcp.add_tool(sync_accounting)
     mcp.add_tool(list_accounting_sync_attempts)
     # Company Groups
     mcp.add_tool(list_company_groups)
-    mcp.add_tool(create_company_group)
-    mcp.add_tool(update_company_group)
     # Addresses
     mcp.add_tool(validate_address)
     # Setups
@@ -551,3 +543,12 @@ def register(mcp: FastMCP) -> None:
     mcp.add_tool(get_requirement)
     # Reports
     mcp.add_tool(get_applied_for_ids_report)
+    if not read_only:
+        mcp.add_tool(create_communication)
+        mcp.add_tool(authorize_integration_partner)
+        mcp.add_tool(refresh_accounting_accounts)
+        mcp.add_tool(update_accounting_mappings)
+        mcp.add_tool(toggle_accounting_mappings)
+        mcp.add_tool(sync_accounting)
+        mcp.add_tool(create_company_group)
+        mcp.add_tool(update_company_group)

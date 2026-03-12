@@ -94,10 +94,11 @@ async def cancel_payment(ctx: Ctx, payment_id: str) -> dict:
     return await check_api_post(ctx, f"/payments/{payment_id}/cancel")
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     mcp.add_tool(list_payments)
     mcp.add_tool(get_payment)
     mcp.add_tool(list_payment_attempts)
-    mcp.add_tool(retry_payment)
-    mcp.add_tool(refund_payment)
-    mcp.add_tool(cancel_payment)
+    if not read_only:
+        mcp.add_tool(retry_payment)
+        mcp.add_tool(refund_payment)
+        mcp.add_tool(cancel_payment)

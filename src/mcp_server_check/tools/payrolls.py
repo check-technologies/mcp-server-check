@@ -302,19 +302,20 @@ async def simulate_complete_disbursements(ctx: Ctx, payroll_id: str) -> dict:
     )
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     mcp.add_tool(list_payrolls)
     mcp.add_tool(get_payroll)
-    mcp.add_tool(create_payroll)
-    mcp.add_tool(update_payroll)
-    mcp.add_tool(delete_payroll)
     mcp.add_tool(preview_payroll)
-    mcp.add_tool(approve_payroll)
-    mcp.add_tool(reopen_payroll)
     mcp.add_tool(get_payroll_paper_checks)
     mcp.add_tool(get_payroll_cash_requirement_report)
     mcp.add_tool(get_payroll_paper_checks_report)
-    mcp.add_tool(simulate_start_processing)
-    mcp.add_tool(simulate_complete_funding)
-    mcp.add_tool(simulate_fail_funding)
-    mcp.add_tool(simulate_complete_disbursements)
+    if not read_only:
+        mcp.add_tool(create_payroll)
+        mcp.add_tool(update_payroll)
+        mcp.add_tool(delete_payroll)
+        mcp.add_tool(approve_payroll)
+        mcp.add_tool(reopen_payroll)
+        mcp.add_tool(simulate_start_processing)
+        mcp.add_tool(simulate_complete_funding)
+        mcp.add_tool(simulate_fail_funding)
+        mcp.add_tool(simulate_complete_disbursements)

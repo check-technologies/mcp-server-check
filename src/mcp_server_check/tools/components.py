@@ -109,6 +109,8 @@ def _build_tools() -> list[Callable]:
 _ALL_TOOLS = _build_tools()
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: FastMCP, *, read_only: bool = False) -> None:
+    if read_only:
+        return
     for tool in _ALL_TOOLS:
         mcp.add_tool(tool)

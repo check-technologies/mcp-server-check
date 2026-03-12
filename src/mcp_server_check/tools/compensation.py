@@ -895,43 +895,51 @@ async def create_net_pay_split(
     return await check_api_post(ctx, "/net_pay_splits", data=body)
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     # Pay Schedules
     mcp.add_tool(list_pay_schedules)
     mcp.add_tool(get_pay_schedule)
-    mcp.add_tool(create_pay_schedule)
-    mcp.add_tool(update_pay_schedule)
-    mcp.add_tool(delete_pay_schedule)
     mcp.add_tool(get_pay_schedule_paydays)
     # Benefits
     mcp.add_tool(list_benefits)
     mcp.add_tool(get_benefit)
-    mcp.add_tool(create_benefit)
-    mcp.add_tool(update_benefit)
-    mcp.add_tool(delete_benefit)
     # Post-Tax Deductions
     mcp.add_tool(list_post_tax_deductions)
     mcp.add_tool(get_post_tax_deduction)
-    mcp.add_tool(create_post_tax_deduction)
-    mcp.add_tool(update_post_tax_deduction)
-    mcp.add_tool(delete_post_tax_deduction)
     # Company Benefits
     mcp.add_tool(list_company_benefits)
     mcp.add_tool(get_company_benefit)
-    mcp.add_tool(create_company_benefit)
-    mcp.add_tool(update_company_benefit)
-    mcp.add_tool(delete_company_benefit)
     # Earning Rates
     mcp.add_tool(list_earning_rates)
     mcp.add_tool(get_earning_rate)
-    mcp.add_tool(create_earning_rate)
-    mcp.add_tool(update_earning_rate)
     # Earning Codes
     mcp.add_tool(list_earning_codes)
     mcp.add_tool(get_earning_code)
-    mcp.add_tool(create_earning_code)
-    mcp.add_tool(update_earning_code)
     # Net Pay Splits
     mcp.add_tool(list_net_pay_splits)
     mcp.add_tool(get_net_pay_split)
-    mcp.add_tool(create_net_pay_split)
+    if not read_only:
+        # Pay Schedules
+        mcp.add_tool(create_pay_schedule)
+        mcp.add_tool(update_pay_schedule)
+        mcp.add_tool(delete_pay_schedule)
+        # Benefits
+        mcp.add_tool(create_benefit)
+        mcp.add_tool(update_benefit)
+        mcp.add_tool(delete_benefit)
+        # Post-Tax Deductions
+        mcp.add_tool(create_post_tax_deduction)
+        mcp.add_tool(update_post_tax_deduction)
+        mcp.add_tool(delete_post_tax_deduction)
+        # Company Benefits
+        mcp.add_tool(create_company_benefit)
+        mcp.add_tool(update_company_benefit)
+        mcp.add_tool(delete_company_benefit)
+        # Earning Rates
+        mcp.add_tool(create_earning_rate)
+        mcp.add_tool(update_earning_rate)
+        # Earning Codes
+        mcp.add_tool(create_earning_code)
+        mcp.add_tool(update_earning_code)
+        # Net Pay Splits
+        mcp.add_tool(create_net_pay_split)

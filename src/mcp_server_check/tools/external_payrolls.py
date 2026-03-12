@@ -162,12 +162,13 @@ async def preview_external_payroll(ctx: Ctx, external_payroll_id: str) -> dict:
     return await check_api_get(ctx, f"/external_payrolls/{external_payroll_id}/preview")
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     mcp.add_tool(list_external_payrolls)
     mcp.add_tool(get_external_payroll)
-    mcp.add_tool(create_external_payroll)
-    mcp.add_tool(update_external_payroll)
-    mcp.add_tool(delete_external_payroll)
-    mcp.add_tool(approve_external_payroll)
-    mcp.add_tool(reopen_external_payroll)
     mcp.add_tool(preview_external_payroll)
+    if not read_only:
+        mcp.add_tool(create_external_payroll)
+        mcp.add_tool(update_external_payroll)
+        mcp.add_tool(delete_external_payroll)
+        mcp.add_tool(approve_external_payroll)
+        mcp.add_tool(reopen_external_payroll)

@@ -106,8 +106,9 @@ async def update_workplace(
     return await check_api_patch(ctx, f"/workplaces/{workplace_id}", data=body)
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     mcp.add_tool(list_workplaces)
     mcp.add_tool(get_workplace)
-    mcp.add_tool(create_workplace)
-    mcp.add_tool(update_workplace)
+    if not read_only:
+        mcp.add_tool(create_workplace)
+        mcp.add_tool(update_workplace)

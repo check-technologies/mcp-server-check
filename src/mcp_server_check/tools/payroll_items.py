@@ -184,12 +184,13 @@ async def get_payroll_item_paper_check(ctx: Ctx, payroll_item_id: str) -> dict:
     return await check_api_get(ctx, f"/payroll_items/{payroll_item_id}/paper_check")
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     mcp.add_tool(list_payroll_items)
     mcp.add_tool(get_payroll_item)
-    mcp.add_tool(create_payroll_item)
-    mcp.add_tool(update_payroll_item)
-    mcp.add_tool(bulk_update_payroll_items)
-    mcp.add_tool(delete_payroll_item)
-    mcp.add_tool(bulk_delete_payroll_items)
     mcp.add_tool(get_payroll_item_paper_check)
+    if not read_only:
+        mcp.add_tool(create_payroll_item)
+        mcp.add_tool(update_payroll_item)
+        mcp.add_tool(bulk_update_payroll_items)
+        mcp.add_tool(delete_payroll_item)
+        mcp.add_tool(bulk_delete_payroll_items)

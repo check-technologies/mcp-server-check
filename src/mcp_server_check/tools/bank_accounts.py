@@ -126,10 +126,11 @@ async def reveal_bank_account_number(ctx: Ctx, bank_account_id: str) -> dict:
     return await check_api_get(ctx, f"/bank_accounts/{bank_account_id}/reveal")
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     mcp.add_tool(list_bank_accounts)
     mcp.add_tool(get_bank_account)
-    mcp.add_tool(create_bank_account)
-    mcp.add_tool(update_bank_account)
-    mcp.add_tool(delete_bank_account)
     mcp.add_tool(reveal_bank_account_number)
+    if not read_only:
+        mcp.add_tool(create_bank_account)
+        mcp.add_tool(update_bank_account)
+        mcp.add_tool(delete_bank_account)

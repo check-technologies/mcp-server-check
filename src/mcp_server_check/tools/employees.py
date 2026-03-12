@@ -393,21 +393,22 @@ async def authorize_employee_partner(
     )
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     mcp.add_tool(list_employees)
     mcp.add_tool(get_employee)
-    mcp.add_tool(create_employee)
-    mcp.add_tool(update_employee)
-    mcp.add_tool(onboard_employee)
     mcp.add_tool(list_employee_paystubs)
     mcp.add_tool(get_employee_paystub)
     mcp.add_tool(list_employee_forms)
     mcp.add_tool(get_employee_form)
-    mcp.add_tool(submit_employee_form)
-    mcp.add_tool(sign_and_submit_employee_form)
     mcp.add_tool(get_employee_company_defined_attributes)
-    mcp.add_tool(update_employee_company_defined_attributes)
     mcp.add_tool(get_employee_reciprocity_elections)
-    mcp.add_tool(update_employee_reciprocity_elections)
     mcp.add_tool(reveal_employee_ssn)
-    mcp.add_tool(authorize_employee_partner)
+    if not read_only:
+        mcp.add_tool(create_employee)
+        mcp.add_tool(update_employee)
+        mcp.add_tool(onboard_employee)
+        mcp.add_tool(submit_employee_form)
+        mcp.add_tool(sign_and_submit_employee_form)
+        mcp.add_tool(update_employee_company_defined_attributes)
+        mcp.add_tool(update_employee_reciprocity_elections)
+        mcp.add_tool(authorize_employee_partner)
