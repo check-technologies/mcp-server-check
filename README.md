@@ -1,5 +1,7 @@
 # mcp-server-check
 
+> **⚠️ Early Access Beta** — This MCP server is currently in beta and available to select partners. APIs, tools, and behavior may change without notice. Please share feedback with your Check point of contact.
+
 An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 263 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
@@ -12,7 +14,7 @@ CHECK_API_KEY=your-key uvx mcp-server-check
 Or install from source:
 
 ```bash
-git clone https://github.com/ianzapolsky/mcp-server-check.git
+git clone https://github.com/check-technologies/mcp-server-check.git
 cd mcp-server-check
 uv sync
 CHECK_API_KEY=your-key uv run mcp-server-check
@@ -437,7 +439,7 @@ Generate embeddable UI component URLs via `POST /{entity_type}/{entity_id}/compo
 ## Development
 
 ```bash
-git clone https://github.com/ianzapolsky/mcp-server-check.git
+git clone https://github.com/check-technologies/mcp-server-check.git
 cd mcp-server-check
 uv sync --group dev
 uv run pytest  # 108 tests
