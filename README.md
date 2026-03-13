@@ -26,7 +26,11 @@ CHECK_API_KEY=your-key uv run mcp-server-check
 |---|---|---|---|
 | `CHECK_API_KEY` | Yes | — | Your Check API key (Bearer token) |
 | `CHECK_API_BASE_URL` | No | `https://sandbox.checkhq.com` | API base URL |
+| `CHECK_TOOLSETS` | No | — | Comma-separated list of toolsets to enable (e.g. `companies,employees`) |
+| `CHECK_TOOLS` | No | — | Comma-separated allowlist of individual tool names |
+| `CHECK_EXCLUDE_TOOLS` | No | — | Comma-separated list of tool names to hide |
 | `CHECK_READ_ONLY` | No | — | Set to `1`, `true`, or `yes` to disable all write/mutating tools |
+| `CHECK_TRANSPORT` | No | `stdio` | Transport protocol: `stdio`, `sse`, or `streamable-http` |
 
 ### Sandbox vs Production
 
@@ -38,13 +42,64 @@ To point at production, set:
 CHECK_API_BASE_URL=https://api.checkhq.com
 ```
 
-### Read-Only Mode
+### Server Configuration
+
+The server supports fine-grained tool filtering, configurable via environment variables (for stdio) or HTTP headers (for SSE / streamable-http). This follows the [GitHub MCP Server configuration pattern](https://github.com/github/github-mcp-server).
+
+| Feature | Environment Variable | HTTP Header |
+|---|---|---|
+| Toolsets | `CHECK_TOOLSETS` | `X-MCP-Toolsets` |
+| Individual tools | `CHECK_TOOLS` | `X-MCP-Tools` |
+| Exclude tools | `CHECK_EXCLUDE_TOOLS` | `X-MCP-Exclude-Tools` |
+| Read-only | `CHECK_READ_ONLY` | `X-MCP-Readonly` |
+
+**Filtering precedence:** `exclude_tools` > `read_only` > `tools` > `toolsets`. Exclude always wins; if `tools` is set it acts as an allowlist independent of toolsets.
+
+#### Toolsets
+
+There are 17 toolsets, one per API module: `bank_accounts`, `companies`, `compensation`, `components`, `contractor_payments`, `contractors`, `documents`, `employees`, `external_payrolls`, `forms`, `payments`, `payroll_items`, `payrolls`, `platform`, `tax`, `webhooks`, `workplaces`.
+
+Enable only specific toolsets:
+
+```bash
+CHECK_TOOLSETS=companies,employees CHECK_API_KEY=your-key uvx mcp-server-check
+```
+
+#### Individual Tools
+
+Allow only specific tools by name:
+
+```bash
+CHECK_TOOLS=list_companies,get_company,list_employees CHECK_API_KEY=your-key uvx mcp-server-check
+```
+
+#### Excluding Tools
+
+Hide specific tools while keeping everything else:
+
+```bash
+CHECK_EXCLUDE_TOOLS=create_company,delete_company CHECK_API_KEY=your-key uvx mcp-server-check
+```
+
+#### Read-Only Mode
 
 Set `CHECK_READ_ONLY=1` to run the server with only read-only tools (list, get, download, preview, etc.). All create, update, delete, and other mutating tools are excluded. This is useful when you want to allow exploration of your Check data without risk of modifications.
 
 ```bash
 CHECK_READ_ONLY=1 CHECK_API_KEY=your-key uvx mcp-server-check
 ```
+
+#### HTTP Headers (Remote Transport)
+
+When running with `CHECK_TRANSPORT=sse` or `CHECK_TRANSPORT=streamable-http`, clients can pass configuration via HTTP headers:
+
+```
+X-MCP-Toolsets: companies,employees
+X-MCP-Readonly: true
+X-MCP-Exclude-Tools: create_company,delete_company
+```
+
+Header-based configuration takes precedence over environment variables when headers provide any filter settings.
 
 ## Usage with Claude Desktop
 
@@ -442,5 +497,5 @@ Generate embeddable UI component URLs via `POST /{entity_type}/{entity_id}/compo
 git clone https://github.com/check-technologies/mcp-server-check.git
 cd mcp-server-check
 uv sync --group dev
-uv run pytest  # 108 tests
+uv run pytest  # 173 tests
 ```

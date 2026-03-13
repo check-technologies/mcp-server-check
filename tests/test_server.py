@@ -4,17 +4,29 @@ from __future__ import annotations
 
 import httpx
 import pytest
-from mcp_server_check.helpers import (
-    _extract_cursor,
-    _format_list_response,
-)
-from mcp_server_check.server import mcp
+from mcp_server_check.server import CheckMCP, mcp
+from mcp_server_check.tool_filter import ToolFilter, is_write_tool
+from mcp_server_check.tools import register_all
 from mcp_server_check.tools.companies import get_company, list_companies
 from mcp_server_check.tools.employees import get_employee, list_employees
 from mcp_server_check.tools.payrolls import get_payroll, list_payrolls
 from mcp_server_check.tools.workplaces import get_workplace, list_workplaces
+from mcp_server_check.helpers import (
+    _extract_cursor,
+    _format_list_response,
+)
 
 BASE_URL = "https://sandbox.checkhq.com"
+
+
+# --- Helper to create a CheckMCP with a specific filter ---
+
+def _make_server(tool_filter: ToolFilter) -> CheckMCP:
+    """Create a CheckMCP instance with the given static filter."""
+    server = CheckMCP("Test")
+    register_all(server, registry=server._registry)
+    server._static_filter = tool_filter
+    return server
 
 
 # --- Unit tests for helpers ---
@@ -235,12 +247,14 @@ async def test_api_error_returns_error_dict(mock_api, ctx):
     assert result["status_code"] == 404
 
 
+# --- Tool registration and filtering tests ---
+
+
 @pytest.mark.anyio
 async def test_tools_registered():
-    """Verify expected tools are registered on the MCP server."""
+    """All tools are registered (263+), filtering happens at list time."""
     tools = await mcp.list_tools()
     tool_names = {t.name for t in tools}
-    # Check that core tools from the original server are present
     expected_core = {
         "list_companies",
         "get_company",
@@ -254,43 +268,36 @@ async def test_tools_registered():
     assert expected_core.issubset(tool_names), (
         f"Missing core tools: {expected_core - tool_names}"
     )
-    # Verify we have a large number of tools registered
     assert len(tools) > 150, f"Expected 150+ tools, got {len(tools)}"
+
+
+@pytest.mark.anyio
+async def test_registry_populated():
+    """The registry maps every tool to its toolset."""
+    assert len(mcp._registry) > 150
+    assert mcp._registry["list_companies"] == "companies"
+    assert mcp._registry["list_employees"] == "employees"
+    assert mcp._registry["list_bank_accounts"] == "bank_accounts"
 
 
 @pytest.mark.anyio
 async def test_read_only_mode():
     """Verify read-only mode excludes all write/mutating tools."""
-    from mcp.server.fastmcp import FastMCP
-    from mcp_server_check.tools import register_all
-
-    read_only_mcp = FastMCP("Test Read-Only")
-    register_all(read_only_mcp, read_only=True)
-    ro_tools = await read_only_mcp.list_tools()
+    server = _make_server(ToolFilter(read_only=True))
+    ro_tools = await server.list_tools()
     ro_names = {t.name for t in ro_tools}
 
-    full_mcp = FastMCP("Test Full")
-    register_all(full_mcp, read_only=False)
-    full_tools = await full_mcp.list_tools()
+    full_server = _make_server(ToolFilter())
+    full_tools = await full_server.list_tools()
     full_names = {t.name for t in full_tools}
 
     # Read-only should be a strict subset of full
     assert ro_names < full_names, "Read-only tools should be a strict subset of full tools"
 
-    # Read-only should have no create/update/delete/mutating tools
-    write_prefixes = ("create_", "update_", "delete_", "bulk_update_", "bulk_delete_")
-    write_keywords = (
-        "approve_", "reopen_", "onboard_", "submit_", "sign_and_submit_",
-        "authorize_", "simulate_", "retry_", "refund_", "cancel_",
-        "start_implementation", "cancel_implementation", "request_embedded_setup",
-        "ping_", "refresh_", "toggle_", "sync_", "upload_", "request_tax_",
-    )
+    # Read-only should have no write tools
     for name in ro_names:
-        assert not any(name.startswith(p) for p in write_prefixes), (
+        assert not is_write_tool(name), (
             f"Write tool '{name}' should not be in read-only mode"
-        )
-        assert not any(name.startswith(k) for k in write_keywords), (
-            f"Mutating tool '{name}' should not be in read-only mode"
         )
 
     # Core read tools should still be present
@@ -307,3 +314,80 @@ async def test_read_only_mode():
     assert expected_read.issubset(ro_names), (
         f"Missing read tools in read-only mode: {expected_read - ro_names}"
     )
+
+
+@pytest.mark.anyio
+async def test_toolset_filtering():
+    """Only tools from selected toolsets are listed."""
+    server = _make_server(ToolFilter(toolsets=frozenset({"companies", "employees"})))
+    tools = await server.list_tools()
+    tool_names = {t.name for t in tools}
+
+    assert "list_companies" in tool_names
+    assert "get_company" in tool_names
+    assert "list_employees" in tool_names
+    assert "get_employee" in tool_names
+
+    # Tools from other toolsets should be excluded
+    assert "list_payrolls" not in tool_names
+    assert "list_bank_accounts" not in tool_names
+    assert "list_webhook_configs" not in tool_names
+
+
+@pytest.mark.anyio
+async def test_individual_tool_filtering():
+    """Only individually named tools are listed when tools filter is set."""
+    server = _make_server(
+        ToolFilter(tools=frozenset({"list_companies", "get_company"}))
+    )
+    tools = await server.list_tools()
+    tool_names = {t.name for t in tools}
+
+    assert tool_names == {"list_companies", "get_company"}
+
+
+@pytest.mark.anyio
+async def test_exclude_tools():
+    """Excluded tools are hidden regardless of other settings."""
+    server = _make_server(
+        ToolFilter(exclude_tools=frozenset({"create_company", "delete_payroll"}))
+    )
+    tools = await server.list_tools()
+    tool_names = {t.name for t in tools}
+
+    assert "create_company" not in tool_names
+    assert "delete_payroll" not in tool_names
+    assert "list_companies" in tool_names
+    assert "get_payroll" in tool_names
+
+
+@pytest.mark.anyio
+async def test_exclude_overrides_tools_allowlist():
+    """Exclude takes precedence over the tools allowlist."""
+    server = _make_server(
+        ToolFilter(
+            tools=frozenset({"list_companies", "create_company"}),
+            exclude_tools=frozenset({"create_company"}),
+        )
+    )
+    tools = await server.list_tools()
+    tool_names = {t.name for t in tools}
+
+    assert tool_names == {"list_companies"}
+
+
+@pytest.mark.anyio
+async def test_readonly_with_toolsets():
+    """Read-only combined with toolsets filters both."""
+    server = _make_server(
+        ToolFilter(toolsets=frozenset({"companies"}), read_only=True)
+    )
+    tools = await server.list_tools()
+    tool_names = {t.name for t in tools}
+
+    assert "list_companies" in tool_names
+    assert "get_company" in tool_names
+    assert "create_company" not in tool_names
+    assert "update_company" not in tool_names
+    # Tools from other toolsets should also be excluded
+    assert "list_employees" not in tool_names
