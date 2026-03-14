@@ -1,0 +1,26 @@
+{
+  "name": "mcp-server-check",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "stdio": "npx tsx src/stdio.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "agents": "^0.0.98",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250313.0",
+    "@types/node": "^25.5.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.7.3",
+    "vitest": "^3.1.1",
+    "wrangler": "^4.14.4"
+  }
+}

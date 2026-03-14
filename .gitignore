@@ -6,3 +6,7 @@ dist/
 build/
 .pytest_cache/
 .ruff_cache/
+
+# TypeScript / Node
+node_modules/
+ts/dist/

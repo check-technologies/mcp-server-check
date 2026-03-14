@@ -491,6 +491,21 @@ Generate embeddable UI component URLs via `POST /{entity_type}/{entity_id}/compo
 **Contractor components (1):**
 `create_contractor_tax_documents_component`
 
+## TypeScript / Cloudflare Workers
+
+A TypeScript port of this server lives in the `ts/` directory, targeting Cloudflare Workers. It uses the `@modelcontextprotocol/sdk` McpServer with native `fetch` and registers the same 263 tools with identical names, parameters, and behavior.
+
+```bash
+cd ts
+npm install
+npm test          # 75 tests
+npm run typecheck # zero errors
+npm run dev       # local Cloudflare Workers dev server
+npx tsx src/stdio.ts  # stdio mode for Claude Desktop
+```
+
+See `ts/` for full details.
+
 ## Development
 
 ```bash
