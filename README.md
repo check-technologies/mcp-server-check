@@ -26,6 +26,7 @@ CHECK_API_KEY=your-key uv run mcp-server-check
 |---|---|---|---|
 | `CHECK_API_KEY` | Yes | — | Your Check API key (Bearer token) |
 | `CHECK_API_BASE_URL` | No | `https://sandbox.checkhq.com` | API base URL |
+| `CHECK_TOOL_MODE` | No | `dynamic` | Tool mode: `dynamic` (3 meta-tools) or `all` (all tools individually) |
 | `CHECK_TOOLSETS` | No | — | Comma-separated list of toolsets to enable (e.g. `companies,employees`) |
 | `CHECK_TOOLS` | No | — | Comma-separated allowlist of individual tool names |
 | `CHECK_EXCLUDE_TOOLS` | No | — | Comma-separated list of tool names to hide |
@@ -100,6 +101,22 @@ X-MCP-Exclude-Tools: create_company,delete_company
 ```
 
 Header-based configuration takes precedence over environment variables when headers provide any filter settings.
+
+### Dynamic Tool Mode (Default)
+
+By default, the server runs in dynamic mode (`CHECK_TOOL_MODE=dynamic`), exposing 3 meta-tools instead of all individual tools. This avoids sending every tool schema to the LLM upfront, saving significant context window space.
+
+- **`search_tools(query, toolset?, limit?)`** — Search for tools by keyword with synonym matching. Returns matching tools with their full parameter schemas.
+- **`list_toolsets()`** — List all available toolsets with descriptions and example tools.
+- **`run_tool(tool_name, arguments?)`** — Execute a tool by name with a dict of arguments.
+
+The LLM workflow becomes: browse toolsets or search for relevant tools → review their parameter schemas → call `run_tool` with the correct arguments. All filtering (`CHECK_TOOLSETS`, `CHECK_READ_ONLY`, etc.) is applied at both the search and execution layers.
+
+Set `CHECK_TOOL_MODE=all` to expose all tools individually (legacy mode):
+
+```bash
+CHECK_TOOL_MODE=all CHECK_API_KEY=your-key uvx mcp-server-check
+```
 
 ## Usage with Claude Desktop
 
@@ -497,5 +514,5 @@ Generate embeddable UI component URLs via `POST /{entity_type}/{entity_id}/compo
 git clone https://github.com/check-technologies/mcp-server-check.git
 cd mcp-server-check
 uv sync --group dev
-uv run pytest  # 173 tests
+uv run pytest  # 311 tests
 ```

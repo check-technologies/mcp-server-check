@@ -269,119 +269,57 @@ async def get_company_benefit_aggregations(
 
 # --- Reports ---
 
+COMPANY_REPORT_TYPES = [
+    "payroll_journal",
+    "payroll_summary",
+    "tax_liabilities",
+    "contractor_payments",
+    "child_support_payments",
+    "w4_exemption_status",
+    "applied_for_ids_detailed",
+    "w2_preview",
+]
 
-async def get_payroll_journal_report(
-    ctx: Ctx, company_id: str, start_date: str, end_date: str
+
+async def get_company_report(
+    ctx: Ctx,
+    company_id: str,
+    report_type: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    year: str | None = None,
 ) -> dict:
-    """Get a payroll journal report for a company.
+    """Get a report for a company.
 
     Args:
         company_id: The Check company ID.
-        start_date: Report start date (YYYY-MM-DD).
-        end_date: Report end date (YYYY-MM-DD).
+        report_type: One of: "payroll_journal", "payroll_summary", "tax_liabilities",
+            "contractor_payments", "child_support_payments", "w4_exemption_status",
+            "applied_for_ids_detailed", "w2_preview".
+        start_date: Report start date (YYYY-MM-DD). Required for payroll_journal,
+            payroll_summary, tax_liabilities, contractor_payments, child_support_payments.
+        end_date: Report end date (YYYY-MM-DD). Required for the same reports as start_date.
+        year: Tax year (e.g. "2025"). Required for w2_preview.
     """
-    params = {"start_date": start_date, "end_date": end_date}
+    if report_type not in COMPANY_REPORT_TYPES:
+        return {
+            "error": True,
+            "detail": (
+                f"Unknown report_type: '{report_type}'. "
+                f"Valid types: {', '.join(COMPANY_REPORT_TYPES)}."
+            ),
+        }
+    params: dict = {}
+    if start_date is not None:
+        params["start_date"] = start_date
+    if end_date is not None:
+        params["end_date"] = end_date
+    if year is not None:
+        params["year"] = year
     return await check_api_get(
-        ctx, f"/companies/{company_id}/reports/payroll_journal", params=params
-    )
-
-
-async def get_payroll_summary_report(
-    ctx: Ctx, company_id: str, start_date: str, end_date: str
-) -> dict:
-    """Get a payroll summary report for a company.
-
-    Args:
-        company_id: The Check company ID.
-        start_date: Report start date (YYYY-MM-DD).
-        end_date: Report end date (YYYY-MM-DD).
-    """
-    params = {"start_date": start_date, "end_date": end_date}
-    return await check_api_get(
-        ctx, f"/companies/{company_id}/reports/payroll_summary", params=params
-    )
-
-
-async def get_tax_liabilities_report(
-    ctx: Ctx, company_id: str, start_date: str, end_date: str
-) -> dict:
-    """Get a tax liabilities report for a company.
-
-    Args:
-        company_id: The Check company ID.
-        start_date: Report start date (YYYY-MM-DD).
-        end_date: Report end date (YYYY-MM-DD).
-    """
-    params = {"start_date": start_date, "end_date": end_date}
-    return await check_api_get(
-        ctx, f"/companies/{company_id}/reports/tax_liabilities", params=params
-    )
-
-
-async def get_contractor_payments_report(
-    ctx: Ctx, company_id: str, start_date: str, end_date: str
-) -> dict:
-    """Get a contractor payments report for a company.
-
-    Args:
-        company_id: The Check company ID.
-        start_date: Report start date (YYYY-MM-DD).
-        end_date: Report end date (YYYY-MM-DD).
-    """
-    params = {"start_date": start_date, "end_date": end_date}
-    return await check_api_get(
-        ctx, f"/companies/{company_id}/reports/contractor_payments", params=params
-    )
-
-
-async def get_child_support_payments_report(
-    ctx: Ctx, company_id: str, start_date: str, end_date: str
-) -> dict:
-    """Get a child support payments report for a company.
-
-    Args:
-        company_id: The Check company ID.
-        start_date: Report start date (YYYY-MM-DD).
-        end_date: Report end date (YYYY-MM-DD).
-    """
-    params = {"start_date": start_date, "end_date": end_date}
-    return await check_api_get(
-        ctx, f"/companies/{company_id}/reports/child_support_payments", params=params
-    )
-
-
-async def get_w4_exemption_status_report(ctx: Ctx, company_id: str) -> dict:
-    """Get a W-4 exemption status report for a company.
-
-    Args:
-        company_id: The Check company ID.
-    """
-    return await check_api_get(
-        ctx, f"/companies/{company_id}/reports/w4_exemption_status"
-    )
-
-
-async def get_applied_for_ids_detailed_report(ctx: Ctx, company_id: str) -> dict:
-    """Get a detailed applied-for IDs report for a company.
-
-    Args:
-        company_id: The Check company ID.
-    """
-    return await check_api_get(
-        ctx, f"/companies/{company_id}/reports/applied_for_ids_detailed"
-    )
-
-
-async def get_w2_preview_report(ctx: Ctx, company_id: str, year: str) -> dict:
-    """Get a W-2 preview report for a company.
-
-    Args:
-        company_id: The Check company ID.
-        year: Tax year (e.g. "2025").
-    """
-    params = {"year": year}
-    return await check_api_get(
-        ctx, f"/companies/{company_id}/reports/w2_preview", params=params
+        ctx,
+        f"/companies/{company_id}/reports/{report_type}",
+        params=params or None,
     )
 
 
@@ -755,14 +693,7 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     mcp.add_tool(get_company_paydays)
     mcp.add_tool(list_company_tax_deposits)
     mcp.add_tool(get_company_benefit_aggregations)
-    mcp.add_tool(get_payroll_journal_report)
-    mcp.add_tool(get_payroll_summary_report)
-    mcp.add_tool(get_tax_liabilities_report)
-    mcp.add_tool(get_contractor_payments_report)
-    mcp.add_tool(get_child_support_payments_report)
-    mcp.add_tool(get_w4_exemption_status_report)
-    mcp.add_tool(get_applied_for_ids_detailed_report)
-    mcp.add_tool(get_w2_preview_report)
+    mcp.add_tool(get_company_report)
     mcp.add_tool(list_federal_ein_verifications)
     mcp.add_tool(get_federal_ein_verification)
     mcp.add_tool(list_signatories)

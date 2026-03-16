@@ -30,6 +30,7 @@ TOOLSETS: frozenset[str] = frozenset(
         "platform",
         "tax",
         "webhooks",
+        "workflows",
         "workplaces",
     }
 )
@@ -104,7 +105,9 @@ class ToolFilter:
         if self.toolsets is not None:
             invalid = self.toolsets - TOOLSETS
             if invalid:
-                logger.warning("Ignoring unknown toolset(s): %s", ", ".join(sorted(invalid)))
+                logger.warning(
+                    "Ignoring unknown toolset(s): %s", ", ".join(sorted(invalid))
+                )
                 object.__setattr__(self, "toolsets", self.toolsets & TOOLSETS)
 
     def is_tool_allowed(self, tool_name: str, toolset_name: str) -> bool:
@@ -133,7 +136,8 @@ class ToolFilter:
         return cls(
             toolsets=_parse_comma_set(os.environ.get("CHECK_TOOLSETS")),
             tools=_parse_comma_set(os.environ.get("CHECK_TOOLS")),
-            exclude_tools=_parse_comma_set(os.environ.get("CHECK_EXCLUDE_TOOLS")) or frozenset(),
+            exclude_tools=_parse_comma_set(os.environ.get("CHECK_EXCLUDE_TOOLS"))
+            or frozenset(),
             read_only=_parse_bool(os.environ.get("CHECK_READ_ONLY")),
         )
 

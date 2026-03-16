@@ -1,19 +1,17 @@
 """Embedded UI component tools for the Check API.
 
-Uses factory functions to generate tools for the uniform component pattern:
-POST /{entity_type}/{entity_id}/components/{component_type}
+Replaces 35 individual component tools with 2 generic tools:
+- list_component_types: discover available component types per entity
+- create_component: create any component with entity_type + component_type
 """
 
 from __future__ import annotations
-
-from typing import Callable
 
 from mcp.server.fastmcp import FastMCP
 
 from mcp_server_check.helpers import Ctx, check_api_post
 
-# Component definitions: (entity_type, entity_prefix, component_name)
-_COMPANY_COMPONENTS = [
+COMPANY_COMPONENTS = [
     "previous_provider_access",
     "accounting_integration",
     "authorization_documents",
@@ -41,7 +39,7 @@ _COMPANY_COMPONENTS = [
     "verification_documents",
 ]
 
-_EMPLOYEE_COMPONENTS = [
+EMPLOYEE_COMPONENTS = [
     "benefits",
     "payment_setup",
     "paystubs",
@@ -53,64 +51,94 @@ _EMPLOYEE_COMPONENTS = [
     "withholdings_setup",
 ]
 
-_CONTRACTOR_COMPONENTS = [
+CONTRACTOR_COMPONENTS = [
     "tax_documents",
 ]
 
+_ENTITY_COMPONENTS: dict[str, list[str]] = {
+    "company": COMPANY_COMPONENTS,
+    "employee": EMPLOYEE_COMPONENTS,
+    "contractor": CONTRACTOR_COMPONENTS,
+}
 
-def _make_component_tool(
-    entity_type: str,
-    entity_label: str,
-    component_name: str,
-) -> Callable:
-    """Factory to create a component tool function."""
-    tool_name = f"create_{entity_label}_{component_name}_component"
-    entity_id_param = f"{entity_label}_id"
+_ENTITY_PATH: dict[str, str] = {
+    "company": "companies",
+    "employee": "employees",
+    "contractor": "contractors",
+}
 
-    async def component_tool(ctx: Ctx, entity_id: str, data: dict | None = None) -> dict:
-        return await check_api_post(
-            ctx,
-            f"/{entity_type}/{entity_id}/components/{component_name}",
-            data=data,
-        )
 
-    component_tool.__name__ = tool_name
-    component_tool.__qualname__ = tool_name
-    component_tool.__doc__ = (
-        f"Create a {component_name.replace('_', ' ')} component for a {entity_label}.\n\n"
-        f"Args:\n"
-        f"    entity_id: The Check {entity_label} ID.\n"
-        f"    data: Optional component configuration."
-    )
+async def list_component_types(ctx: Ctx, entity_type: str | None = None) -> dict:
+    """List available embedded UI component types.
 
-    # Fix the parameter name in annotations for better tool schema
-    component_tool.__annotations__ = {
-        "ctx": Ctx,
-        "entity_id": str,
-        "data": "dict | None",
-        "return": dict,
+    Returns the component types that can be created for each entity type.
+    Use this to discover valid component_type values for create_component.
+
+    Args:
+        entity_type: Filter to a specific entity type ("company", "employee",
+            or "contractor"). Omit to see all.
+    """
+    if entity_type is not None:
+        components = _ENTITY_COMPONENTS.get(entity_type)
+        if components is None:
+            return {
+                "error": True,
+                "detail": (
+                    f"Unknown entity_type: '{entity_type}'. "
+                    f"Must be one of: {', '.join(sorted(_ENTITY_COMPONENTS))}."
+                ),
+            }
+        return {"entity_type": entity_type, "component_types": components}
+    return {
+        entity: {"component_types": comps}
+        for entity, comps in _ENTITY_COMPONENTS.items()
     }
 
-    return component_tool
 
+async def create_component(
+    ctx: Ctx,
+    entity_type: str,
+    entity_id: str,
+    component_type: str,
+    data: dict | None = None,
+) -> dict:
+    """Create an embedded UI component URL for a company, employee, or contractor.
 
-def _build_tools() -> list[Callable]:
-    """Build all component tool functions."""
-    tools = []
-    for name in _COMPANY_COMPONENTS:
-        tools.append(_make_component_tool("companies", "company", name))
-    for name in _EMPLOYEE_COMPONENTS:
-        tools.append(_make_component_tool("employees", "employee", name))
-    for name in _CONTRACTOR_COMPONENTS:
-        tools.append(_make_component_tool("contractors", "contractor", name))
-    return tools
+    Returns a URL that can be embedded in an iframe to render the component.
 
-
-_ALL_TOOLS = _build_tools()
+    Args:
+        entity_type: One of "company", "employee", or "contractor".
+        entity_id: The Check entity ID (e.g. "com_xxxxx", "emp_xxxxx", "ctr_xxxxx").
+        component_type: The component to create. Use list_component_types to see
+            valid values (e.g. "tax_setup", "payment_setup", "run_payroll").
+        data: Optional component configuration.
+    """
+    path_prefix = _ENTITY_PATH.get(entity_type)
+    if path_prefix is None:
+        return {
+            "error": True,
+            "detail": (
+                f"Unknown entity_type: '{entity_type}'. "
+                f"Must be one of: {', '.join(sorted(_ENTITY_PATH))}."
+            ),
+        }
+    valid_types = _ENTITY_COMPONENTS.get(entity_type, [])
+    if component_type not in valid_types:
+        return {
+            "error": True,
+            "detail": (
+                f"Unknown component_type '{component_type}' for {entity_type}. "
+                f"Valid types: {', '.join(valid_types)}."
+            ),
+        }
+    return await check_api_post(
+        ctx,
+        f"/{path_prefix}/{entity_id}/components/{component_type}",
+        data=data,
+    )
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
-    if read_only:
-        return
-    for tool in _ALL_TOOLS:
-        mcp.add_tool(tool)
+    mcp.add_tool(list_component_types)
+    if not read_only:
+        mcp.add_tool(create_component)

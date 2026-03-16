@@ -12,7 +12,6 @@ from mcp_server_check.tool_filter import (
     is_write_tool,
 )
 
-
 # --- is_write_tool ---
 
 
@@ -235,14 +234,28 @@ class TestInvalidToolsets:
 
 
 class TestToolsets:
-    def test_has_17_toolsets(self):
-        assert len(TOOLSETS) == 17
+    def test_has_18_toolsets(self):
+        assert len(TOOLSETS) == 18
 
     def test_known_toolsets(self):
         expected = {
-            "bank_accounts", "companies", "compensation", "components",
-            "contractor_payments", "contractors", "documents", "employees",
-            "external_payrolls", "forms", "payments", "payroll_items",
-            "payrolls", "platform", "tax", "webhooks", "workplaces",
+            "bank_accounts",
+            "companies",
+            "compensation",
+            "components",
+            "contractor_payments",
+            "contractors",
+            "documents",
+            "employees",
+            "external_payrolls",
+            "forms",
+            "payments",
+            "payroll_items",
+            "payrolls",
+            "platform",
+            "tax",
+            "webhooks",
+            "workflows",
+            "workplaces",
         }
         assert TOOLSETS == expected

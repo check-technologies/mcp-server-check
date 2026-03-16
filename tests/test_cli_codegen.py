@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import inspect
-import types
 import typing
 
 import click
-
 from mcp_server_check.cli.codegen import (
     CSVList,
     JSONParam,
@@ -20,7 +18,6 @@ from mcp_server_check.cli.codegen import (
     collect_tools,
 )
 from mcp_server_check.helpers import Ctx
-
 
 # ---------------------------------------------------------------------------
 # _singularize
@@ -73,17 +70,25 @@ class TestMakeCommandName:
         assert _make_command_name("get_company_paydays", "companies") == "get-paydays"
 
     def test_list_company_tax_deposits(self):
-        assert _make_command_name("list_company_tax_deposits", "companies") == "list-tax-deposits"
+        assert (
+            _make_command_name("list_company_tax_deposits", "companies")
+            == "list-tax-deposits"
+        )
 
     def test_list_employee_paystubs(self):
-        assert _make_command_name("list_employee_paystubs", "employees") == "list-paystubs"
+        assert (
+            _make_command_name("list_employee_paystubs", "employees") == "list-paystubs"
+        )
 
     def test_get_employee_paystub(self):
         assert _make_command_name("get_employee_paystub", "employees") == "get-paystub"
 
     def test_simulate_start_processing(self):
         """No toolset name in function → full name preserved."""
-        assert _make_command_name("simulate_start_processing", "payrolls") == "simulate-start-processing"
+        assert (
+            _make_command_name("simulate_start_processing", "payrolls")
+            == "simulate-start-processing"
+        )
 
     def test_approve_payroll(self):
         assert _make_command_name("approve_payroll", "payrolls") == "approve"
@@ -95,18 +100,29 @@ class TestMakeCommandName:
         assert _make_command_name("get_bank_account", "bank_accounts") == "get"
 
     def test_reveal_bank_account_numbers(self):
-        assert _make_command_name("reveal_bank_account_numbers", "bank_accounts") == "reveal-numbers"
+        assert (
+            _make_command_name("reveal_bank_account_numbers", "bank_accounts")
+            == "reveal-numbers"
+        )
 
     def test_list_contractor_payments(self):
-        assert _make_command_name("list_contractor_payments", "contractor_payments") == "list"
+        assert (
+            _make_command_name("list_contractor_payments", "contractor_payments")
+            == "list"
+        )
 
     def test_get_company_tax_params(self):
         """tax toolset — strips 'tax' from middle."""
-        assert _make_command_name("get_company_tax_params", "tax") == "get-company-params"
+        assert (
+            _make_command_name("get_company_tax_params", "tax") == "get-company-params"
+        )
 
     def test_no_match_full_name(self):
         """When toolset name not in function name, return full name."""
-        assert _make_command_name("get_payroll_journal_report", "companies") == "get-payroll-journal-report"
+        assert (
+            _make_command_name("get_payroll_journal_report", "companies")
+            == "get-payroll-journal-report"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -178,6 +194,7 @@ class TestIsIdParam:
 class TestBuildParams:
     def test_excludes_ctx(self):
         """The ctx parameter should never appear in click params."""
+
         async def sample(ctx: Ctx, company_id: str) -> dict:
             pass
 
@@ -307,7 +324,7 @@ class TestBuildCommand:
 class TestCollectTools:
     def test_returns_all_toolsets(self):
         tools = collect_tools()
-        assert len(tools) == 17
+        assert len(tools) == 18
         assert "companies" in tools
         assert "employees" in tools
         assert "payrolls" in tools

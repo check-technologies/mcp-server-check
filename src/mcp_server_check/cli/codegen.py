@@ -14,7 +14,7 @@ import click
 import httpx
 
 from mcp_server_check.helpers import CheckContext
-from mcp_server_check.tools import _TOOLSETS
+from mcp_server_check.tools import collect_all_tools
 
 from .context import CLIContext
 from .output import output_result
@@ -322,22 +322,5 @@ def build_command(
 # ---------------------------------------------------------------------------
 
 
-def _collect_module_tools(module: Any) -> list[Callable]:
-    """Call *module*.register() with a collector to capture tool functions."""
-    functions: list[Callable] = []
-
-    class _Collector:
-        @staticmethod
-        def add_tool(fn: Callable, **kwargs: Any) -> None:
-            functions.append(fn)
-
-    module.register(_Collector(), read_only=False)
-    return functions
-
-
-def collect_tools() -> dict[str, list[Callable]]:
-    """Return ``{toolset_name: [func, ...]}`` for every registered toolset."""
-    return {
-        name: _collect_module_tools(module)
-        for name, module in _TOOLSETS.items()
-    }
+# Re-export for backwards compatibility and CLI usage
+collect_tools = collect_all_tools

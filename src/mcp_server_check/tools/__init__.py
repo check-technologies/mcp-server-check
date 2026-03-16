@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 from mcp.server.fastmcp import FastMCP
 
 from . import (
@@ -21,6 +24,7 @@ from . import (
     platform,
     tax,
     webhooks,
+    workflows,
     workplaces,
 )
 
@@ -41,8 +45,28 @@ _TOOLSETS = {
     "platform": platform,
     "tax": tax,
     "webhooks": webhooks,
+    "workflows": workflows,
     "workplaces": workplaces,
 }
+
+
+def collect_all_tools() -> dict[str, list[Callable]]:
+    """Return {toolset_name: [fn, ...]} for all toolsets.
+
+    Calls each module's register() with a collector to capture tool functions.
+    """
+    result: dict[str, list[Callable]] = {}
+    for name, module in _TOOLSETS.items():
+        functions: list[Callable] = []
+
+        class _Collector:
+            @staticmethod
+            def add_tool(fn: Callable, **kwargs: Any) -> None:
+                functions.append(fn)
+
+        module.register(_Collector(), read_only=False)
+        result[name] = functions
+    return result
 
 
 def register_all(mcp: FastMCP, registry: dict[str, str]) -> None:
