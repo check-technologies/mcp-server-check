@@ -129,19 +129,30 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
     async def run_tool(
         ctx: Context,
         tool_name: str,
-        arguments: dict | None = None,
+        arguments: str | dict | None = None,
     ) -> str:
         """Execute an API tool by name with the given arguments.
 
         Use search_tools first to find the tool name and its parameter schema.
 
         tool_name: The exact tool name (e.g. "list_companies", "get_employee").
-        arguments: Tool arguments as a dict (e.g. {"company_id": "com_xxx"}).
+        arguments: Tool arguments as a JSON string or dict (e.g. '{"company_id": "com_xxx"}'
+            or {"company_id": "com_xxx"}).
         """
         tf = server._get_active_filter()
-        parsed_args = arguments or {}
-        if not isinstance(parsed_args, dict):
-            return json.dumps({"error": "Arguments must be a JSON object"})
+        parsed_args: dict = {}
+        if arguments is not None:
+            if isinstance(arguments, str):
+                try:
+                    parsed_args = json.loads(arguments)
+                except json.JSONDecodeError as e:
+                    return json.dumps({"error": f"Invalid JSON arguments: {e}"})
+                if not isinstance(parsed_args, dict):
+                    return json.dumps({"error": "Arguments must be a JSON object"})
+            elif isinstance(arguments, dict):
+                parsed_args = arguments
+            else:
+                return json.dumps({"error": "Arguments must be a JSON string or object"})
 
         try:
             result = await index.run(
