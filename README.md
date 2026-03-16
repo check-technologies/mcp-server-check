@@ -7,13 +7,6 @@ An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll 
 ## Quickstart
 
 ```bash
-# Install and run with uvx (no clone needed)
-CHECK_API_KEY=your-key uvx mcp-server-check
-```
-
-Or install from source:
-
-```bash
 git clone https://github.com/check-technologies/mcp-server-check.git
 cd mcp-server-check
 uv sync
@@ -63,7 +56,7 @@ There are 17 toolsets, one per API module: `bank_accounts`, `companies`, `compen
 Enable only specific toolsets:
 
 ```bash
-CHECK_TOOLSETS=companies,employees CHECK_API_KEY=your-key uvx mcp-server-check
+CHECK_TOOLSETS=companies,employees CHECK_API_KEY=your-key uv run mcp-server-check
 ```
 
 #### Individual Tools
@@ -71,7 +64,7 @@ CHECK_TOOLSETS=companies,employees CHECK_API_KEY=your-key uvx mcp-server-check
 Allow only specific tools by name:
 
 ```bash
-CHECK_TOOLS=list_companies,get_company,list_employees CHECK_API_KEY=your-key uvx mcp-server-check
+CHECK_TOOLS=list_companies,get_company,list_employees CHECK_API_KEY=your-key uv run mcp-server-check
 ```
 
 #### Excluding Tools
@@ -79,7 +72,7 @@ CHECK_TOOLS=list_companies,get_company,list_employees CHECK_API_KEY=your-key uvx
 Hide specific tools while keeping everything else:
 
 ```bash
-CHECK_EXCLUDE_TOOLS=create_company,delete_company CHECK_API_KEY=your-key uvx mcp-server-check
+CHECK_EXCLUDE_TOOLS=create_company,delete_company CHECK_API_KEY=your-key uv run mcp-server-check
 ```
 
 #### Read-Only Mode
@@ -87,7 +80,7 @@ CHECK_EXCLUDE_TOOLS=create_company,delete_company CHECK_API_KEY=your-key uvx mcp
 Set `CHECK_READ_ONLY=1` to run the server with only read-only tools (list, get, download, preview, etc.). All create, update, delete, and other mutating tools are excluded. This is useful when you want to allow exploration of your Check data without risk of modifications.
 
 ```bash
-CHECK_READ_ONLY=1 CHECK_API_KEY=your-key uvx mcp-server-check
+CHECK_READ_ONLY=1 CHECK_API_KEY=your-key uv run mcp-server-check
 ```
 
 #### HTTP Headers (Remote Transport)
@@ -115,7 +108,7 @@ The LLM workflow becomes: browse toolsets or search for relevant tools → revie
 Set `CHECK_TOOL_MODE=all` to expose all tools individually (legacy mode):
 
 ```bash
-CHECK_TOOL_MODE=all CHECK_API_KEY=your-key uvx mcp-server-check
+CHECK_TOOL_MODE=all CHECK_API_KEY=your-key uv run mcp-server-check
 ```
 
 ## Usage with Claude Desktop
@@ -126,8 +119,8 @@ Add to your `claude_desktop_config.json`:
 {
   "mcpServers": {
     "check": {
-      "command": "uvx",
-      "args": ["mcp-server-check"],
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/mcp-server-check", "mcp-server-check"],
       "env": {
         "CHECK_API_KEY": "your-api-key"
       }
@@ -139,7 +132,7 @@ Add to your `claude_desktop_config.json`:
 ## Usage with Claude Code
 
 ```bash
-claude mcp add check -- uvx mcp-server-check
+claude mcp add check -- uv run --directory /path/to/mcp-server-check mcp-server-check
 ```
 
 Then set the `CHECK_API_KEY` environment variable in your shell before running Claude Code.
