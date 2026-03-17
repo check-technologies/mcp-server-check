@@ -44,9 +44,7 @@ async def test_update_payroll(mock_api, ctx):
 
 @pytest.mark.anyio
 async def test_delete_payroll(mock_api, ctx):
-    mock_api.delete("/payrolls/prl_001").mock(
-        return_value=httpx.Response(204)
-    )
+    mock_api.delete("/payrolls/prl_001").mock(return_value=httpx.Response(204))
     result = await delete_payroll(ctx, payroll_id="prl_001")
     assert result == {"success": True}
 
@@ -63,7 +61,9 @@ async def test_preview_payroll(mock_api, ctx):
 @pytest.mark.anyio
 async def test_approve_payroll(mock_api, ctx):
     mock_api.post("/payrolls/prl_001/approve").mock(
-        return_value=httpx.Response(200, json={"id": "prl_001", "approval_status": "approved"})
+        return_value=httpx.Response(
+            200, json={"id": "prl_001", "approval_status": "approved"}
+        )
     )
     result = await approve_payroll(ctx, payroll_id="prl_001")
     assert result["approval_status"] == "approved"
@@ -72,7 +72,9 @@ async def test_approve_payroll(mock_api, ctx):
 @pytest.mark.anyio
 async def test_reopen_payroll(mock_api, ctx):
     mock_api.post("/payrolls/prl_001/reopen").mock(
-        return_value=httpx.Response(200, json={"id": "prl_001", "approval_status": "draft"})
+        return_value=httpx.Response(
+            200, json={"id": "prl_001", "approval_status": "draft"}
+        )
     )
     result = await reopen_payroll(ctx, payroll_id="prl_001")
     assert result["approval_status"] == "draft"

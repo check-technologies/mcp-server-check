@@ -103,8 +103,18 @@ class TestFormatListResponse:
             "next": None,
             "previous": None,
             "results": [
-                {"id": "com_1", "legal_name": "Acme", "metadata": {"key": "val"}, "created_at": "2025-01-01"},
-                {"id": "com_2", "legal_name": "Widget", "metadata": {}, "ein": "12-3456789"},
+                {
+                    "id": "com_1",
+                    "legal_name": "Acme",
+                    "metadata": {"key": "val"},
+                    "created_at": "2025-01-01",
+                },
+                {
+                    "id": "com_2",
+                    "legal_name": "Widget",
+                    "metadata": {},
+                    "ein": "12-3456789",
+                },
             ],
         }
         result = _format_list_response(data, summarize=True)

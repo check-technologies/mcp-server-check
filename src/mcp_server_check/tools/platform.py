@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from mcp_server_check.helpers import (
     Ctx,
@@ -200,9 +200,7 @@ async def list_integration_permissions(
         params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
-    return await check_api_list(
-        ctx, "/integration_permissions", params=params or None
-    )
+    return await check_api_list(ctx, "/integration_permissions", params=params or None)
 
 
 async def get_integration_permission(ctx: Ctx, permission_id: str) -> dict:
@@ -274,9 +272,7 @@ async def get_accounting_mappings(ctx: Ctx, company_id: str) -> dict:
     return await check_api_get(ctx, f"/companies/{company_id}/accounting_mappings")
 
 
-async def update_accounting_mappings(
-    ctx: Ctx, company_id: str, data: dict
-) -> dict:
+async def update_accounting_mappings(ctx: Ctx, company_id: str, data: dict) -> dict:
     """Update accounting mappings for a company.
 
     The payload is a complex structure — pass the full request body as a dict.
@@ -290,9 +286,7 @@ async def update_accounting_mappings(
     )
 
 
-async def toggle_accounting_mappings(
-    ctx: Ctx, company_id: str, data: dict
-) -> dict:
+async def toggle_accounting_mappings(ctx: Ctx, company_id: str, data: dict) -> dict:
     """Toggle accounting mappings for a company.
 
     The payload is a complex structure — pass the full request body as a dict.

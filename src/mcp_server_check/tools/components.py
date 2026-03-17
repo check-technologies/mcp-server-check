@@ -7,7 +7,7 @@ Replaces 35 individual component tools with 2 generic tools:
 
 from __future__ import annotations
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from mcp_server_check.helpers import Ctx, check_api_post
 

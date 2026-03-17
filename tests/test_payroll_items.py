@@ -49,14 +49,14 @@ async def test_update_payroll_item(mock_api, ctx):
     mock_api.patch("/payroll_items/pit_001").mock(
         return_value=httpx.Response(200, json={"id": "pit_001"})
     )
-    result = await update_payroll_item(ctx, payroll_item_id="pit_001", payment_method="direct_deposit")
+    result = await update_payroll_item(
+        ctx, payroll_item_id="pit_001", payment_method="direct_deposit"
+    )
     assert result["id"] == "pit_001"
 
 
 @pytest.mark.anyio
 async def test_delete_payroll_item(mock_api, ctx):
-    mock_api.delete("/payroll_items/pit_001").mock(
-        return_value=httpx.Response(204)
-    )
+    mock_api.delete("/payroll_items/pit_001").mock(return_value=httpx.Response(204))
     result = await delete_payroll_item(ctx, payroll_item_id="pit_001")
     assert result == {"success": True}

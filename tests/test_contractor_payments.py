@@ -39,7 +39,9 @@ async def test_create_contractor_payment(mock_api, ctx):
     mock_api.post("/contractor_payments").mock(
         return_value=httpx.Response(201, json={"id": "cp_new"})
     )
-    result = await create_contractor_payment(ctx, contractor="ctr_001", payroll="prl_001")
+    result = await create_contractor_payment(
+        ctx, contractor="ctr_001", payroll="prl_001"
+    )
     assert result["id"] == "cp_new"
 
 

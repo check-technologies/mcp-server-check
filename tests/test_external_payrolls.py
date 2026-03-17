@@ -42,9 +42,7 @@ async def test_create_external_payroll(mock_api, ctx):
 
 @pytest.mark.anyio
 async def test_delete_external_payroll(mock_api, ctx):
-    mock_api.delete("/external_payrolls/ep_001").mock(
-        return_value=httpx.Response(204)
-    )
+    mock_api.delete("/external_payrolls/ep_001").mock(return_value=httpx.Response(204))
     result = await delete_external_payroll(ctx, payroll_id="ep_001")
     assert result == {"success": True}
 

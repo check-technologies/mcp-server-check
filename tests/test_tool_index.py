@@ -246,25 +246,25 @@ class TestToolIndexRun:
     @pytest.mark.anyio
     async def test_run_unknown_tool(self):
         with pytest.raises(ValueError, match="Unknown tool"):
-            await self.index.run("nonexistent_tool", {}, None, self.no_filter)
+            await self.index.run("nonexistent_tool", {}, self.no_filter)
 
     @pytest.mark.anyio
     async def test_run_unknown_tool_has_suggestion(self):
         """Error message for unknown tool includes a suggestion."""
         with pytest.raises(ValueError, match="Did you mean"):
-            await self.index.run("list_companie", {}, None, self.no_filter)
+            await self.index.run("list_companie", {}, self.no_filter)
 
     @pytest.mark.anyio
     async def test_run_blocked_by_filter(self):
         tf = ToolFilter(exclude_tools=frozenset({"list_companies"}))
         with pytest.raises(ValueError, match="not available"):
-            await self.index.run("list_companies", {}, None, tf)
+            await self.index.run("list_companies", {}, tf)
 
     @pytest.mark.anyio
     async def test_run_blocked_by_read_only(self):
         tf = ToolFilter(read_only=True)
         with pytest.raises(ValueError, match="not available"):
-            await self.index.run("create_company", {}, None, tf)
+            await self.index.run("create_company", {}, tf)
 
     @pytest.mark.anyio
     async def test_run_dispatches_correctly(self, mock_api, ctx):
@@ -281,7 +281,7 @@ class TestToolIndexRun:
                 },
             )
         )
-        result = await self.index.run("list_companies", {}, ctx, self.no_filter)
+        result = await self.index.run("list_companies", {}, self.no_filter)
         assert result["results"] == [{"id": "com_001"}]
 
     @pytest.mark.anyio
@@ -295,7 +295,7 @@ class TestToolIndexRun:
             )
         )
         result = await self.index.run(
-            "get_company", {"company_id": "com_001"}, ctx, self.no_filter
+            "get_company", {"company_id": "com_001"}, self.no_filter
         )
         assert result == {"id": "com_001", "legal_name": "Acme Corp"}
 
@@ -334,8 +334,8 @@ class TestDynamicModeServer:
         return server
 
     def _extract_text(self, result):
-        """Extract text from call_tool result (tuple of [TextContent, ...])."""
-        return result[0][0].text
+        """Extract text from call_tool ToolResult."""
+        return result.content[0].text
 
     @pytest.mark.anyio
     async def test_list_tools_returns_three(self):
@@ -390,7 +390,10 @@ class TestDynamicModeServer:
         server = self._make_dynamic_server()
         tools = await server.list_tools()
         run_tool_schema = next(t for t in tools if t.name == "run_tool")
-        props = run_tool_schema.inputSchema.get("properties", {})
+        schema = (
+            getattr(run_tool_schema, "inputSchema", None) or run_tool_schema.parameters
+        )
+        props = schema.get("properties", {})
         args_schema = props.get("arguments", {})
         # arguments should accept an object type (dict), not just string
         assert args_schema.get("type") in ("object", None) or "anyOf" in args_schema

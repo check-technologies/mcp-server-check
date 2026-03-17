@@ -9,7 +9,6 @@ from mcp_server_check.tools.compensation import (
     create_benefit,
     create_pay_schedule,
     delete_pay_schedule,
-    get_pay_schedule,
     list_company_benefits,
     list_earning_codes,
     list_pay_schedules,
@@ -45,9 +44,7 @@ async def test_create_pay_schedule(mock_api, ctx):
 
 @pytest.mark.anyio
 async def test_delete_pay_schedule(mock_api, ctx):
-    mock_api.delete("/pay_schedules/psc_001").mock(
-        return_value=httpx.Response(204)
-    )
+    mock_api.delete("/pay_schedules/psc_001").mock(return_value=httpx.Response(204))
     result = await delete_pay_schedule(ctx, pay_schedule_id="psc_001")
     assert result == {"success": True}
 

@@ -36,9 +36,7 @@ async def test_create_webhook_config(mock_api, ctx):
 
 @pytest.mark.anyio
 async def test_delete_webhook_config(mock_api, ctx):
-    mock_api.delete("/webhook_configs/whc_001").mock(
-        return_value=httpx.Response(204)
-    )
+    mock_api.delete("/webhook_configs/whc_001").mock(return_value=httpx.Response(204))
     result = await delete_webhook_config(ctx, webhook_config_id="whc_001")
     assert result == {"success": True}
 

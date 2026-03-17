@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from mcp_server_check.helpers import (
     Ctx,
@@ -81,9 +81,7 @@ async def get_company_authorization_document(ctx: Ctx, document_id: str) -> dict
     return await check_api_get(ctx, f"/company_authorization_documents/{document_id}")
 
 
-async def download_company_authorization_document(
-    ctx: Ctx, document_id: str
-) -> dict:
+async def download_company_authorization_document(ctx: Ctx, document_id: str) -> dict:
     """Download a company authorization document.
 
     Args:
@@ -149,9 +147,7 @@ async def list_contractor_tax_documents(
         params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
-    return await check_api_list(
-        ctx, "/contractor_tax_documents", params=params or None
-    )
+    return await check_api_list(ctx, "/contractor_tax_documents", params=params or None)
 
 
 async def get_contractor_tax_document(ctx: Ctx, document_id: str) -> dict:
@@ -169,9 +165,7 @@ async def download_contractor_tax_document(ctx: Ctx, document_id: str) -> dict:
     Args:
         document_id: The document ID.
     """
-    return await check_api_get(
-        ctx, f"/contractor_tax_documents/{document_id}/download"
-    )
+    return await check_api_get(ctx, f"/contractor_tax_documents/{document_id}/download")
 
 
 # --- Setup Documents ---

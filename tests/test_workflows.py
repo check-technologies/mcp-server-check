@@ -219,9 +219,7 @@ async def test_get_company_tax_overview(mock_api, ctx):
         return_value=httpx.Response(200, json={"id": "com_001", "params": []})
     )
     mock_api.get("/companies/com_001/tax_elections").mock(
-        return_value=httpx.Response(
-            200, json=_list_response([{"id": "ele_001"}])
-        )
+        return_value=httpx.Response(200, json=_list_response([{"id": "ele_001"}]))
     )
     mock_api.get("/tax_filings").mock(
         return_value=httpx.Response(
@@ -242,9 +240,7 @@ async def test_get_onboarding_status_ready(mock_api, ctx):
         return_value=httpx.Response(200, json={"id": "com_001", "status": "active"})
     )
     mock_api.get("/workplaces").mock(
-        return_value=httpx.Response(
-            200, json=_list_response([{"id": "wrk_001"}])
-        )
+        return_value=httpx.Response(200, json=_list_response([{"id": "wrk_001"}]))
     )
     mock_api.get("/employees").mock(
         return_value=httpx.Response(
@@ -252,9 +248,7 @@ async def test_get_onboarding_status_ready(mock_api, ctx):
         )
     )
     mock_api.get("/bank_accounts").mock(
-        return_value=httpx.Response(
-            200, json=_list_response([{"id": "bnk_001"}])
-        )
+        return_value=httpx.Response(200, json=_list_response([{"id": "bnk_001"}]))
     )
     mock_api.get("/requirements").mock(
         return_value=httpx.Response(
@@ -289,10 +283,12 @@ async def test_get_onboarding_status_not_ready(mock_api, ctx):
     mock_api.get("/requirements").mock(
         return_value=httpx.Response(
             200,
-            json=_list_response([
-                {"id": "req_001", "status": "unmet"},
-                {"id": "req_002", "status": "met"},
-            ]),
+            json=_list_response(
+                [
+                    {"id": "req_001", "status": "unmet"},
+                    {"id": "req_002", "status": "met"},
+                ]
+            ),
         )
     )
 

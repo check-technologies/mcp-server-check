@@ -2,22 +2,23 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import Sequence
 from urllib.parse import parse_qs, urlparse
 
 import httpx
-from mcp.server.fastmcp import Context
-from mcp.server.session import ServerSession
+from fastmcp import Context
 
 
 @dataclass
 class CheckContext:
     client: httpx.AsyncClient
     base_url: str
+    token_resolver: Callable[[], str] | None = field(default=None, repr=False)
 
 
-Ctx = Context[ServerSession, CheckContext]
+Ctx = Context
 
 # Default max results for list endpoints to avoid blowing context windows.
 DEFAULT_LIST_LIMIT = 10
@@ -29,12 +30,27 @@ _SUMMARY_FIELDS: dict[str, Sequence[str]] = {
     "com_": ("id", "legal_name", "trade_name", "status", "pay_frequency"),
     "emp_": ("id", "first_name", "last_name", "email", "status", "start_date"),
     "ctr_": ("id", "first_name", "last_name", "business_name", "type", "status"),
-    "prl_": ("id", "status", "payday", "period_start", "period_end", "type", "approval_status"),
+    "prl_": (
+        "id",
+        "status",
+        "payday",
+        "period_start",
+        "period_end",
+        "type",
+        "approval_status",
+    ),
     "pit_": ("id", "employee", "payment_method", "status"),
     "pmt_": ("id", "status", "amount", "payment_method", "direction"),
     "bnk_": ("id", "institution_name", "subtype", "status", "last_four"),
     "wrk_": ("id", "name", "active", "address"),
-    "ben_": ("id", "benefit", "description", "employee", "effective_start", "effective_end"),
+    "ben_": (
+        "id",
+        "benefit",
+        "description",
+        "employee",
+        "effective_start",
+        "effective_end",
+    ),
     "nps_": ("id", "employee", "contractor", "is_default"),
     "psc_": ("id", "name", "pay_frequency", "company"),
 }
@@ -104,9 +120,12 @@ async def _check_api_request(
 ) -> dict:
     """Make a request to the Check API with shared error handling."""
     check_ctx = ctx.request_context.lifespan_context
+    headers: dict[str, str] = {}
+    if check_ctx.token_resolver is not None:
+        headers["Authorization"] = f"Bearer {check_ctx.token_resolver()}"
     try:
         response = await check_ctx.client.request(
-            method, path, params=params, json=data
+            method, path, params=params, json=data, headers=headers or None
         )
         response.raise_for_status()
         if response.status_code == 204:

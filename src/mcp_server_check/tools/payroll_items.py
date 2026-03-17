@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from mcp_server_check.helpers import (
     Ctx,
@@ -163,9 +163,7 @@ async def delete_payroll_item(ctx: Ctx, payroll_item_id: str) -> dict:
     return await check_api_delete(ctx, f"/payroll_items/{payroll_item_id}")
 
 
-async def bulk_delete_payroll_items(
-    ctx: Ctx, ids: list[str]
-) -> dict:
+async def bulk_delete_payroll_items(ctx: Ctx, ids: list[str]) -> dict:
     """Bulk delete payroll items.
 
     Args:
