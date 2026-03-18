@@ -52,7 +52,9 @@ async def test_validate_address(mock_api, ctx):
     mock_api.post("/addresses/validate").mock(
         return_value=httpx.Response(200, json={"valid": True})
     )
-    result = await validate_address(ctx, line1="123 Main St", city="Anytown", state="CA", postal_code="12345")
+    result = await validate_address(
+        ctx, line1="123 Main St", city="Anytown", state="CA", postal_code="12345"
+    )
     assert result["valid"] is True
 
 

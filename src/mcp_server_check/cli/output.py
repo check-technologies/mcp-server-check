@@ -48,7 +48,7 @@ def _format_rows(rows: list[dict]) -> str:
     lines = [header, separator]
     for row in rows:
         line = "  ".join(
-            str(row.get(col, ""))[:widths[col]].ljust(widths[col]) for col in columns
+            str(row.get(col, ""))[: widths[col]].ljust(widths[col]) for col in columns
         )
         lines.append(line)
     return "\n".join(lines)

@@ -85,7 +85,9 @@ class _MainCLI(click.Group):
     ):
         super().__init__(*args, **kwargs)
         # cli_group_name -> toolset_name
-        self.toolset_names: dict[str, str] = toolset_names if toolset_names is not None else {}
+        self.toolset_names: dict[str, str] = (
+            toolset_names if toolset_names is not None else {}
+        )
 
     def list_commands(self, ctx: click.Context) -> list[str]:
         tf = _build_filter(ctx)

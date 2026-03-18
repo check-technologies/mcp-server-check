@@ -6,9 +6,9 @@ with manual functions for non-standard endpoints.
 
 from __future__ import annotations
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
-from mcp_server_check.helpers import Ctx, check_api_get, check_api_post
+from mcp_server_check.helpers import Ctx, check_api_get
 from mcp_server_check.tool_factory import Field, Resource, generate_tools
 
 # ---------------------------------------------------------------------------
@@ -24,14 +24,29 @@ _pay_schedules = Resource(
     list_filters=["company"],
     fields=[
         Field("company", str, required_for="create", doc="The Check company ID."),
-        Field("pay_frequency", str, required_for="create",
-              doc='Pay frequency — "weekly", "biweekly", "semimonthly", "monthly", "quarterly", or "annually".'),
-        Field("first_payday", str, required_for="create",
-              doc="Payday date of the first payroll on this schedule (YYYY-MM-DD)."),
-        Field("first_period_end", str, required_for="create",
-              doc="Period end date of the first payroll on this schedule (YYYY-MM-DD)."),
-        Field("second_payday", str,
-              doc="Second payday date (semimonthly only; must be between one day and one month after first_payday)."),
+        Field(
+            "pay_frequency",
+            str,
+            required_for="create",
+            doc='Pay frequency — "weekly", "biweekly", "semimonthly", "monthly", "quarterly", or "annually".',
+        ),
+        Field(
+            "first_payday",
+            str,
+            required_for="create",
+            doc="Payday date of the first payroll on this schedule (YYYY-MM-DD).",
+        ),
+        Field(
+            "first_period_end",
+            str,
+            required_for="create",
+            doc="Period end date of the first payroll on this schedule (YYYY-MM-DD).",
+        ),
+        Field(
+            "second_payday",
+            str,
+            doc="Second payday date (semimonthly only; must be between one day and one month after first_payday).",
+        ),
         Field("name", str, doc="Human-readable name for the pay schedule."),
         Field("metadata", str, doc="Additional JSON metadata string."),
     ],
@@ -82,16 +97,50 @@ _benefits = Resource(
     list_filters=["company", "employee"],
     fields=[
         Field("employee", str, required_for="create", doc="The Check employee ID."),
-        Field("company_benefit", str, required_for="create", doc="The Check company benefit ID.", create_only=True),
+        Field(
+            "company_benefit",
+            str,
+            required_for="create",
+            doc="The Check company benefit ID.",
+            create_only=True,
+        ),
         Field("benefit", str, doc="Type of supported benefit."),
-        Field("period", str, doc='Period over which a period amount is distributed — "monthly" or null.'),
-        Field("description", str, doc="Description to distinguish the benefit within a plan (max 255 chars)."),
-        Field("company_contribution_amount", str, doc="Company contribution amount per payroll."),
-        Field("company_contribution_percent", float, doc="Company contribution as percent of gross pay (0-100)."),
-        Field("company_period_amount", str, doc="Company contribution over the period."),
-        Field("employee_contribution_amount", str, doc="Employee contribution amount per payroll."),
-        Field("employee_contribution_percent", float, doc="Employee contribution as percent of gross pay (0-100)."),
-        Field("employee_period_amount", str, doc="Employee contribution over the period."),
+        Field(
+            "period",
+            str,
+            doc='Period over which a period amount is distributed — "monthly" or null.',
+        ),
+        Field(
+            "description",
+            str,
+            doc="Description to distinguish the benefit within a plan (max 255 chars).",
+        ),
+        Field(
+            "company_contribution_amount",
+            str,
+            doc="Company contribution amount per payroll.",
+        ),
+        Field(
+            "company_contribution_percent",
+            float,
+            doc="Company contribution as percent of gross pay (0-100).",
+        ),
+        Field(
+            "company_period_amount", str, doc="Company contribution over the period."
+        ),
+        Field(
+            "employee_contribution_amount",
+            str,
+            doc="Employee contribution amount per payroll.",
+        ),
+        Field(
+            "employee_contribution_percent",
+            float,
+            doc="Employee contribution as percent of gross pay (0-100).",
+        ),
+        Field(
+            "employee_period_amount", str, doc="Employee contribution over the period."
+        ),
         Field("effective_start", str, doc="Start date for the benefit (YYYY-MM-DD)."),
         Field("effective_end", str, doc="End date for the benefit (YYYY-MM-DD)."),
         Field("hsa_contribution_limit", str, doc="HSA contribution limit."),
@@ -120,19 +169,47 @@ _post_tax_deductions = Resource(
     list_filters=["company", "employee"],
     fields=[
         Field("employee", str, required_for="create", doc="The Check employee ID."),
-        Field("type", str, required_for="create",
-              doc='Deduction type — "miscellaneous", "child_support", or "miscellaneous_garnishment".', create_only=True),
-        Field("description", str, required_for="create", doc="Description of the deduction (max 255 chars)."),
-        Field("effective_start", str, required_for="create", doc="Start date for the deduction (YYYY-MM-DD)."),
+        Field(
+            "type",
+            str,
+            required_for="create",
+            doc='Deduction type — "miscellaneous", "child_support", or "miscellaneous_garnishment".',
+            create_only=True,
+        ),
+        Field(
+            "description",
+            str,
+            required_for="create",
+            doc="Description of the deduction (max 255 chars).",
+        ),
+        Field(
+            "effective_start",
+            str,
+            required_for="create",
+            doc="Start date for the deduction (YYYY-MM-DD).",
+        ),
         Field("effective_end", str, doc="End date for the deduction (YYYY-MM-DD)."),
-        Field("miscellaneous", dict,
-              doc="Config dict for miscellaneous type with keys: total_amount, amount, percent, annual_limit."),
-        Field("child_support", dict,
-              doc="Config dict for child_support type with keys: external_id, agency, fips_code, issue_date, amount, max_percent."),
-        Field("miscellaneous_garnishment", dict,
-              doc="Config dict for miscellaneous_garnishment type with keys: amount, percent, total_amount, annual_limit, priority, max_percent."),
+        Field(
+            "miscellaneous",
+            dict,
+            doc="Config dict for miscellaneous type with keys: total_amount, amount, percent, annual_limit.",
+        ),
+        Field(
+            "child_support",
+            dict,
+            doc="Config dict for child_support type with keys: external_id, agency, fips_code, issue_date, amount, max_percent.",
+        ),
+        Field(
+            "miscellaneous_garnishment",
+            dict,
+            doc="Config dict for miscellaneous_garnishment type with keys: amount, percent, total_amount, annual_limit, priority, max_percent.",
+        ),
         Field("metadata", str, doc="Additional JSON metadata string."),
-        Field("managed", bool, doc="Whether the deduction should be remitted by Check (child support only)."),
+        Field(
+            "managed",
+            bool,
+            doc="Whether the deduction should be remitted by Check (child support only).",
+        ),
     ],
 )
 _post_tax_deduction_tools = generate_tools(_post_tax_deductions)
@@ -156,16 +233,55 @@ _company_benefits = Resource(
     description="company-level benefits",
     list_filters=["company"],
     fields=[
-        Field("company", str, required_for="create", doc="The Check company ID.", create_only=True),
+        Field(
+            "company",
+            str,
+            required_for="create",
+            doc="The Check company ID.",
+            create_only=True,
+        ),
         Field("benefit", str, required_for="create", doc="Type of supported benefit."),
-        Field("description", str, required_for="create", doc="Description to distinguish the benefit (max 255 chars)."),
-        Field("period", str, doc='Period over which a period amount is distributed — "monthly" or null.'),
-        Field("company_contribution_amount", str, doc="Default company contribution per payroll."),
-        Field("company_contribution_percent", str, doc="Default company contribution as percent of gross (0-100)."),
-        Field("company_period_amount", str, doc="Default company contribution over the period."),
-        Field("employee_contribution_amount", str, doc="Default employee contribution per payroll."),
-        Field("employee_contribution_percent", str, doc="Default employee contribution as percent of gross (0-100)."),
-        Field("employee_period_amount", str, doc="Default employee contribution over the period."),
+        Field(
+            "description",
+            str,
+            required_for="create",
+            doc="Description to distinguish the benefit (max 255 chars).",
+        ),
+        Field(
+            "period",
+            str,
+            doc='Period over which a period amount is distributed — "monthly" or null.',
+        ),
+        Field(
+            "company_contribution_amount",
+            str,
+            doc="Default company contribution per payroll.",
+        ),
+        Field(
+            "company_contribution_percent",
+            str,
+            doc="Default company contribution as percent of gross (0-100).",
+        ),
+        Field(
+            "company_period_amount",
+            str,
+            doc="Default company contribution over the period.",
+        ),
+        Field(
+            "employee_contribution_amount",
+            str,
+            doc="Default employee contribution per payroll.",
+        ),
+        Field(
+            "employee_contribution_percent",
+            str,
+            doc="Default employee contribution as percent of gross (0-100).",
+        ),
+        Field(
+            "employee_period_amount",
+            str,
+            doc="Default employee contribution over the period.",
+        ),
         Field("effective_start", str, doc="Start date for the benefit (YYYY-MM-DD)."),
         Field("effective_end", str, doc="End date for the benefit (YYYY-MM-DD)."),
         Field("metadata", str, doc="Additional JSON metadata string."),
@@ -193,13 +309,40 @@ _earning_rates = Resource(
     list_filters=["company", "employee"],
     has_delete=False,
     fields=[
-        Field("employee", str, required_for="create", doc="The Check employee ID.", create_only=True),
-        Field("amount", str, required_for="create", doc='The earning rate amount (e.g. "25.00" or "52000.00").', create_only=True),
-        Field("period", str, required_for="create", doc='Period type — "hourly", "annually", or "piece".', create_only=True),
+        Field(
+            "employee",
+            str,
+            required_for="create",
+            doc="The Check employee ID.",
+            create_only=True,
+        ),
+        Field(
+            "amount",
+            str,
+            required_for="create",
+            doc='The earning rate amount (e.g. "25.00" or "52000.00").',
+            create_only=True,
+        ),
+        Field(
+            "period",
+            str,
+            required_for="create",
+            doc='Period type — "hourly", "annually", or "piece".',
+            create_only=True,
+        ),
         Field("name", str, doc="Name of the earning rate."),
-        Field("workweek_hours", float, doc="Hours per week the employee works. Default: 40.", create_only=True),
-        Field("active", bool, doc="Whether the earning rate is active.", update_only=True),
-        Field("metadata", str, doc="Additional JSON metadata string.", update_only=True),
+        Field(
+            "workweek_hours",
+            float,
+            doc="Hours per week the employee works. Default: 40.",
+            create_only=True,
+        ),
+        Field(
+            "active", bool, doc="Whether the earning rate is active.", update_only=True
+        ),
+        Field(
+            "metadata", str, doc="Additional JSON metadata string.", update_only=True
+        ),
     ],
 )
 _earning_rate_tools = generate_tools(_earning_rates)
@@ -223,13 +366,34 @@ _earning_codes = Resource(
     list_filters=["company"],
     has_delete=False,
     fields=[
-        Field("company", str, required_for="create", doc="The Check company ID.", create_only=True),
-        Field("name", str, required_for="create", doc="Name of the earning code.", create_only=True),
-        Field("type", str, required_for="create", doc="Type of earning code.", create_only=True),
+        Field(
+            "company",
+            str,
+            required_for="create",
+            doc="The Check company ID.",
+            create_only=True,
+        ),
+        Field(
+            "name",
+            str,
+            required_for="create",
+            doc="Name of the earning code.",
+            create_only=True,
+        ),
+        Field(
+            "type",
+            str,
+            required_for="create",
+            doc="Type of earning code.",
+            create_only=True,
+        ),
         Field("active", bool, doc="Whether the code is active."),
-        Field("calculation_overrides", dict,
-              doc='Tax calculation overrides dict. May include "wa_risk_class_code" (format "####-##" for WA L&I).',
-              create_only=True),
+        Field(
+            "calculation_overrides",
+            dict,
+            doc='Tax calculation overrides dict. May include "wa_risk_class_code" (format "####-##" for WA L&I).',
+            create_only=True,
+        ),
         Field("metadata", str, doc="Additional JSON metadata string."),
     ],
 )
@@ -254,8 +418,12 @@ _net_pay_splits = Resource(
     list_filters=["company", "employee"],
     has_delete=False,
     fields=[
-        Field("splits", list, required_for="create",
-              doc='Prioritized list of split dicts. Each may include "bank_account", "priority" (int), "amount", "percentage".'),
+        Field(
+            "splits",
+            list,
+            required_for="create",
+            doc='Prioritized list of split dicts. Each may include "bank_account", "priority" (int), "amount", "percentage".',
+        ),
         Field("employee", str, doc="The Check employee ID."),
         Field("contractor", str, doc="The Check contractor ID."),
         Field("is_default", bool, doc="Whether this is the default net pay split."),

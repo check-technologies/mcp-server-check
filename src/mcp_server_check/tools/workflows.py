@@ -7,10 +7,24 @@ These tools compose multiple API calls server-side, saving the LLM
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Coroutine
+from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from mcp_server_check.helpers import Ctx, check_api_get, check_api_list
+
+
+async def _gather_named(
+    calls: dict[str, Coroutine[Any, Any, Any]],
+) -> dict[str, Any]:
+    """Run named coroutines concurrently, returning {name: result}.
+
+    Python 3.10-compatible alternative to asyncio.TaskGroup.
+    """
+    keys = list(calls.keys())
+    results = await asyncio.gather(*calls.values())
+    return dict(zip(keys, results))
 
 
 async def get_company_overview(
@@ -35,45 +49,29 @@ async def get_company_overview(
         employee_limit: Max employees to return (default 10).
         payroll_limit: Max payrolls to return (default 5).
     """
-    # Always fetch the company
-    tasks: dict[str, asyncio.Task] = {}
-    async with asyncio.TaskGroup() as tg:
-        tasks["company"] = tg.create_task(
-            check_api_get(ctx, f"/companies/{company_id}")
+    calls: dict[str, Coroutine[Any, Any, Any]] = {
+        "company": check_api_get(ctx, f"/companies/{company_id}"),
+    }
+    if include_employees:
+        calls["employees"] = check_api_list(
+            ctx,
+            "/employees",
+            params={"company": company_id, "limit": employee_limit},
         )
-        if include_employees:
-            tasks["employees"] = tg.create_task(
-                check_api_list(
-                    ctx,
-                    "/employees",
-                    params={"company": company_id, "limit": employee_limit},
-                )
-            )
-        if include_payrolls:
-            tasks["payrolls"] = tg.create_task(
-                check_api_list(
-                    ctx,
-                    "/payrolls",
-                    params={"company": company_id, "limit": payroll_limit},
-                )
-            )
-        if include_bank_accounts:
-            tasks["bank_accounts"] = tg.create_task(
-                check_api_list(
-                    ctx,
-                    "/bank_accounts",
-                    params={"company": company_id},
-                )
-            )
+    if include_payrolls:
+        calls["payrolls"] = check_api_list(
+            ctx,
+            "/payrolls",
+            params={"company": company_id, "limit": payroll_limit},
+        )
+    if include_bank_accounts:
+        calls["bank_accounts"] = check_api_list(
+            ctx,
+            "/bank_accounts",
+            params={"company": company_id},
+        )
 
-    result: dict = {"company": tasks["company"].result()}
-    if "employees" in tasks:
-        result["employees"] = tasks["employees"].result()
-    if "payrolls" in tasks:
-        result["payrolls"] = tasks["payrolls"].result()
-    if "bank_accounts" in tasks:
-        result["bank_accounts"] = tasks["bank_accounts"].result()
-    return result
+    return await _gather_named(calls)
 
 
 async def get_employee_snapshot(
@@ -94,30 +92,19 @@ async def get_employee_snapshot(
         include_paystubs: Include recent paystubs (default true).
         paystub_limit: Max paystubs to return (default 5).
     """
-    tasks: dict[str, asyncio.Task] = {}
-    async with asyncio.TaskGroup() as tg:
-        tasks["employee"] = tg.create_task(
-            check_api_get(ctx, f"/employees/{employee_id}")
+    calls: dict[str, Coroutine[Any, Any, Any]] = {
+        "employee": check_api_get(ctx, f"/employees/{employee_id}"),
+    }
+    if include_tax_params:
+        calls["tax_params"] = check_api_get(ctx, f"/employee_tax_params/{employee_id}")
+    if include_paystubs:
+        calls["paystubs"] = check_api_list(
+            ctx,
+            f"/employees/{employee_id}/paystubs",
+            params={"limit": paystub_limit},
         )
-        if include_tax_params:
-            tasks["tax_params"] = tg.create_task(
-                check_api_get(ctx, f"/employee_tax_params/{employee_id}")
-            )
-        if include_paystubs:
-            tasks["paystubs"] = tg.create_task(
-                check_api_list(
-                    ctx,
-                    f"/employees/{employee_id}/paystubs",
-                    params={"limit": paystub_limit},
-                )
-            )
 
-    result: dict = {"employee": tasks["employee"].result()}
-    if "tax_params" in tasks:
-        result["tax_params"] = tasks["tax_params"].result()
-    if "paystubs" in tasks:
-        result["paystubs"] = tasks["paystubs"].result()
-    return result
+    return await _gather_named(calls)
 
 
 async def diagnose_payment(
@@ -133,26 +120,28 @@ async def diagnose_payment(
     Args:
         payment_id: The Check payment ID (e.g. "pmt_xxxxx").
     """
-    tasks: dict[str, asyncio.Task] = {}
-    async with asyncio.TaskGroup() as tg:
-        tasks["payment"] = tg.create_task(check_api_get(ctx, f"/payments/{payment_id}"))
-        tasks["attempts"] = tg.create_task(
-            check_api_list(ctx, f"/payments/{payment_id}/payment_attempts")
-        )
+    fetched = await _gather_named(
+        {
+            "payment": check_api_get(ctx, f"/payments/{payment_id}"),
+            "payment_attempts": check_api_list(
+                ctx, f"/payments/{payment_id}/payment_attempts"
+            ),
+        }
+    )
 
-    payment = tasks["payment"].result()
+    payment = fetched["payment"]
     result: dict = {
         "payment": payment,
-        "payment_attempts": tasks["attempts"].result(),
+        "payment_attempts": fetched["payment_attempts"],
     }
 
-    # If the payment has a payroll_item, fetch it too
     payroll_item_id = None
     if isinstance(payment, dict) and "error" not in payment:
         payroll_item_id = payment.get("payroll_item")
     if payroll_item_id:
-        payroll_item = await check_api_get(ctx, f"/payroll_items/{payroll_item_id}")
-        result["payroll_item"] = payroll_item
+        result["payroll_item"] = await check_api_get(
+            ctx, f"/payroll_items/{payroll_item_id}"
+        )
 
     return result
 
@@ -175,34 +164,23 @@ async def get_payroll_details(
         include_contractor_payments: Include contractor payments (default true).
         item_limit: Max payroll items to return (default 50).
     """
-    tasks: dict[str, asyncio.Task] = {}
-    async with asyncio.TaskGroup() as tg:
-        tasks["payroll"] = tg.create_task(
-            check_api_get(ctx, f"/payrolls/{payroll_id}")
+    calls: dict[str, Coroutine[Any, Any, Any]] = {
+        "payroll": check_api_get(ctx, f"/payrolls/{payroll_id}"),
+    }
+    if include_items:
+        calls["payroll_items"] = check_api_list(
+            ctx,
+            "/payroll_items",
+            params={"payroll": payroll_id, "limit": item_limit},
         )
-        if include_items:
-            tasks["items"] = tg.create_task(
-                check_api_list(
-                    ctx,
-                    "/payroll_items",
-                    params={"payroll": payroll_id, "limit": item_limit},
-                )
-            )
-        if include_contractor_payments:
-            tasks["contractor_payments"] = tg.create_task(
-                check_api_list(
-                    ctx,
-                    "/contractor_payments",
-                    params={"payroll": payroll_id},
-                )
-            )
+    if include_contractor_payments:
+        calls["contractor_payments"] = check_api_list(
+            ctx,
+            "/contractor_payments",
+            params={"payroll": payroll_id},
+        )
 
-    result: dict = {"payroll": tasks["payroll"].result()}
-    if "items" in tasks:
-        result["payroll_items"] = tasks["items"].result()
-    if "contractor_payments" in tasks:
-        result["contractor_payments"] = tasks["contractor_payments"].result()
-    return result
+    return await _gather_named(calls)
 
 
 async def get_contractor_snapshot(
@@ -223,33 +201,22 @@ async def get_contractor_snapshot(
         include_forms: Include contractor forms (default true).
         payment_limit: Max payments to return (default 10).
     """
-    tasks: dict[str, asyncio.Task] = {}
-    async with asyncio.TaskGroup() as tg:
-        tasks["contractor"] = tg.create_task(
-            check_api_get(ctx, f"/contractors/{contractor_id}")
+    calls: dict[str, Coroutine[Any, Any, Any]] = {
+        "contractor": check_api_get(ctx, f"/contractors/{contractor_id}"),
+    }
+    if include_payments:
+        calls["payments"] = check_api_list(
+            ctx,
+            f"/contractors/{contractor_id}/payments",
+            params={"limit": payment_limit},
         )
-        if include_payments:
-            tasks["payments"] = tg.create_task(
-                check_api_list(
-                    ctx,
-                    f"/contractors/{contractor_id}/payments",
-                    params={"limit": payment_limit},
-                )
-            )
-        if include_forms:
-            tasks["forms"] = tg.create_task(
-                check_api_list(
-                    ctx,
-                    f"/contractors/{contractor_id}/forms",
-                )
-            )
+    if include_forms:
+        calls["forms"] = check_api_list(
+            ctx,
+            f"/contractors/{contractor_id}/forms",
+        )
 
-    result: dict = {"contractor": tasks["contractor"].result()}
-    if "payments" in tasks:
-        result["payments"] = tasks["payments"].result()
-    if "forms" in tasks:
-        result["forms"] = tasks["forms"].result()
-    return result
+    return await _gather_named(calls)
 
 
 async def get_company_tax_overview(
@@ -270,33 +237,22 @@ async def get_company_tax_overview(
         include_filings: Include recent tax filings (default true).
         filing_limit: Max tax filings to return (default 10).
     """
-    tasks: dict[str, asyncio.Task] = {}
-    async with asyncio.TaskGroup() as tg:
-        tasks["tax_params"] = tg.create_task(
-            check_api_get(ctx, f"/company_tax_params/{company_id}")
+    calls: dict[str, Coroutine[Any, Any, Any]] = {
+        "tax_params": check_api_get(ctx, f"/company_tax_params/{company_id}"),
+    }
+    if include_elections:
+        calls["tax_elections"] = check_api_list(
+            ctx,
+            f"/companies/{company_id}/tax_elections",
         )
-        if include_elections:
-            tasks["elections"] = tg.create_task(
-                check_api_list(
-                    ctx,
-                    f"/companies/{company_id}/tax_elections",
-                )
-            )
-        if include_filings:
-            tasks["filings"] = tg.create_task(
-                check_api_list(
-                    ctx,
-                    "/tax_filings",
-                    params={"company": company_id, "limit": filing_limit},
-                )
-            )
+    if include_filings:
+        calls["tax_filings"] = check_api_list(
+            ctx,
+            "/tax_filings",
+            params={"company": company_id, "limit": filing_limit},
+        )
 
-    result: dict = {"tax_params": tasks["tax_params"].result()}
-    if "elections" in tasks:
-        result["tax_elections"] = tasks["elections"].result()
-    if "filings" in tasks:
-        result["tax_filings"] = tasks["filings"].result()
-    return result
+    return await _gather_named(calls)
 
 
 async def get_onboarding_status(
@@ -313,49 +269,38 @@ async def get_onboarding_status(
     Args:
         company_id: The Check company ID (e.g. "com_xxxxx").
     """
-    tasks: dict[str, asyncio.Task] = {}
-    async with asyncio.TaskGroup() as tg:
-        tasks["company"] = tg.create_task(
-            check_api_get(ctx, f"/companies/{company_id}")
-        )
-        tasks["workplaces"] = tg.create_task(
-            check_api_list(
+    fetched = await _gather_named(
+        {
+            "company": check_api_get(ctx, f"/companies/{company_id}"),
+            "workplaces": check_api_list(
                 ctx, "/workplaces", params={"company": company_id}
-            )
-        )
-        tasks["employees"] = tg.create_task(
-            check_api_list(
+            ),
+            "employees": check_api_list(
                 ctx, "/employees", params={"company": company_id, "limit": 5}
-            )
-        )
-        tasks["bank_accounts"] = tg.create_task(
-            check_api_list(
+            ),
+            "bank_accounts": check_api_list(
                 ctx, "/bank_accounts", params={"company": company_id}
-            )
-        )
-        tasks["requirements"] = tg.create_task(
-            check_api_list(
+            ),
+            "requirements": check_api_list(
                 ctx, "/requirements", params={"company": company_id}
-            )
-        )
+            ),
+        }
+    )
 
-    company = tasks["company"].result()
-    workplaces = tasks["workplaces"].result()
-    employees = tasks["employees"].result()
-    bank_accounts = tasks["bank_accounts"].result()
-    requirements = tasks["requirements"].result()
+    workplaces = fetched["workplaces"]
+    employees = fetched["employees"]
+    bank_accounts = fetched["bank_accounts"]
+    requirements = fetched["requirements"]
 
-    # Build a readiness summary
+    req_results = requirements.get("results", [])
+    outstanding = [r for r in req_results if r.get("status") != "met"]
     readiness: dict = {
         "has_workplaces": bool(workplaces.get("results")),
         "has_employees": bool(employees.get("results")),
         "has_bank_accounts": bool(bank_accounts.get("results")),
+        "outstanding_requirements": len(outstanding),
+        "total_requirements": len(req_results),
     }
-    # Count outstanding requirements
-    req_results = requirements.get("results", [])
-    outstanding = [r for r in req_results if r.get("status") != "met"]
-    readiness["outstanding_requirements"] = len(outstanding)
-    readiness["total_requirements"] = len(req_results)
     readiness["ready"] = (
         readiness["has_workplaces"]
         and readiness["has_employees"]
@@ -364,7 +309,7 @@ async def get_onboarding_status(
     )
 
     return {
-        "company": company,
+        "company": fetched["company"],
         "readiness": readiness,
         "workplaces": workplaces,
         "employees": employees,

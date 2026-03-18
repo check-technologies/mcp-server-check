@@ -17,9 +17,7 @@ from mcp_server_check.helpers import (
 
 @pytest.mark.anyio
 async def test_check_api_get(mock_api, ctx):
-    mock_api.get("/test").mock(
-        return_value=httpx.Response(200, json={"id": "t_1"})
-    )
+    mock_api.get("/test").mock(return_value=httpx.Response(200, json={"id": "t_1"}))
     result = await check_api_get(ctx, "/test")
     assert result == {"id": "t_1"}
 
@@ -35,9 +33,7 @@ async def test_check_api_get_with_params(mock_api, ctx):
 
 @pytest.mark.anyio
 async def test_check_api_post(mock_api, ctx):
-    route = mock_api.post("/test").mock(
-        return_value=httpx.Response(201, json={"id": "t_new"})
-    )
+    mock_api.post("/test").mock(return_value=httpx.Response(201, json={"id": "t_new"}))
     result = await check_api_post(ctx, "/test", data={"name": "foo"})
     assert result == {"id": "t_new"}
 
@@ -62,9 +58,7 @@ async def test_check_api_put(mock_api, ctx):
 
 @pytest.mark.anyio
 async def test_check_api_delete(mock_api, ctx):
-    mock_api.delete("/test/t_1").mock(
-        return_value=httpx.Response(204)
-    )
+    mock_api.delete("/test/t_1").mock(return_value=httpx.Response(204))
     result = await check_api_delete(ctx, "/test/t_1")
     assert result == {"success": True}
 

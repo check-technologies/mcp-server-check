@@ -60,9 +60,7 @@ class TestBuildBody:
             Field("name", str, required_for="create"),
             Field("active", bool, update_only=True),
         ]
-        body = _build_body(
-            fields, {"name": "Test", "active": True}, is_create=True
-        )
+        body = _build_body(fields, {"name": "Test", "active": True}, is_create=True)
         assert body == {"name": "Test"}
 
 
@@ -264,8 +262,6 @@ async def test_generated_delete_calls_api(mock_api, ctx):
         fields=[],
     )
     tools = generate_tools(res)
-    mock_api.delete("/widgets/w_1").mock(
-        return_value=httpx.Response(204)
-    )
+    mock_api.delete("/widgets/w_1").mock(return_value=httpx.Response(204))
     result = await tools.delete_fn(ctx, widget_id="w_1")
     assert result == {"success": True}

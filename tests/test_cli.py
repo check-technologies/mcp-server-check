@@ -72,7 +72,11 @@ def test_companies_list(respx_mock):
     respx_mock.get("/companies").mock(
         return_value=httpx.Response(
             200,
-            json={"results": [{"id": "com_001", "legal_name": "Acme"}], "next": None, "previous": None},
+            json={
+                "results": [{"id": "com_001", "legal_name": "Acme"}],
+                "next": None,
+                "previous": None,
+            },
         )
     )
     result = _invoke("companies", "list")

@@ -222,7 +222,9 @@ def generate_tools(res: Resource) -> GeneratedTools:
         cursor: str | None = None,
         **kwargs: Any,
     ) -> dict:
-        params = _build_params(filter_fields, {**kwargs, "limit": limit, "cursor": cursor})
+        params = _build_params(
+            filter_fields, {**kwargs, "limit": limit, "cursor": cursor}
+        )
         return await check_api_list(ctx, res.path, params=params)
 
     # Build the actual function with proper parameter annotations
@@ -309,7 +311,11 @@ def _create_list_function(res: Resource, filter_fields: list[str]):
     import inspect
 
     # Build new parameter list
-    params_list = [inspect.Parameter("ctx", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=Ctx)]
+    params_list = [
+        inspect.Parameter(
+            "ctx", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=Ctx
+        )
+    ]
     for pname in filter_fields:
         params_list.append(
             inspect.Parameter(
@@ -320,10 +326,20 @@ def _create_list_function(res: Resource, filter_fields: list[str]):
             )
         )
     params_list.append(
-        inspect.Parameter("limit", inspect.Parameter.POSITIONAL_OR_KEYWORD, default=None, annotation=int | None)
+        inspect.Parameter(
+            "limit",
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            default=None,
+            annotation=int | None,
+        )
     )
     params_list.append(
-        inspect.Parameter("cursor", inspect.Parameter.POSITIONAL_OR_KEYWORD, default=None, annotation=str | None)
+        inspect.Parameter(
+            "cursor",
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            default=None,
+            annotation=str | None,
+        )
     )
     list_fn.__signature__ = inspect.Signature(params_list, return_annotation=dict)
 
@@ -345,10 +361,15 @@ def _create_get_function(res: Resource):
     get_fn.__doc__ += f"\n\nArgs:\n{args_doc}"
 
     params_list = [
-        inspect.Parameter("ctx", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=Ctx),
-        inspect.Parameter(id_param, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=str),
+        inspect.Parameter(
+            "ctx", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=Ctx
+        ),
+        inspect.Parameter(
+            id_param, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=str
+        ),
     ]
     get_fn.__signature__ = inspect.Signature(params_list, return_annotation=dict)
+    get_fn.__annotations__ = {"ctx": Ctx, id_param: str, "return": dict}
     return get_fn
 
 
@@ -368,7 +389,12 @@ def _create_create_function(res: Resource, fields: list[Field]):
     if args_doc:
         create_fn.__doc__ += f"\n\nArgs:\n{args_doc}"
 
-    params_list = [inspect.Parameter("ctx", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=Ctx)]
+    params_list = [
+        inspect.Parameter(
+            "ctx", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=Ctx
+        )
+    ]
+    ann: dict[str, Any] = {"ctx": Ctx, "return": dict}
     for f in fields:
         if f.required_for == "create":
             params_list.append(
@@ -378,6 +404,7 @@ def _create_create_function(res: Resource, fields: list[Field]):
                     annotation=f.type,
                 )
             )
+            ann[f.name] = f.type
         else:
             params_list.append(
                 inspect.Parameter(
@@ -387,7 +414,9 @@ def _create_create_function(res: Resource, fields: list[Field]):
                     annotation=f.type | None,
                 )
             )
+            ann[f.name] = f.type | None
     create_fn.__signature__ = inspect.Signature(params_list, return_annotation=dict)
+    create_fn.__annotations__ = ann
     return create_fn
 
 
@@ -411,9 +440,14 @@ def _create_update_function(res: Resource, fields: list[Field]):
         update_fn.__doc__ += f"\n\nArgs:\n{args_doc}"
 
     params_list = [
-        inspect.Parameter("ctx", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=Ctx),
-        inspect.Parameter(id_param, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=str),
+        inspect.Parameter(
+            "ctx", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=Ctx
+        ),
+        inspect.Parameter(
+            id_param, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=str
+        ),
     ]
+    ann: dict[str, Any] = {"ctx": Ctx, id_param: str, "return": dict}
     for f in fields:
         params_list.append(
             inspect.Parameter(
@@ -423,7 +457,9 @@ def _create_update_function(res: Resource, fields: list[Field]):
                 annotation=f.type | None,
             )
         )
+        ann[f.name] = f.type | None
     update_fn.__signature__ = inspect.Signature(params_list, return_annotation=dict)
+    update_fn.__annotations__ = ann
     return update_fn
 
 
@@ -442,8 +478,13 @@ def _create_delete_function(res: Resource):
     delete_fn.__doc__ += f"\n\nArgs:\n{args_doc}"
 
     params_list = [
-        inspect.Parameter("ctx", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=Ctx),
-        inspect.Parameter(id_param, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=str),
+        inspect.Parameter(
+            "ctx", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=Ctx
+        ),
+        inspect.Parameter(
+            id_param, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=str
+        ),
     ]
     delete_fn.__signature__ = inspect.Signature(params_list, return_annotation=dict)
+    delete_fn.__annotations__ = {"ctx": Ctx, id_param: str, "return": dict}
     return delete_fn

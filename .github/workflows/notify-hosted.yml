@@ -1,0 +1,17 @@
+name: Notify hosted repo
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  trigger-hosted-rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger mcp-server-check-hosted rebuild
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.HOSTED_REPO_PAT }}
+          repository: check-technologies/mcp-server-check-hosted
+          event-type: upstream-updated
+          client-payload: '{"ref": "${{ github.sha }}", "ref_name": "${{ github.ref_name }}"}'

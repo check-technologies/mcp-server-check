@@ -10,9 +10,9 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import httpx
-from mcp.server.fastmcp import Context, FastMCP
-from mcp.server.fastmcp.exceptions import ToolError
-from mcp.types import Tool as MCPTool
+from fastmcp import Context, FastMCP
+from fastmcp.exceptions import ToolError
+from fastmcp.tools import FunctionTool
 
 from mcp_server_check.helpers import CheckContext
 from mcp_server_check.tool_filter import ToolFilter
@@ -110,18 +110,16 @@ class CheckMCP(FastMCP):
             request = self._mcp_server.request_context.request
             if request is not None and hasattr(request, "headers"):
                 header_filter = ToolFilter.from_headers(request.headers)
-                # If headers provide any configuration, use it; otherwise fall back
                 if header_filter != ToolFilter():
                     return header_filter
-        except LookupError:
+        except Exception:
             pass
         return self._static_filter
 
-    async def list_tools(self) -> list[MCPTool]:
+    async def list_tools(self, **kwargs: Any) -> Sequence[FunctionTool]:
         """List tools, filtered by the active configuration."""
-        all_tools = await super().list_tools()
+        all_tools = await super().list_tools(**kwargs)
         if self._tool_index is not None:
-            # Dynamic mode: the 3 meta-tools are always visible
             return all_tools
         tf = self._get_active_filter()
         return [
@@ -130,18 +128,19 @@ class CheckMCP(FastMCP):
             if tf.is_tool_allowed(t.name, self._registry.get(t.name, ""))
         ]
 
-    async def call_tool(self, name: str, arguments: dict[str, Any]) -> Sequence[Any]:
+    async def call_tool(
+        self, name: str, arguments: dict[str, Any] | None = None, **kwargs: Any
+    ) -> Any:
         """Call a tool, blocking if it's filtered out."""
         if self._tool_index is not None:
-            # Dynamic mode: meta-tools handle their own filtering
-            return await super().call_tool(name, arguments)
+            return await super().call_tool(name, arguments, **kwargs)
         tf = self._get_active_filter()
         toolset = self._registry.get(name, "")
         if not tf.is_tool_allowed(name, toolset):
             raise ToolError(
                 f"Tool '{name}' is not available in the current configuration"
             )
-        return await super().call_tool(name, arguments)
+        return await super().call_tool(name, arguments, **kwargs)
 
 
 def _setup_dynamic_mode(server: CheckMCP) -> None:
@@ -216,28 +215,31 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
             elif isinstance(arguments, dict):
                 parsed_args = arguments
             else:
-                return json.dumps({"error": "Arguments must be a JSON string or object"})
+                return json.dumps(
+                    {"error": "Arguments must be a JSON string or object"}
+                )
 
         # Check if this destructive tool needs confirmation
         call_key = f"{tool_name}:{json.dumps(parsed_args, sort_keys=True)}"
         if tf.requires_confirmation(tool_name) and not confirm:
             if call_key not in _confirmed_tools:
-                return json.dumps({
-                    "confirmation_required": True,
-                    "tool_name": tool_name,
-                    "arguments": parsed_args,
-                    "message": (
-                        f"⚠️  '{tool_name}' is a destructive operation that may "
-                        f"trigger irreversible effects (money movement, data deletion, "
-                        f"etc.). Call run_tool again with confirm=true to proceed."
-                    ),
-                })
+                return json.dumps(
+                    {
+                        "confirmation_required": True,
+                        "tool_name": tool_name,
+                        "arguments": parsed_args,
+                        "message": (
+                            f"⚠️  '{tool_name}' is a destructive operation that may "
+                            f"trigger irreversible effects (money movement, data deletion, "
+                            f"etc.). Call run_tool again with confirm=true to proceed."
+                        ),
+                    }
+                )
 
         try:
             result = await index.run(
                 name=tool_name,
                 arguments=parsed_args,
-                context=ctx,
                 tool_filter=tf,
             )
         except ValueError as e:
@@ -350,17 +352,27 @@ def _register_resources(server: CheckMCP) -> None:
         return json.dumps(_TOOLSET_DESCRIPTIONS, indent=2)
 
 
+def setup_tools(server: CheckMCP, tool_mode: str = "dynamic") -> None:
+    """Register tools, resources, and dynamic mode on a CheckMCP instance.
+
+    This is the public entry point for configuring a CheckMCP server with
+    all Check API tools.  The ``mcp-server-check-hosted`` package calls
+    this on its own server instance to reuse the tool definitions.
+    """
+    if tool_mode == "all":
+        register_all(server, registry=server._registry)
+    else:
+        _setup_dynamic_mode(server)
+    _register_resources(server)
+
+
 def _create_server() -> CheckMCP:
     """Create and configure the MCP server based on CHECK_TOOL_MODE."""
     server = CheckMCP(
         "Check Payroll API", instructions=SERVER_INSTRUCTIONS, lifespan=lifespan
     )
     tool_mode = os.environ.get("CHECK_TOOL_MODE", "dynamic").lower()
-    if tool_mode == "all":
-        register_all(server, registry=server._registry)
-    else:
-        _setup_dynamic_mode(server)
-    _register_resources(server)
+    setup_tools(server, tool_mode)
     return server
 
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from mcp_server_check.helpers import (
     Ctx,
@@ -239,9 +239,7 @@ async def get_payroll_cash_requirement_report(ctx: Ctx, payroll_id: str) -> dict
     Args:
         payroll_id: The Check payroll ID.
     """
-    return await check_api_get(
-        ctx, f"/payrolls/{payroll_id}/reports/cash_requirement"
-    )
+    return await check_api_get(ctx, f"/payrolls/{payroll_id}/reports/cash_requirement")
 
 
 async def get_payroll_paper_checks_report(ctx: Ctx, payroll_id: str) -> dict:
@@ -250,9 +248,7 @@ async def get_payroll_paper_checks_report(ctx: Ctx, payroll_id: str) -> dict:
     Args:
         payroll_id: The Check payroll ID.
     """
-    return await check_api_get(
-        ctx, f"/payrolls/{payroll_id}/reports/paper_checks"
-    )
+    return await check_api_get(ctx, f"/payrolls/{payroll_id}/reports/paper_checks")
 
 
 # --- Simulation ---
@@ -286,9 +282,7 @@ async def simulate_fail_funding(ctx: Ctx, payroll_id: str) -> dict:
     Args:
         payroll_id: The Check payroll ID.
     """
-    return await check_api_post(
-        ctx, f"/payrolls/{payroll_id}/simulate/fail_funding"
-    )
+    return await check_api_post(ctx, f"/payrolls/{payroll_id}/simulate/fail_funding")
 
 
 async def simulate_complete_disbursements(ctx: Ctx, payroll_id: str) -> dict:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from mcp_server_check.helpers import (
     Ctx,
@@ -163,9 +163,7 @@ async def update_employee_tax_params(
         employee_id: The Check employee ID.
         data: List of tax parameter update objects, each with ``id`` and ``value``.
     """
-    return await check_api_patch(
-        ctx, f"/employee_tax_params/{employee_id}", data=data
-    )
+    return await check_api_patch(ctx, f"/employee_tax_params/{employee_id}", data=data)
 
 
 async def list_employee_tax_param_settings(
@@ -236,9 +234,7 @@ async def bulk_get_employee_tax_param_settings(ctx: Ctx, data: dict) -> dict:
     Args:
         data: Bulk request payload with employee IDs or filters.
     """
-    return await check_api_post(
-        ctx, "/employee_tax_param_settings/bulk_get", data=data
-    )
+    return await check_api_post(ctx, "/employee_tax_param_settings/bulk_get", data=data)
 
 
 async def bulk_update_employee_tax_param_settings(ctx: Ctx, data: dict) -> dict:
@@ -280,9 +276,7 @@ async def list_company_tax_elections(
     )
 
 
-async def create_company_tax_elections(
-    ctx: Ctx, company_id: str, data: dict
-) -> dict:
+async def create_company_tax_elections(ctx: Ctx, company_id: str, data: dict) -> dict:
     """Create tax elections for a company.
 
     The payload is a complex nested structure — pass the full request body as a dict.
@@ -296,9 +290,7 @@ async def create_company_tax_elections(
     )
 
 
-async def update_company_tax_elections(
-    ctx: Ctx, company_id: str, data: dict
-) -> dict:
+async def update_company_tax_elections(ctx: Ctx, company_id: str, data: dict) -> dict:
     """Update tax elections for a company.
 
     The payload is a complex nested structure — pass the full request body as a dict.
@@ -338,9 +330,7 @@ async def list_employee_tax_elections(
     )
 
 
-async def update_employee_tax_elections(
-    ctx: Ctx, employee_id: str, data: dict
-) -> dict:
+async def update_employee_tax_elections(ctx: Ctx, employee_id: str, data: dict) -> dict:
     """Update tax elections for an employee.
 
     The payload is a complex nested structure — pass the full request body as a dict.
@@ -508,9 +498,7 @@ async def list_employee_tax_statements(
         params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
-    return await check_api_list(
-        ctx, "/employee_tax_statements", params=params or None
-    )
+    return await check_api_list(ctx, "/employee_tax_statements", params=params or None)
 
 
 async def get_employee_tax_statement(ctx: Ctx, statement_id: str) -> dict:

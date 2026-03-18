@@ -43,9 +43,7 @@ async def test_create_bank_account(mock_api, ctx):
 
 @pytest.mark.anyio
 async def test_delete_bank_account(mock_api, ctx):
-    mock_api.delete("/bank_accounts/bnk_001").mock(
-        return_value=httpx.Response(204)
-    )
+    mock_api.delete("/bank_accounts/bnk_001").mock(return_value=httpx.Response(204))
     result = await delete_bank_account(ctx, bank_account_id="bnk_001")
     assert result == {"success": True}
 
@@ -53,9 +51,7 @@ async def test_delete_bank_account(mock_api, ctx):
 @pytest.mark.anyio
 async def test_reveal_bank_account_number(mock_api, ctx):
     mock_api.get("/bank_accounts/bnk_001/reveal").mock(
-        return_value=httpx.Response(
-            200, json={"raw_account_number": "123456789"}
-        )
+        return_value=httpx.Response(200, json={"raw_account_number": "123456789"})
     )
     result = await reveal_bank_account_number(ctx, bank_account_id="bnk_001")
     assert result["raw_account_number"] == "123456789"

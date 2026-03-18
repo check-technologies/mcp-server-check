@@ -213,16 +213,12 @@ def _build_params(func: Callable) -> list[click.Parameter]:
 
         # list[str] → CSV list
         if typing.get_origin(base_type) is list:
-            params.append(
-                click.Option([f"--{cli_name}"], type=CSVList(), **opt_kwargs)
-            )
+            params.append(click.Option([f"--{cli_name}"], type=CSVList(), **opt_kwargs))
             continue
 
         # int
         if base_type is int:
-            params.append(
-                click.Option([f"--{cli_name}"], type=click.INT, **opt_kwargs)
-            )
+            params.append(click.Option([f"--{cli_name}"], type=click.INT, **opt_kwargs))
             continue
 
         # float
@@ -233,9 +229,7 @@ def _build_params(func: Callable) -> list[click.Parameter]:
             continue
 
         # Default: string
-        params.append(
-            click.Option([f"--{cli_name}"], type=click.STRING, **opt_kwargs)
-        )
+        params.append(click.Option([f"--{cli_name}"], type=click.STRING, **opt_kwargs))
 
     return params
 
@@ -297,9 +291,7 @@ def _make_callback(func: Callable) -> Callable:
 # ---------------------------------------------------------------------------
 
 
-def build_command(
-    func: Callable, toolset_name: str
-) -> tuple[str, click.Command, str]:
+def build_command(func: Callable, toolset_name: str) -> tuple[str, click.Command, str]:
     """Build a click Command from *func*.
 
     Returns ``(command_name, click_command, tool_function_name)``.

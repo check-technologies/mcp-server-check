@@ -36,22 +36,16 @@ async def test_create_employee(mock_api, ctx):
 @pytest.mark.anyio
 async def test_update_employee(mock_api, ctx):
     mock_api.patch("/employees/emp_001").mock(
-        return_value=httpx.Response(
-            200, json={"id": "emp_001", "first_name": "Janet"}
-        )
+        return_value=httpx.Response(200, json={"id": "emp_001", "first_name": "Janet"})
     )
-    result = await update_employee(
-        ctx, employee_id="emp_001", first_name="Janet"
-    )
+    result = await update_employee(ctx, employee_id="emp_001", first_name="Janet")
     assert result["first_name"] == "Janet"
 
 
 @pytest.mark.anyio
 async def test_onboard_employee(mock_api, ctx):
     mock_api.post("/employees/emp_001/onboard").mock(
-        return_value=httpx.Response(
-            200, json={"id": "emp_001", "onboard": "complete"}
-        )
+        return_value=httpx.Response(200, json={"id": "emp_001", "onboard": "complete"})
     )
     result = await onboard_employee(ctx, employee_id="emp_001")
     assert result["onboard"] == "complete"
