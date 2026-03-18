@@ -7,6 +7,7 @@ import os
 import sys
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
+from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
 import httpx
@@ -83,9 +84,16 @@ Prefer the workflow tools when they fit — they combine multiple API calls in o
 async def lifespan(server: FastMCP) -> AsyncIterator[CheckContext]:
     base_url = os.environ.get("CHECK_API_BASE_URL", DEFAULT_BASE_URL).rstrip("/")
     api_key = os.environ["CHECK_API_KEY"]
+    try:
+        pkg_version = version("mcp-server-check")
+    except PackageNotFoundError:
+        pkg_version = "dev"
     async with httpx.AsyncClient(
         base_url=base_url,
-        headers={"Authorization": f"Bearer {api_key}"},
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "User-Agent": f"mcp-server-check/{pkg_version}",
+        },
         timeout=30.0,
     ) as client:
         yield CheckContext(client=client, base_url=base_url)
