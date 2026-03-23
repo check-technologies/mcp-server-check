@@ -308,6 +308,7 @@ _earning_rates = Resource(
     description="earning rates",
     list_filters=["company", "employee"],
     has_delete=False,
+    default_limit=500,
     fields=[
         Field(
             "employee",

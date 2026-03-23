@@ -16,21 +16,20 @@ from mcp_server_check.helpers import (
 async def list_workplaces(
     ctx: Ctx,
     company: str | None = None,
-    limit: int | None = None,
+    limit: int = 500,
     cursor: str | None = None,
 ) -> dict:
     """List workplaces, optionally filtered by company.
 
     Args:
         company: Filter to workplaces belonging to this Check company ID (e.g. "com_xxxxx").
-        limit: Maximum number of results to return (default 10, max 100).
+        limit: Maximum number of results to return (max 500, default 500).
         cursor: Pagination cursor from a previous response.
     """
     params: dict = {}
     if company is not None:
         params["company"] = company
-    if limit is not None:
-        params["limit"] = limit
+    params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
     return await check_api_list(ctx, "/workplaces", params=params or None)

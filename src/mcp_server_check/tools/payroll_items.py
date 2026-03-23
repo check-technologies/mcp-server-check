@@ -19,7 +19,7 @@ async def list_payroll_items(
     company: str | None = None,
     employee: str | None = None,
     payroll: str | None = None,
-    limit: int | None = None,
+    limit: int = 500,
     ids: list[str] | None = None,
     cursor: str | None = None,
 ) -> dict:
@@ -29,7 +29,7 @@ async def list_payroll_items(
         company: Filter to payroll items belonging to this Check company ID (e.g. "com_xxxxx").
         employee: Filter to payroll items for this Check employee ID (e.g. "emp_xxxxx").
         payroll: Filter to payroll items for this Check payroll ID (e.g. "prl_xxxxx").
-        limit: Maximum number of results to return (default 10, max 100).
+        limit: Maximum number of results to return (max 500, default 500).
         ids: Filter to specific payroll item IDs.
         cursor: Pagination cursor from a previous response.
     """
@@ -40,8 +40,7 @@ async def list_payroll_items(
         params["employee"] = employee
     if payroll is not None:
         params["payroll"] = payroll
-    if limit is not None:
-        params["limit"] = limit
+    params["limit"] = limit
     if ids:
         params["ids"] = ",".join(ids)
     if cursor:

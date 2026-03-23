@@ -76,6 +76,9 @@ class Resource:
         list_filters: Names of query-parameter fields for list filtering
             (e.g. ["company", "employee"]).
         has_delete: Whether to generate a delete tool. Default True.
+        default_limit: Default page size for the list tool. When set, the
+            generated list function uses this as the default value for ``limit``
+            instead of ``None``, reducing pagination round-trips.
         list_doc: Custom docstring for the list tool.
         get_doc: Custom docstring for the get tool.
         create_doc: Custom docstring for the create tool.
@@ -91,6 +94,7 @@ class Resource:
     fields: list[Field] = dataclass_field(default_factory=list)
     list_filters: list[str] = dataclass_field(default_factory=list)
     has_delete: bool = True
+    default_limit: int | None = None
     list_doc: str | None = None
     get_doc: str | None = None
     create_doc: str | None = None
@@ -286,11 +290,19 @@ def _create_list_function(res: Resource, filter_fields: list[str]):
         else:
             filter_docs[fname] = f'Filter by {fname} (e.g. "{fname}_xxxxx").'
 
-    annotations["limit"] = int | None
+    limit_default = res.default_limit
+    if limit_default is not None:
+        annotations["limit"] = int
+        defaults["limit"] = limit_default
+        filter_docs["limit"] = (
+            f"Maximum number of results to return (max {limit_default}, default {limit_default})."
+        )
+    else:
+        annotations["limit"] = int | None
+        defaults["limit"] = None
+        filter_docs["limit"] = "Maximum number of results to return."
     annotations["cursor"] = str | None
-    defaults["limit"] = None
     defaults["cursor"] = None
-    filter_docs["limit"] = "Maximum number of results to return."
     filter_docs["cursor"] = "Pagination cursor from a previous response."
 
     path = res.path
@@ -325,14 +337,24 @@ def _create_list_function(res: Resource, filter_fields: list[str]):
                 annotation=str | None,
             )
         )
-    params_list.append(
-        inspect.Parameter(
-            "limit",
-            inspect.Parameter.POSITIONAL_OR_KEYWORD,
-            default=None,
-            annotation=int | None,
+    if limit_default is not None:
+        params_list.append(
+            inspect.Parameter(
+                "limit",
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                default=limit_default,
+                annotation=int,
+            )
         )
-    )
+    else:
+        params_list.append(
+            inspect.Parameter(
+                "limit",
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                default=None,
+                annotation=int | None,
+            )
+        )
     params_list.append(
         inspect.Parameter(
             "cursor",
