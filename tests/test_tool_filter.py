@@ -301,6 +301,79 @@ class TestRequiresConfirmation:
         assert tf.confirm_destructive is True
 
 
+class TestMerge:
+    def test_merge_defaults_returns_default(self):
+        a = ToolFilter()
+        b = ToolFilter()
+        assert a.merge(b) == ToolFilter()
+
+    def test_merge_preserves_read_only_from_env(self):
+        """Env sets read_only; header does not -- result is read_only."""
+        env = ToolFilter(read_only=True)
+        header = ToolFilter(toolsets=frozenset({"companies"}))
+        merged = env.merge(header)
+        assert merged.read_only is True
+        assert merged.toolsets == frozenset({"companies"})
+
+    def test_merge_header_cannot_relax_read_only(self):
+        """Header sending read_only=False cannot override env read_only=True."""
+        env = ToolFilter(read_only=True)
+        header = ToolFilter(read_only=False)
+        assert env.merge(header).read_only is True
+
+    def test_merge_unions_exclude_tools(self):
+        env = ToolFilter(exclude_tools=frozenset({"delete_company"}))
+        header = ToolFilter(exclude_tools=frozenset({"delete_payroll"}))
+        merged = env.merge(header)
+        assert merged.exclude_tools == frozenset({"delete_company", "delete_payroll"})
+
+    def test_merge_intersects_toolsets(self):
+        env = ToolFilter(toolsets=frozenset({"companies", "employees"}))
+        header = ToolFilter(toolsets=frozenset({"companies", "payrolls"}))
+        merged = env.merge(header)
+        assert merged.toolsets == frozenset({"companies"})
+
+    def test_merge_env_toolsets_restricts_when_header_none(self):
+        env = ToolFilter(toolsets=frozenset({"companies"}))
+        header = ToolFilter()  # toolsets=None means "all"
+        merged = env.merge(header)
+        assert merged.toolsets == frozenset({"companies"})
+
+    def test_merge_header_toolsets_restricts_when_env_none(self):
+        env = ToolFilter()  # toolsets=None means "all"
+        header = ToolFilter(toolsets=frozenset({"companies"}))
+        merged = env.merge(header)
+        assert merged.toolsets == frozenset({"companies"})
+
+    def test_merge_intersects_tools(self):
+        env = ToolFilter(tools=frozenset({"list_companies", "get_company"}))
+        header = ToolFilter(tools=frozenset({"list_companies", "create_company"}))
+        merged = env.merge(header)
+        assert merged.tools == frozenset({"list_companies"})
+
+    def test_merge_confirm_destructive_or(self):
+        env = ToolFilter(confirm_destructive=True)
+        header = ToolFilter(confirm_destructive=False)
+        assert env.merge(header).confirm_destructive is True
+
+    def test_merge_full_policy_scenario(self):
+        """Realistic scenario: env locks down to read-only companies,
+        header tries to request employees + write access."""
+        env = ToolFilter(
+            toolsets=frozenset({"companies"}),
+            read_only=True,
+            exclude_tools=frozenset({"reveal_employee_ssn"}),
+        )
+        header = ToolFilter(
+            toolsets=frozenset({"companies", "employees"}),
+            read_only=False,
+        )
+        merged = env.merge(header)
+        assert merged.toolsets == frozenset({"companies"})
+        assert merged.read_only is True
+        assert merged.exclude_tools == frozenset({"reveal_employee_ssn"})
+
+
 class TestToolsets:
     def test_has_18_toolsets(self):
         assert len(TOOLSETS) == 18

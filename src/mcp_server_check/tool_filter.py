@@ -159,6 +159,41 @@ class ToolFilter:
 
         return True
 
+    def merge(self, other: ToolFilter) -> ToolFilter:
+        """Merge two filters, taking the most restrictive value for each field.
+
+        Used to combine a server-side policy (env vars) with a per-request
+        override (HTTP headers) so that the policy acts as a floor that
+        cannot be relaxed by the client.
+        """
+        # toolsets: intersect when both set; keep the one that's set if only one is
+        if self.toolsets is not None and other.toolsets is not None:
+            merged_toolsets = self.toolsets & other.toolsets
+        elif self.toolsets is not None:
+            merged_toolsets = self.toolsets
+        elif other.toolsets is not None:
+            merged_toolsets = other.toolsets
+        else:
+            merged_toolsets = None
+
+        # tools: intersect when both set; keep the one that's set if only one is
+        if self.tools is not None and other.tools is not None:
+            merged_tools = self.tools & other.tools
+        elif self.tools is not None:
+            merged_tools = self.tools
+        elif other.tools is not None:
+            merged_tools = other.tools
+        else:
+            merged_tools = None
+
+        return ToolFilter(
+            toolsets=merged_toolsets,
+            tools=merged_tools,
+            exclude_tools=self.exclude_tools | other.exclude_tools,
+            read_only=self.read_only or other.read_only,
+            confirm_destructive=self.confirm_destructive or other.confirm_destructive,
+        )
+
     def requires_confirmation(self, tool_name: str) -> bool:
         """Return True if this tool requires explicit confirmation before execution."""
         return self.confirm_destructive and is_destructive_tool(tool_name)

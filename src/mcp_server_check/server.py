@@ -111,15 +111,17 @@ class CheckMCP(FastMCP):
     def _get_active_filter(self) -> ToolFilter:
         """Return the filter for the current request.
 
-        For HTTP transports, checks request headers and merges with the
-        static (env-based) filter. For stdio, returns the static filter.
+        For HTTP transports, merges request-header overrides with the
+        static (env-based) filter, taking the most restrictive value
+        for each field.  The env filter acts as a policy floor that
+        clients cannot relax.  For stdio, returns the static filter.
         """
         try:
             request = self._mcp_server.request_context.request
             if request is not None and hasattr(request, "headers"):
                 header_filter = ToolFilter.from_headers(request.headers)
                 if header_filter != ToolFilter():
-                    return header_filter
+                    return self._static_filter.merge(header_filter)
         except Exception:
             pass
         return self._static_filter
@@ -189,9 +191,6 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         results = index.search("", tool_filter=tf)
         return json.dumps(results, indent=2)
 
-    # Track tools that have been confirmed for execution in this session
-    _confirmed_tools: set[str] = set()
-
     @server.tool()
     async def run_tool(
         ctx: Context,
@@ -227,22 +226,19 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
                     {"error": "Arguments must be a JSON string or object"}
                 )
 
-        # Check if this destructive tool needs confirmation
-        call_key = f"{tool_name}:{json.dumps(parsed_args, sort_keys=True)}"
         if tf.requires_confirmation(tool_name) and not confirm:
-            if call_key not in _confirmed_tools:
-                return json.dumps(
-                    {
-                        "confirmation_required": True,
-                        "tool_name": tool_name,
-                        "arguments": parsed_args,
-                        "message": (
-                            f"⚠️  '{tool_name}' is a destructive operation that may "
-                            f"trigger irreversible effects (money movement, data deletion, "
-                            f"etc.). Call run_tool again with confirm=true to proceed."
-                        ),
-                    }
-                )
+            return json.dumps(
+                {
+                    "confirmation_required": True,
+                    "tool_name": tool_name,
+                    "arguments": parsed_args,
+                    "message": (
+                        f"⚠️  '{tool_name}' is a destructive operation that may "
+                        f"trigger irreversible effects (money movement, data deletion, "
+                        f"etc.). Call run_tool again with confirm=true to proceed."
+                    ),
+                }
+            )
 
         try:
             result = await index.run(
@@ -252,10 +248,6 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
             )
         except ValueError as e:
             return json.dumps({"error": str(e)})
-
-        # Track confirmation so repeated identical calls don't re-prompt
-        if tf.requires_confirmation(tool_name):
-            _confirmed_tools.add(call_key)
 
         return json.dumps(result) if isinstance(result, dict) else str(result)
 
