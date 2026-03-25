@@ -2,6 +2,8 @@
 
 > **⚠️ Early Access Beta** — This MCP server is currently in beta and available to select partners. APIs, tools, and behavior may change without notice. Please share feedback with your Check point of contact.
 
+> **Terms of Service** — By using this MCP server to access the Check API, you agree to the [MCP Usage Terms](TERMS_OF_SERVICE.md), which are in addition to your existing agreement with Check.
+
 An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 263 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
