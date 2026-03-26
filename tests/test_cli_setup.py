@@ -9,7 +9,11 @@ from unittest.mock import patch
 from click.testing import CliRunner
 
 from mcp_server_check.cli import cli
-from mcp_server_check.cli.setup import BASH_CHECK_PERMISSION, CHECK_SENTINEL, _render_content
+from mcp_server_check.cli.setup import (
+    BASH_CHECK_PERMISSION,
+    CHECK_SENTINEL,
+    _render_content,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -283,9 +287,7 @@ def test_visible_with_toolset_filter():
 
 def test_custom_directory(tmp_path):
     runner = CliRunner()
-    result = runner.invoke(
-        cli, ["setup", "claude-code", "--directory", str(tmp_path)]
-    )
+    result = runner.invoke(cli, ["setup", "claude-code", "--directory", str(tmp_path)])
     assert result.exit_code == 0
     target = tmp_path / "CLAUDE.md"
     assert target.exists()
