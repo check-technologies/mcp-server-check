@@ -18,7 +18,7 @@ async def list_contractor_payments(
     ctx: Ctx,
     company: str | None = None,
     contractor: str | None = None,
-    limit: int | None = None,
+    limit: int = 500,
     ids: list[str] | None = None,
     cursor: str | None = None,
     payroll: str | None = None,
@@ -28,7 +28,7 @@ async def list_contractor_payments(
     Args:
         company: Filter to contractor payments belonging to this Check company ID (e.g. "com_xxxxx").
         contractor: Filter to payments for this Check contractor ID (e.g. "ctr_xxxxx").
-        limit: Maximum number of results to return (default 10, max 100).
+        limit: Maximum number of results to return (default 500, max 500).
         ids: Filter to specific contractor payment IDs.
         cursor: Pagination cursor from a previous response.
         payroll: Filter by payroll ID.
@@ -38,8 +38,7 @@ async def list_contractor_payments(
         params["company"] = company
     if contractor is not None:
         params["contractor"] = contractor
-    if limit is not None:
-        params["limit"] = limit
+    params["limit"] = limit
     if ids:
         params["ids"] = ",".join(ids)
     if cursor:

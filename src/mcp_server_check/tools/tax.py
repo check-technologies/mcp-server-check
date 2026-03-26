@@ -390,7 +390,7 @@ async def update_employee_tax_elections(ctx: Ctx, employee_id: str, data: dict) 
 async def list_tax_filings(
     ctx: Ctx,
     company: str | None = None,
-    limit: int | None = None,
+    limit: int = 500,
     cursor: str | None = None,
     year: int | None = None,
     period: str | None = None,
@@ -399,7 +399,7 @@ async def list_tax_filings(
 
     Args:
         company: Filter to tax filings belonging to this Check company ID (e.g. "com_xxxxx").
-        limit: Maximum number of results to return.
+        limit: Maximum number of results to return (default 500, max 500).
         cursor: Pagination cursor.
         year: Filter by tax year.
         period: Filter by filing period.
@@ -407,8 +407,7 @@ async def list_tax_filings(
     params: dict = {}
     if company is not None:
         params["company"] = company
-    if limit is not None:
-        params["limit"] = limit
+    params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
     if year is not None:

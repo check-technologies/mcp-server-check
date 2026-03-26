@@ -17,7 +17,7 @@ from mcp_server_check.helpers import (
 
 async def list_company_tax_documents(
     ctx: Ctx,
-    limit: int | None = None,
+    limit: int = 500,
     cursor: str | None = None,
     company: str | None = None,
     year: int | None = None,
@@ -26,15 +26,14 @@ async def list_company_tax_documents(
     """List company tax documents.
 
     Args:
-        limit: Maximum number of results to return.
+        limit: Maximum number of results to return (default 500, max 500).
         cursor: Pagination cursor.
         company: Filter by company ID.
         year: Filter by tax year.
         quarter: Filter by tax quarter.
     """
     params: dict = {}
-    if limit is not None:
-        params["limit"] = limit
+    params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
     if company is not None:
@@ -121,7 +120,7 @@ async def download_company_authorization_document(ctx: Ctx, document_id: str) ->
 
 async def list_employee_tax_documents(
     ctx: Ctx,
-    limit: int | None = None,
+    limit: int = 500,
     cursor: str | None = None,
     employee: str | None = None,
     company: str | None = None,
@@ -130,15 +129,14 @@ async def list_employee_tax_documents(
     """List employee tax documents.
 
     Args:
-        limit: Maximum number of results to return.
+        limit: Maximum number of results to return (default 500, max 500).
         cursor: Pagination cursor.
         employee: Filter by employee ID.
         company: Filter by company ID.
         year: Filter by tax year.
     """
     params: dict = {}
-    if limit is not None:
-        params["limit"] = limit
+    params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
     if employee is not None:

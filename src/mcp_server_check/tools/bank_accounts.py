@@ -17,7 +17,7 @@ from mcp_server_check.helpers import (
 async def list_bank_accounts(
     ctx: Ctx,
     company: str | None = None,
-    limit: int | None = None,
+    limit: int = 500,
     cursor: str | None = None,
     employee: str | None = None,
     contractor: str | None = None,
@@ -26,7 +26,7 @@ async def list_bank_accounts(
 
     Args:
         company: Filter to bank accounts belonging to this Check company ID (e.g. "com_xxxxx").
-        limit: Maximum number of results to return.
+        limit: Maximum number of results to return (default 500, max 500).
         cursor: Pagination cursor.
         employee: Filter by employee ID.
         contractor: Filter by contractor ID.
@@ -34,8 +34,7 @@ async def list_bank_accounts(
     params: dict = {}
     if company is not None:
         params["company"] = company
-    if limit is not None:
-        params["limit"] = limit
+    params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
     if employee is not None:

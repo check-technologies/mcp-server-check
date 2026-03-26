@@ -17,21 +17,20 @@ from mcp_server_check.helpers import (
 async def list_webhook_configs(
     ctx: Ctx,
     company: str | None = None,
-    limit: int | None = None,
+    limit: int = 500,
     cursor: str | None = None,
 ) -> dict:
     """List webhook configurations, optionally filtered by company.
 
     Args:
         company: Filter to webhook configs belonging to this Check company ID (e.g. "com_xxxxx").
-        limit: Maximum number of results to return.
+        limit: Maximum number of results to return (default 500, max 500).
         cursor: Pagination cursor.
     """
     params: dict = {}
     if company is not None:
         params["company"] = company
-    if limit is not None:
-        params["limit"] = limit
+    params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
     return await check_api_list(ctx, "/webhook_configs", params=params or None)

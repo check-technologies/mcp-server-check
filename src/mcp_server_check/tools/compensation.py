@@ -95,6 +95,7 @@ _benefits = Resource(
     id_description="The Check benefit ID.",
     description="employee benefits",
     list_filters=["company", "employee", "include_external"],
+    default_limit=500,
     fields=[
         Field("employee", str, required_for="create", doc="The Check employee ID."),
         Field(
@@ -172,6 +173,7 @@ _post_tax_deductions = Resource(
     id_description="The Check post-tax deduction ID.",
     description="post-tax deductions",
     list_filters=["company", "employee", "include_external"],
+    default_limit=500,
     fields=[
         Field("employee", str, required_for="create", doc="The Check employee ID."),
         Field(
@@ -242,6 +244,7 @@ _company_benefits = Resource(
     id_description="The Check company benefit ID.",
     description="company-level benefits",
     list_filters=["company"],
+    default_limit=500,
     fields=[
         Field(
             "company",
@@ -428,6 +431,7 @@ _net_pay_splits = Resource(
     description="net pay splits",
     list_filters=["company", "employee", "contractor"],
     has_delete=False,
+    default_limit=500,
     fields=[
         Field(
             "splits",
