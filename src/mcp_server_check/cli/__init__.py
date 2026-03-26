@@ -13,6 +13,7 @@ from mcp_server_check.tool_filter import ToolFilter
 
 from .codegen import build_command, collect_tools
 from .context import resolve_api_key, resolve_base_url
+from .setup import setup_command
 
 
 # ---------------------------------------------------------------------------
@@ -195,6 +196,8 @@ def _build_cli() -> click.Group:
 
         toolset_names[group_name] = toolset_name
         cli.add_command(group, group_name)
+
+    cli.add_command(setup_command, "setup")
 
     return cli
 
