@@ -9,6 +9,7 @@ from mcp_server_check.tools.payrolls import (
     approve_payroll,
     create_payroll,
     delete_payroll,
+    list_payrolls,
     preview_payroll,
     reopen_payroll,
     simulate_start_processing,
@@ -16,6 +17,41 @@ from mcp_server_check.tools.payrolls import (
 )
 
 BASE_URL = "https://sandbox.checkhq.com"
+
+
+@pytest.mark.anyio
+async def test_list_payrolls_with_filters(mock_api, ctx):
+    mock_api.get("/payrolls").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "prl_001"}]},
+        )
+    )
+    result = await list_payrolls(
+        ctx,
+        company="com_123",
+        type="regular",
+        status="paid",
+        managed=True,
+        approved=False,
+        pay_schedule="psc_456",
+        payday_after="2026-01-01",
+        payday_before="2026-12-31",
+        include_items=True,
+        include_contractor_payments=False,
+    )
+    assert result["results"] == [{"id": "prl_001"}]
+    req = mock_api.get("/payrolls").calls.last.request
+    assert req.url.params["company"] == "com_123"
+    assert req.url.params["type"] == "regular"
+    assert req.url.params["status"] == "paid"
+    assert req.url.params["managed"] == "true"
+    assert req.url.params["approved"] == "false"
+    assert req.url.params["pay_schedule"] == "psc_456"
+    assert req.url.params["payday_after"] == "2026-01-01"
+    assert req.url.params["payday_before"] == "2026-12-31"
+    assert req.url.params["include_items"] == "true"
+    assert req.url.params["include_contractor_payments"] == "false"
 
 
 @pytest.mark.anyio

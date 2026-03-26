@@ -16,19 +16,33 @@ from mcp_server_check.helpers import (
 
 
 async def list_company_tax_documents(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    limit: int | None = None,
+    cursor: str | None = None,
+    company: str | None = None,
+    year: int | None = None,
+    quarter: str | None = None,
 ) -> dict:
     """List company tax documents.
 
     Args:
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
+        company: Filter by company ID.
+        year: Filter by tax year.
+        quarter: Filter by tax quarter.
     """
     params: dict = {}
     if limit is not None:
         params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
+    if company is not None:
+        params["company"] = company
+    if year is not None:
+        params["year"] = year
+    if quarter is not None:
+        params["quarter"] = quarter
     return await check_api_list(ctx, "/company_tax_documents", params=params or None)
 
 
@@ -54,19 +68,29 @@ async def download_company_tax_document(ctx: Ctx, document_id: str) -> dict:
 
 
 async def list_company_authorization_documents(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    limit: int | None = None,
+    cursor: str | None = None,
+    company: str | None = None,
+    year: int | None = None,
 ) -> dict:
     """List company authorization documents.
 
     Args:
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
+        company: Filter by company ID.
+        year: Filter by year.
     """
     params: dict = {}
     if limit is not None:
         params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
+    if company is not None:
+        params["company"] = company
+    if year is not None:
+        params["year"] = year
     return await check_api_list(
         ctx, "/company_authorization_documents", params=params or None
     )
@@ -96,19 +120,33 @@ async def download_company_authorization_document(ctx: Ctx, document_id: str) ->
 
 
 async def list_employee_tax_documents(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    limit: int | None = None,
+    cursor: str | None = None,
+    employee: str | None = None,
+    company: str | None = None,
+    year: int | None = None,
 ) -> dict:
     """List employee tax documents.
 
     Args:
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
+        employee: Filter by employee ID.
+        company: Filter by company ID.
+        year: Filter by tax year.
     """
     params: dict = {}
     if limit is not None:
         params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
+    if employee is not None:
+        params["employee"] = employee
+    if company is not None:
+        params["company"] = company
+    if year is not None:
+        params["year"] = year
     return await check_api_list(ctx, "/employee_tax_documents", params=params or None)
 
 
@@ -134,19 +172,33 @@ async def download_employee_tax_document(ctx: Ctx, document_id: str) -> dict:
 
 
 async def list_contractor_tax_documents(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    limit: int | None = None,
+    cursor: str | None = None,
+    contractor: str | None = None,
+    company: str | None = None,
+    year: int | None = None,
 ) -> dict:
     """List contractor tax documents.
 
     Args:
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
+        contractor: Filter by contractor ID.
+        company: Filter by company ID.
+        year: Filter by tax year.
     """
     params: dict = {}
     if limit is not None:
         params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
+    if contractor is not None:
+        params["contractor"] = contractor
+    if company is not None:
+        params["company"] = company
+    if year is not None:
+        params["year"] = year
     return await check_api_list(ctx, "/contractor_tax_documents", params=params or None)
 
 
@@ -172,19 +224,25 @@ async def download_contractor_tax_document(ctx: Ctx, document_id: str) -> dict:
 
 
 async def list_setup_documents(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    limit: int | None = None,
+    cursor: str | None = None,
+    company: str | None = None,
 ) -> dict:
     """List setup documents.
 
     Args:
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
+        company: Filter by company ID.
     """
     params: dict = {}
     if limit is not None:
         params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
+    if company is not None:
+        params["company"] = company
     return await check_api_list(ctx, "/setup_documents", params=params or None)
 
 
@@ -210,19 +268,25 @@ async def download_setup_document(ctx: Ctx, document_id: str) -> dict:
 
 
 async def list_company_provided_documents(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    limit: int | None = None,
+    cursor: str | None = None,
+    company: str | None = None,
 ) -> dict:
     """List company-provided documents.
 
     Args:
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
+        company: Filter by company ID.
     """
     params: dict = {}
     if limit is not None:
         params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
+    if company is not None:
+        params["company"] = company
     return await check_api_list(
         ctx, "/company_provided_documents", params=params or None
     )

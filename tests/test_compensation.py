@@ -9,9 +9,13 @@ from mcp_server_check.tools.compensation import (
     create_benefit,
     create_pay_schedule,
     delete_pay_schedule,
+    list_benefits,
     list_company_benefits,
     list_earning_codes,
+    list_earning_rates,
+    list_net_pay_splits,
     list_pay_schedules,
+    list_post_tax_deductions,
 )
 
 
@@ -68,6 +72,74 @@ async def test_list_company_benefits(mock_api, ctx):
     )
     result = await list_company_benefits(ctx)
     assert result["results"] == [{"id": "cb_001"}]
+
+
+@pytest.mark.anyio
+async def test_list_benefits_with_filters(mock_api, ctx):
+    mock_api.get("/benefits").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "ben_001"}]},
+        )
+    )
+    result = await list_benefits(
+        ctx, company="com_123", employee="emp_456", include_external=True
+    )
+    assert result["results"] == [{"id": "ben_001"}]
+    req = mock_api.get("/benefits").calls.last.request
+    assert req.url.params["company"] == "com_123"
+    assert req.url.params["employee"] == "emp_456"
+    assert req.url.params["include_external"] == "true"
+
+
+@pytest.mark.anyio
+async def test_list_post_tax_deductions_with_filters(mock_api, ctx):
+    mock_api.get("/post_tax_deductions").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "ptd_001"}]},
+        )
+    )
+    result = await list_post_tax_deductions(
+        ctx, company="com_123", include_external=True
+    )
+    assert result["results"] == [{"id": "ptd_001"}]
+    req = mock_api.get("/post_tax_deductions").calls.last.request
+    assert req.url.params["company"] == "com_123"
+    assert req.url.params["include_external"] == "true"
+
+
+@pytest.mark.anyio
+async def test_list_earning_rates_with_filters(mock_api, ctx):
+    mock_api.get("/earning_rates").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "er_001"}]},
+        )
+    )
+    result = await list_earning_rates(
+        ctx, company="com_123", employee="emp_456", active=True
+    )
+    assert result["results"] == [{"id": "er_001"}]
+    req = mock_api.get("/earning_rates").calls.last.request
+    assert req.url.params["company"] == "com_123"
+    assert req.url.params["employee"] == "emp_456"
+    assert req.url.params["active"] == "true"
+
+
+@pytest.mark.anyio
+async def test_list_net_pay_splits_with_filters(mock_api, ctx):
+    mock_api.get("/net_pay_splits").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "nps_001"}]},
+        )
+    )
+    result = await list_net_pay_splits(ctx, company="com_123", contractor="ctr_456")
+    assert result["results"] == [{"id": "nps_001"}]
+    req = mock_api.get("/net_pay_splits").calls.last.request
+    assert req.url.params["company"] == "com_123"
+    assert req.url.params["contractor"] == "ctr_456"
 
 
 @pytest.mark.anyio

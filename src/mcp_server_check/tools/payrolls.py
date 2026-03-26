@@ -20,6 +20,15 @@ async def list_payrolls(
     limit: int | None = None,
     ids: list[str] | None = None,
     cursor: str | None = None,
+    type: str | None = None,
+    status: str | None = None,
+    managed: bool | None = None,
+    approved: bool | None = None,
+    pay_schedule: str | None = None,
+    payday_after: str | None = None,
+    payday_before: str | None = None,
+    include_items: bool | None = None,
+    include_contractor_payments: bool | None = None,
 ) -> dict:
     """List payrolls, optionally filtered by company.
 
@@ -28,6 +37,15 @@ async def list_payrolls(
         limit: Maximum number of results to return (default 10, max 100).
         ids: Filter to specific payroll IDs.
         cursor: Pagination cursor from a previous response.
+        type: Filter by payroll type — "regular", "off_cycle", "amendment", or "balancing".
+        status: Filter by payroll status — "draft", "pending", "processing", "paid", "partially_paid", or "failed".
+        managed: Filter by managed status.
+        approved: Filter by approval status.
+        pay_schedule: Filter by pay schedule ID.
+        payday_after: Filter to payrolls with payday on or after this date (YYYY-MM-DD).
+        payday_before: Filter to payrolls with payday on or before this date (YYYY-MM-DD).
+        include_items: Return payroll items inline.
+        include_contractor_payments: Return contractor payments inline.
     """
     params: dict = {}
     if company is not None:
@@ -38,6 +56,24 @@ async def list_payrolls(
         params["ids"] = ",".join(ids)
     if cursor:
         params["cursor"] = cursor
+    if type is not None:
+        params["type"] = type
+    if status is not None:
+        params["status"] = status
+    if managed is not None:
+        params["managed"] = str(managed).lower()
+    if approved is not None:
+        params["approved"] = str(approved).lower()
+    if pay_schedule is not None:
+        params["pay_schedule"] = pay_schedule
+    if payday_after is not None:
+        params["payday_after"] = payday_after
+    if payday_before is not None:
+        params["payday_before"] = payday_before
+    if include_items is not None:
+        params["include_items"] = str(include_items).lower()
+    if include_contractor_payments is not None:
+        params["include_contractor_payments"] = str(include_contractor_payments).lower()
     return await check_api_list(ctx, "/payrolls", params=params or None)
 
 

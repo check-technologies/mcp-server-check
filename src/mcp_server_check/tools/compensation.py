@@ -94,7 +94,7 @@ _benefits = Resource(
     id_param="benefit_id",
     id_description="The Check benefit ID.",
     description="employee benefits",
-    list_filters=["company", "employee"],
+    list_filters=["company", "employee", "include_external"],
     fields=[
         Field("employee", str, required_for="create", doc="The Check employee ID."),
         Field(
@@ -103,6 +103,11 @@ _benefits = Resource(
             required_for="create",
             doc="The Check company benefit ID.",
             create_only=True,
+        ),
+        Field(
+            "include_external",
+            bool,
+            doc="Include external benefits. Defaults to false.",
         ),
         Field("benefit", str, doc="Type of supported benefit."),
         Field(
@@ -166,7 +171,7 @@ _post_tax_deductions = Resource(
     id_param="deduction_id",
     id_description="The Check post-tax deduction ID.",
     description="post-tax deductions",
-    list_filters=["company", "employee"],
+    list_filters=["company", "employee", "include_external"],
     fields=[
         Field("employee", str, required_for="create", doc="The Check employee ID."),
         Field(
@@ -209,6 +214,11 @@ _post_tax_deductions = Resource(
             "managed",
             bool,
             doc="Whether the deduction should be remitted by Check (child support only).",
+        ),
+        Field(
+            "include_external",
+            bool,
+            doc="Include external deductions. Defaults to false.",
         ),
     ],
 )
@@ -306,7 +316,7 @@ _earning_rates = Resource(
     id_param="earning_rate_id",
     id_description="The Check earning rate ID.",
     description="earning rates",
-    list_filters=["company", "employee"],
+    list_filters=["company", "employee", "active"],
     has_delete=False,
     default_limit=500,
     fields=[
@@ -416,7 +426,7 @@ _net_pay_splits = Resource(
     id_param="net_pay_split_id",
     id_description="The Check net pay split ID.",
     description="net pay splits",
-    list_filters=["company", "employee"],
+    list_filters=["company", "employee", "contractor"],
     has_delete=False,
     fields=[
         Field(

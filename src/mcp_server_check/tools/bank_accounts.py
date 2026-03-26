@@ -19,6 +19,8 @@ async def list_bank_accounts(
     company: str | None = None,
     limit: int | None = None,
     cursor: str | None = None,
+    employee: str | None = None,
+    contractor: str | None = None,
 ) -> dict:
     """List bank accounts, optionally filtered by company.
 
@@ -26,6 +28,8 @@ async def list_bank_accounts(
         company: Filter to bank accounts belonging to this Check company ID (e.g. "com_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
+        employee: Filter by employee ID.
+        contractor: Filter by contractor ID.
     """
     params: dict = {}
     if company is not None:
@@ -34,6 +38,10 @@ async def list_bank_accounts(
         params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
+    if employee is not None:
+        params["employee"] = employee
+    if contractor is not None:
+        params["contractor"] = contractor
     return await check_api_list(ctx, "/bank_accounts", params=params or None)
 
 

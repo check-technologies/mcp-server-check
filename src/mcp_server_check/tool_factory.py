@@ -283,7 +283,8 @@ def _create_list_function(res: Resource, filter_fields: list[str]):
     for fname in filter_fields:
         # Find the field doc from resource fields
         field_def = next((f for f in res.fields if f.name == fname), None)
-        annotations[fname] = str | None
+        field_type = field_def.type if field_def else str
+        annotations[fname] = field_type | None
         defaults[fname] = None
         if field_def and field_def.doc:
             filter_docs[fname] = field_def.doc
@@ -329,12 +330,14 @@ def _create_list_function(res: Resource, filter_fields: list[str]):
         )
     ]
     for pname in filter_fields:
+        field_def = next((f for f in res.fields if f.name == pname), None)
+        field_type = field_def.type if field_def else str
         params_list.append(
             inspect.Parameter(
                 pname,
                 inspect.Parameter.POSITIONAL_OR_KEYWORD,
                 default=None,
-                annotation=str | None,
+                annotation=field_type | None,
             )
         )
     if limit_default is not None:

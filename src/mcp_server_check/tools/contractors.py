@@ -225,6 +225,8 @@ async def list_contractor_payments_for_contractor(
     contractor_id: str,
     limit: int | None = None,
     cursor: str | None = None,
+    payroll: str | None = None,
+    status: str | None = None,
 ) -> dict:
     """List payments for a specific contractor.
 
@@ -232,12 +234,18 @@ async def list_contractor_payments_for_contractor(
         contractor_id: The Check contractor ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
+        payroll: Filter by payroll ID.
+        status: Filter by status — "pending", "processing", "failed", or "paid".
     """
     params: dict = {}
     if limit is not None:
         params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
+    if payroll is not None:
+        params["payroll"] = payroll
+    if status is not None:
+        params["status"] = status
     return await check_api_list(
         ctx, f"/contractors/{contractor_id}/payments", params=params or None
     )
