@@ -19,6 +19,8 @@ async def list_employees(
     limit: int = 100,
     ids: list[str] | None = None,
     cursor: str | None = None,
+    workplace: str | None = None,
+    active: bool | None = None,
 ) -> dict:
     """List employees, optionally filtered by company.
 
@@ -27,6 +29,8 @@ async def list_employees(
         limit: Maximum number of results to return (max 100, default 100).
         ids: Filter to specific employee IDs.
         cursor: Pagination cursor from a previous response.
+        workplace: Filter by workplace ID(s).
+        active: Filter by active status.
     """
     params: dict = {}
     if company is not None:
@@ -36,6 +40,10 @@ async def list_employees(
         params["ids"] = ",".join(ids)
     if cursor:
         params["cursor"] = cursor
+    if workplace is not None:
+        params["workplace"] = workplace
+    if active is not None:
+        params["active"] = str(active).lower()
     return await check_api_list(ctx, "/employees", params=params or None)
 
 
@@ -201,6 +209,11 @@ async def list_employee_paystubs(
     employee_id: str,
     limit: int | None = None,
     cursor: str | None = None,
+    payroll: str | None = None,
+    status: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    type: str | None = None,
 ) -> dict:
     """List paystubs for an employee.
 
@@ -208,12 +221,27 @@ async def list_employee_paystubs(
         employee_id: The Check employee ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
+        payroll: Filter by payroll ID.
+        status: Filter by status — "pending", "processing", "failed", or "paid".
+        start: Filter to paystubs from payrolls with payday on or after this date (YYYY-MM-DD).
+        end: Filter to paystubs from payrolls with payday on or before this date (YYYY-MM-DD).
+        type: Filter by payroll type — "regular", "balancing", or "amendment".
     """
     params: dict = {}
     if limit is not None:
         params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
+    if payroll is not None:
+        params["payroll"] = payroll
+    if status is not None:
+        params["status"] = status
+    if start is not None:
+        params["start"] = start
+    if end is not None:
+        params["end"] = end
+    if type is not None:
+        params["type"] = type
     return await check_api_list(
         ctx, f"/employees/{employee_id}/paystubs", params=params or None
     )

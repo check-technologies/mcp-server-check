@@ -17,6 +17,9 @@ async def list_forms(
     company: str | None = None,
     limit: int | None = None,
     cursor: str | None = None,
+    state: str | None = None,
+    lang: str | None = None,
+    type: str | None = None,
 ) -> dict:
     """List forms, optionally filtered by company.
 
@@ -24,6 +27,9 @@ async def list_forms(
         company: Filter to forms belonging to this Check company ID (e.g. "com_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
+        state: Filter by two-letter state abbreviation.
+        lang: Filter by ISO 639-1 language code.
+        type: Filter by form type (e.g. "contractor_setup").
     """
     params: dict = {}
     if company is not None:
@@ -32,6 +38,12 @@ async def list_forms(
         params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
+    if state is not None:
+        params["state"] = state
+    if lang is not None:
+        params["lang"] = lang
+    if type is not None:
+        params["type"] = type
     return await check_api_list(ctx, "/forms", params=params or None)
 
 

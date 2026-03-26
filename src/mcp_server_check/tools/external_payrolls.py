@@ -20,6 +20,7 @@ async def list_external_payrolls(
     limit: int | None = None,
     ids: list[str] | None = None,
     cursor: str | None = None,
+    pay_schedule: str | None = None,
 ) -> dict:
     """List external payrolls, optionally filtered by company.
 
@@ -28,6 +29,7 @@ async def list_external_payrolls(
         limit: Maximum number of results to return (default 10, max 100).
         ids: Filter to specific external payroll IDs.
         cursor: Pagination cursor from a previous response.
+        pay_schedule: Filter by pay schedule ID.
     """
     params: dict = {}
     if company is not None:
@@ -38,6 +40,8 @@ async def list_external_payrolls(
         params["ids"] = ",".join(ids)
     if cursor:
         params["cursor"] = cursor
+    if pay_schedule is not None:
+        params["pay_schedule"] = pay_schedule
     return await check_api_list(ctx, "/external_payrolls", params=params or None)
 
 

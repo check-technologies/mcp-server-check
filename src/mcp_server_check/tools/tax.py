@@ -53,6 +53,9 @@ async def list_company_tax_param_settings(
     company_id: str,
     limit: int | None = None,
     cursor: str | None = None,
+    as_of: str | None = None,
+    jurisdiction: str | None = None,
+    submitter: str | None = None,
 ) -> dict:
     """List tax parameter settings for a company.
 
@@ -60,12 +63,21 @@ async def list_company_tax_param_settings(
         company_id: The Check company ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
+        as_of: Filter as of a specific date (YYYY-MM-DD).
+        jurisdiction: Filter by tax jurisdiction.
+        submitter: Filter by submitter.
     """
     params: dict = {}
     if limit is not None:
         params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
+    if as_of is not None:
+        params["as_of"] = as_of
+    if jurisdiction is not None:
+        params["jurisdiction"] = jurisdiction
+    if submitter is not None:
+        params["submitter"] = submitter
     return await check_api_list(
         ctx, f"/company_tax_params/{company_id}/settings", params=params or None
     )
@@ -116,6 +128,10 @@ async def list_employee_tax_params(
     employee: str | None = None,
     limit: int | None = None,
     cursor: str | None = None,
+    company: str | None = None,
+    as_of: str | None = None,
+    jurisdiction: str | None = None,
+    submitter: str | None = None,
 ) -> dict:
     """List employee tax parameters, optionally filtered by employee.
 
@@ -123,6 +139,10 @@ async def list_employee_tax_params(
         employee: Filter to tax parameters for this Check employee ID (e.g. "emp_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
+        company: Filter by company ID.
+        as_of: Filter as of a specific date (YYYY-MM-DD).
+        jurisdiction: Filter by tax jurisdiction.
+        submitter: Filter by submitter.
     """
     params: dict = {}
     if employee is not None:
@@ -131,6 +151,14 @@ async def list_employee_tax_params(
         params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
+    if company is not None:
+        params["company"] = company
+    if as_of is not None:
+        params["as_of"] = as_of
+    if jurisdiction is not None:
+        params["jurisdiction"] = jurisdiction
+    if submitter is not None:
+        params["submitter"] = submitter
     return await check_api_list(ctx, "/employee_tax_params", params=params or None)
 
 
@@ -171,6 +199,9 @@ async def list_employee_tax_param_settings(
     employee_id: str,
     limit: int | None = None,
     cursor: str | None = None,
+    as_of: str | None = None,
+    jurisdiction: str | None = None,
+    submitter: str | None = None,
 ) -> dict:
     """List tax parameter settings for an employee.
 
@@ -178,12 +209,21 @@ async def list_employee_tax_param_settings(
         employee_id: The Check employee ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
+        as_of: Filter as of a specific date (YYYY-MM-DD).
+        jurisdiction: Filter by tax jurisdiction.
+        submitter: Filter by submitter.
     """
     params: dict = {}
     if limit is not None:
         params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
+    if as_of is not None:
+        params["as_of"] = as_of
+    if jurisdiction is not None:
+        params["jurisdiction"] = jurisdiction
+    if submitter is not None:
+        params["submitter"] = submitter
     return await check_api_list(
         ctx, f"/employee_tax_params/{employee_id}/settings", params=params or None
     )
@@ -352,6 +392,8 @@ async def list_tax_filings(
     company: str | None = None,
     limit: int | None = None,
     cursor: str | None = None,
+    year: int | None = None,
+    period: str | None = None,
 ) -> dict:
     """List tax filings, optionally filtered by company.
 
@@ -359,6 +401,8 @@ async def list_tax_filings(
         company: Filter to tax filings belonging to this Check company ID (e.g. "com_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
+        year: Filter by tax year.
+        period: Filter by filing period.
     """
     params: dict = {}
     if company is not None:
@@ -367,6 +411,10 @@ async def list_tax_filings(
         params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
+    if year is not None:
+        params["year"] = year
+    if period is not None:
+        params["period"] = period
     return await check_api_list(ctx, "/tax_filings", params=params or None)
 
 
@@ -483,6 +531,8 @@ async def list_employee_tax_statements(
     employee: str | None = None,
     limit: int | None = None,
     cursor: str | None = None,
+    company: str | None = None,
+    year: int | None = None,
 ) -> dict:
     """List employee tax statements, optionally filtered by employee.
 
@@ -490,6 +540,8 @@ async def list_employee_tax_statements(
         employee: Filter to tax statements for this Check employee ID (e.g. "emp_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
+        company: Filter by company ID.
+        year: Filter by tax year.
     """
     params: dict = {}
     if employee is not None:
@@ -498,6 +550,10 @@ async def list_employee_tax_statements(
         params["limit"] = limit
     if cursor:
         params["cursor"] = cursor
+    if company is not None:
+        params["company"] = company
+    if year is not None:
+        params["year"] = year
     return await check_api_list(ctx, "/employee_tax_statements", params=params or None)
 
 

@@ -69,6 +69,23 @@ async def test_list_contractor_payments_for_contractor(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_list_contractor_payments_for_contractor_with_filters(mock_api, ctx):
+    mock_api.get("/contractors/ctr_001/payments").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "cp_001"}]},
+        )
+    )
+    result = await list_contractor_payments_for_contractor(
+        ctx, contractor_id="ctr_001", payroll="prl_123", status="paid"
+    )
+    assert result["results"] == [{"id": "cp_001"}]
+    req = mock_api.get("/contractors/ctr_001/payments").calls.last.request
+    assert req.url.params["payroll"] == "prl_123"
+    assert req.url.params["status"] == "paid"
+
+
+@pytest.mark.anyio
 async def test_list_contractor_forms(mock_api, ctx):
     mock_api.get("/contractors/ctr_001/forms").mock(
         return_value=httpx.Response(

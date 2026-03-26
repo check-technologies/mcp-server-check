@@ -26,6 +26,23 @@ async def test_list_external_payrolls(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_list_external_payrolls_with_filters(mock_api, ctx):
+    mock_api.get("/external_payrolls").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "ep_001"}]},
+        )
+    )
+    result = await list_external_payrolls(
+        ctx, company="com_123", pay_schedule="psc_456"
+    )
+    assert result["results"] == [{"id": "ep_001"}]
+    req = mock_api.get("/external_payrolls").calls.last.request
+    assert req.url.params["company"] == "com_123"
+    assert req.url.params["pay_schedule"] == "psc_456"
+
+
+@pytest.mark.anyio
 async def test_create_external_payroll(mock_api, ctx):
     mock_api.post("/external_payrolls").mock(
         return_value=httpx.Response(201, json={"id": "ep_new"})
