@@ -1,4 +1,4 @@
-"""``check setup`` command — generates a CLAUDE.md file for AI coding agents."""
+"""``check setup`` command — configures AI coding agents with Check API context."""
 
 from __future__ import annotations
 
@@ -11,7 +11,23 @@ import click
 # Sentinel used to detect whether a file already has Check CLI instructions.
 CHECK_SENTINEL = "<!-- check-cli -->"
 
-CLAUDE_MD_TEMPLATE = """\
+# Permission entry written to .claude/settings.json.
+BASH_CHECK_PERMISSION = "Bash(check *)"
+
+# Paths (relative to project root) where Claude settings may live.
+_SETTINGS_PATHS = [
+    os.path.join(".claude", "settings.json"),
+    os.path.join(".claude", "settings.local.json"),
+]
+
+# Target name → default filename
+_TARGET_FILES: dict[str, str] = {
+    "claude-code": "CLAUDE.md",
+    "cursor": ".cursorrules",
+    "agents-md": "AGENTS.md",
+}
+
+INSTRUCTIONS_TEMPLATE = """\
 # Check Payroll API
 
 {sentinel}
@@ -128,15 +144,6 @@ export CHECK_API_KEY=sk_test_...
 Full API reference: https://docs.checkhq.com/
 """
 
-# Required permission pattern for Claude settings.json.
-_BASH_CHECK_PERMISSION = "Bash(check *)"
-
-# Paths (relative to project root) where Claude settings may live.
-_SETTINGS_PATHS = [
-    os.path.join(".claude", "settings.json"),
-    os.path.join(".claude", "settings.local.json"),
-]
-
 
 def _check_is_on_path() -> bool:
     """Return True if ``check`` is available as a command on PATH."""
@@ -144,9 +151,9 @@ def _check_is_on_path() -> bool:
 
 
 def _render_content() -> str:
-    """Render the CLAUDE.md template with the correct command prefix."""
+    """Render the instructions template with the correct command prefix."""
     cmd_prefix = "" if _check_is_on_path() else "uv run "
-    return CLAUDE_MD_TEMPLATE.format(sentinel=CHECK_SENTINEL, cmd_prefix=cmd_prefix)
+    return INSTRUCTIONS_TEMPLATE.format(sentinel=CHECK_SENTINEL, cmd_prefix=cmd_prefix)
 
 
 def _file_has_check_instructions(path: str) -> bool:
@@ -176,19 +183,54 @@ def _has_bash_check_permission(directory: str) -> bool:
     return False
 
 
+def _ensure_bash_check_permission(directory: str) -> bool:
+    """Add ``Bash(check *)`` to ``.claude/settings.json`` if not already present.
+
+    Returns True if the permission was added, False if it was already present.
+    """
+    if _has_bash_check_permission(directory):
+        return False
+
+    settings_path = os.path.join(directory, ".claude", "settings.json")
+    data: dict = {}
+    if os.path.exists(settings_path):
+        try:
+            with open(settings_path) as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            data = {}
+
+    permissions = data.setdefault("permissions", {})
+    allow_list = permissions.setdefault("allow", [])
+    allow_list.append(BASH_CHECK_PERMISSION)
+
+    os.makedirs(os.path.join(directory, ".claude"), exist_ok=True)
+    with open(settings_path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+
+    return True
+
+
+def _append_or_create(path: str, content: str) -> str:
+    """Append *content* to *path*, creating it if it doesn't exist.
+
+    Returns ``"Appended to"`` or ``"Created"`` for use in the output message.
+    """
+    if os.path.exists(path):
+        with open(path, "a") as f:
+            f.write("\n" + content)
+        return "Appended to"
+    else:
+        with open(path, "w") as f:
+            f.write(content)
+        return "Created"
+
+
 @click.command("setup")
-@click.option(
-    "--force",
-    is_flag=True,
-    default=False,
-    help="Overwrite the file without prompting.",
-)
-@click.option(
-    "--file",
-    "filename",
-    default="CLAUDE.md",
-    show_default=True,
-    help="Output filename (e.g. AGENTS.md).",
+@click.argument(
+    "target",
+    type=click.Choice(sorted(_TARGET_FILES.keys())),
 )
 @click.option(
     "--directory",
@@ -196,30 +238,30 @@ def _has_bash_check_permission(directory: str) -> bool:
     type=click.Path(exists=True, file_okay=False),
     help="Target directory (default: current working directory).",
 )
-def setup_command(force: bool, filename: str, directory: str | None) -> None:
-    """Generate a CLAUDE.md file with Check API context for AI coding agents."""
+def setup_command(target: str, directory: str | None) -> None:
+    """Generate AI agent config for Check API.
+
+    \b
+    Targets:
+      claude-code   Append to CLAUDE.md + add Bash(check *) to .claude/settings.json
+      cursor        Append to .cursorrules
+      agents-md     Append to AGENTS.md
+    """
     target_dir = directory or os.getcwd()
+    filename = _TARGET_FILES[target]
     path = os.path.join(target_dir, filename)
 
     # Early exit if the file already contains Check instructions.
-    if os.path.exists(path) and _file_has_check_instructions(path):
+    if _file_has_check_instructions(path):
         click.echo(f"{filename} already has Check CLI instructions — skipping.")
         return
 
-    if os.path.exists(path) and not force:
-        click.confirm(
-            f"{filename} already exists in {target_dir}. Overwrite?", abort=True
-        )
+    content = _render_content()
+    verb = _append_or_create(path, content)
+    click.echo(f"{verb} {path}")
 
-    with open(path, "w") as f:
-        f.write(_render_content())
-
-    click.echo(f"Created {path}")
-
-    # Warn if Claude settings don't have a Bash(check *) permission.
-    if not _has_bash_check_permission(target_dir):
-        click.echo(
-            "\nNote: No Bash(check *) permission found in .claude/settings.json.\n"
-            "Add it to allow Claude Code to run check commands without prompting:\n"
-            '\n  claude settings add-permission "Bash(check *)"'
-        )
+    # For claude-code, also ensure the Bash permission is set.
+    if target == "claude-code":
+        if _ensure_bash_check_permission(target_dir):
+            settings_path = os.path.join(target_dir, ".claude", "settings.json")
+            click.echo(f"Added {BASH_CHECK_PERMISSION} to {settings_path}")

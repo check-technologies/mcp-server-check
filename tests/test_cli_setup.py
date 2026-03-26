@@ -9,13 +9,35 @@ from unittest.mock import patch
 from click.testing import CliRunner
 
 from mcp_server_check.cli import cli
-from mcp_server_check.cli.setup import CHECK_SENTINEL, _render_content
+from mcp_server_check.cli.setup import BASH_CHECK_PERMISSION, CHECK_SENTINEL, _render_content
 
 
-def test_setup_creates_claude_md():
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _write_settings(directory: str, filename: str, data: dict) -> None:
+    claude_dir = os.path.join(directory, ".claude")
+    os.makedirs(claude_dir, exist_ok=True)
+    with open(os.path.join(claude_dir, filename), "w") as f:
+        json.dump(data, f)
+
+
+def _read_settings(directory: str, filename: str = "settings.json") -> dict:
+    with open(os.path.join(directory, ".claude", filename)) as f:
+        return json.load(f)
+
+
+# ---------------------------------------------------------------------------
+# claude-code target
+# ---------------------------------------------------------------------------
+
+
+def test_claude_code_creates_claude_md():
     runner = CliRunner()
     with runner.isolated_filesystem():
-        result = runner.invoke(cli, ["setup"])
+        result = runner.invoke(cli, ["setup", "claude-code"])
         assert result.exit_code == 0
         assert os.path.exists("CLAUDE.md")
         with open("CLAUDE.md") as f:
@@ -24,78 +46,192 @@ def test_setup_creates_claude_md():
         assert "# Check Payroll API" in content
 
 
-def test_setup_custom_filename():
+def test_claude_code_appends_to_existing_file():
     runner = CliRunner()
     with runner.isolated_filesystem():
-        result = runner.invoke(cli, ["setup", "--file", "AGENTS.md"])
+        with open("CLAUDE.md", "w") as f:
+            f.write("# My Project\n\nExisting instructions.\n")
+
+        result = runner.invoke(cli, ["setup", "claude-code"])
+        assert result.exit_code == 0
+        assert "Appended to" in result.output
+
+        with open("CLAUDE.md") as f:
+            content = f.read()
+        # Original content preserved
+        assert content.startswith("# My Project")
+        # Check content appended
+        assert CHECK_SENTINEL in content
+        assert "# Check Payroll API" in content
+
+
+def test_claude_code_adds_bash_permission():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli, ["setup", "claude-code"])
+        assert result.exit_code == 0
+        assert f"Added {BASH_CHECK_PERMISSION}" in result.output
+
+        settings = _read_settings(".")
+        assert BASH_CHECK_PERMISSION in settings["permissions"]["allow"]
+
+
+def test_claude_code_preserves_existing_settings():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        _write_settings(
+            ".",
+            "settings.json",
+            {"permissions": {"allow": ["Read", "Bash(git *)"], "deny": ["Bash(rm *)"]}},
+        )
+
+        result = runner.invoke(cli, ["setup", "claude-code"])
+        assert result.exit_code == 0
+
+        settings = _read_settings(".")
+        allow = settings["permissions"]["allow"]
+        assert "Read" in allow
+        assert "Bash(git *)" in allow
+        assert BASH_CHECK_PERMISSION in allow
+        assert settings["permissions"]["deny"] == ["Bash(rm *)"]
+
+
+def test_claude_code_skips_permission_if_already_present():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        _write_settings(
+            ".",
+            "settings.json",
+            {"permissions": {"allow": [BASH_CHECK_PERMISSION]}},
+        )
+
+        result = runner.invoke(cli, ["setup", "claude-code"])
+        assert result.exit_code == 0
+        assert f"Added {BASH_CHECK_PERMISSION}" not in result.output
+
+        # Should not duplicate
+        settings = _read_settings(".")
+        assert settings["permissions"]["allow"].count(BASH_CHECK_PERMISSION) == 1
+
+
+def test_claude_code_skips_permission_if_broader_pattern_in_local():
+    """A broader pattern like Bash(uv run check:*) in settings.local.json is sufficient."""
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        _write_settings(
+            ".",
+            "settings.local.json",
+            {"permissions": {"allow": ["Bash(uv run check:*)"]}},
+        )
+
+        result = runner.invoke(cli, ["setup", "claude-code"])
+        assert result.exit_code == 0
+        assert f"Added {BASH_CHECK_PERMISSION}" not in result.output
+
+
+# ---------------------------------------------------------------------------
+# cursor target
+# ---------------------------------------------------------------------------
+
+
+def test_cursor_creates_cursorrules():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli, ["setup", "cursor"])
+        assert result.exit_code == 0
+        assert os.path.exists(".cursorrules")
+        with open(".cursorrules") as f:
+            content = f.read()
+        assert CHECK_SENTINEL in content
+        assert "Created" in result.output
+
+
+def test_cursor_appends_to_existing():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        with open(".cursorrules", "w") as f:
+            f.write("Existing cursor rules.\n")
+
+        result = runner.invoke(cli, ["setup", "cursor"])
+        assert result.exit_code == 0
+        assert "Appended to" in result.output
+
+        with open(".cursorrules") as f:
+            content = f.read()
+        assert content.startswith("Existing cursor rules.")
+        assert CHECK_SENTINEL in content
+
+
+def test_cursor_does_not_write_settings():
+    """The cursor target should not touch .claude/settings.json."""
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli, ["setup", "cursor"])
+        assert result.exit_code == 0
+        assert not os.path.exists(os.path.join(".claude", "settings.json"))
+
+
+# ---------------------------------------------------------------------------
+# agents-md target
+# ---------------------------------------------------------------------------
+
+
+def test_agents_md_creates_file():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli, ["setup", "agents-md"])
         assert result.exit_code == 0
         assert os.path.exists("AGENTS.md")
-        assert not os.path.exists("CLAUDE.md")
         with open("AGENTS.md") as f:
-            assert CHECK_SENTINEL in f.read()
+            content = f.read()
+        assert CHECK_SENTINEL in content
+        assert "Created" in result.output
 
 
-def test_setup_prompts_before_overwrite():
+def test_agents_md_appends_to_existing():
     runner = CliRunner()
     with runner.isolated_filesystem():
-        with open("CLAUDE.md", "w") as f:
-            f.write("existing content")
+        with open("AGENTS.md", "w") as f:
+            f.write("# Agents\n")
 
-        # Decline overwrite
-        result = runner.invoke(cli, ["setup"], input="n\n")
-        assert result.exit_code != 0
-        with open("CLAUDE.md") as f:
-            assert f.read() == "existing content"
-
-        # Accept overwrite
-        result = runner.invoke(cli, ["setup"], input="y\n")
+        result = runner.invoke(cli, ["setup", "agents-md"])
         assert result.exit_code == 0
-        with open("CLAUDE.md") as f:
-            assert CHECK_SENTINEL in f.read()
+        assert "Appended to" in result.output
+
+        with open("AGENTS.md") as f:
+            content = f.read()
+        assert content.startswith("# Agents")
+        assert CHECK_SENTINEL in content
 
 
-def test_setup_force_overwrites():
+# ---------------------------------------------------------------------------
+# Idempotency — safe to run multiple times
+# ---------------------------------------------------------------------------
+
+
+def test_skips_if_file_already_has_check_instructions():
     runner = CliRunner()
     with runner.isolated_filesystem():
-        with open("CLAUDE.md", "w") as f:
-            f.write("existing content")
-
-        result = runner.invoke(cli, ["setup", "--force"])
+        # First run
+        result = runner.invoke(cli, ["setup", "claude-code"])
         assert result.exit_code == 0
-        with open("CLAUDE.md") as f:
-            assert CHECK_SENTINEL in f.read()
 
-
-def test_setup_does_not_require_api_key():
-    runner = CliRunner()
-    with runner.isolated_filesystem():
-        result = runner.invoke(cli, ["setup"], env={})
+        # Second run should skip
+        result = runner.invoke(cli, ["setup", "claude-code"])
         assert result.exit_code == 0
-        assert os.path.exists("CLAUDE.md")
+        assert "already has Check CLI instructions" in result.output
 
 
-def test_setup_visible_in_help():
+def test_skip_works_for_all_targets():
     runner = CliRunner()
-    result = runner.invoke(cli, ["--help"])
-    assert result.exit_code == 0
-    assert "setup" in result.output
+    for target in ("claude-code", "cursor", "agents-md"):
+        with runner.isolated_filesystem():
+            result = runner.invoke(cli, ["setup", target])
+            assert result.exit_code == 0
 
-
-def test_setup_visible_with_toolset_filter():
-    """setup should appear even when CHECK_TOOLSETS restricts visible groups."""
-    runner = CliRunner()
-    result = runner.invoke(cli, ["--help"], env={"CHECK_TOOLSETS": "companies"})
-    assert result.exit_code == 0
-    assert "setup" in result.output
-
-
-def test_setup_custom_directory(tmp_path):
-    runner = CliRunner()
-    result = runner.invoke(cli, ["setup", "--directory", str(tmp_path)])
-    assert result.exit_code == 0
-    target = tmp_path / "CLAUDE.md"
-    assert target.exists()
-    assert CHECK_SENTINEL in target.read_text()
+            result = runner.invoke(cli, ["setup", target])
+            assert result.exit_code == 0
+            assert "already has Check CLI instructions" in result.output
 
 
 # ---------------------------------------------------------------------------
@@ -118,77 +254,48 @@ def test_no_prefix_when_on_path():
 
 
 # ---------------------------------------------------------------------------
-# Early exit when file already has Check instructions
+# General CLI behavior
 # ---------------------------------------------------------------------------
 
 
-def test_skips_if_file_already_has_check_instructions():
+def test_does_not_require_api_key():
     runner = CliRunner()
     with runner.isolated_filesystem():
-        with open("CLAUDE.md", "w") as f:
-            f.write(f"# My project\n\n{CHECK_SENTINEL}\n\nSome Check content.\n")
-
-        result = runner.invoke(cli, ["setup"])
+        result = runner.invoke(cli, ["setup", "claude-code"], env={})
         assert result.exit_code == 0
-        assert "already has Check CLI instructions" in result.output
-        # File should be unchanged
-        with open("CLAUDE.md") as f:
-            assert f.read().startswith("# My project")
+        assert os.path.exists("CLAUDE.md")
 
 
-def test_force_does_not_bypass_sentinel_check():
-    """Even --force should skip if the sentinel is already present."""
+def test_visible_in_help():
     runner = CliRunner()
-    with runner.isolated_filesystem():
-        with open("CLAUDE.md", "w") as f:
-            f.write(f"# Existing\n{CHECK_SENTINEL}\n")
-
-        result = runner.invoke(cli, ["setup", "--force"])
-        assert result.exit_code == 0
-        assert "already has Check CLI instructions" in result.output
+    result = runner.invoke(cli, ["--help"])
+    assert result.exit_code == 0
+    assert "setup" in result.output
 
 
-# ---------------------------------------------------------------------------
-# Claude settings.json permission validation
-# ---------------------------------------------------------------------------
-
-
-def _write_settings(directory: str, filename: str, data: dict) -> None:
-    claude_dir = os.path.join(directory, ".claude")
-    os.makedirs(claude_dir, exist_ok=True)
-    with open(os.path.join(claude_dir, filename), "w") as f:
-        json.dump(data, f)
-
-
-def test_warns_when_no_bash_check_permission():
+def test_visible_with_toolset_filter():
+    """setup should appear even when CHECK_TOOLSETS restricts visible groups."""
     runner = CliRunner()
-    with runner.isolated_filesystem():
-        result = runner.invoke(cli, ["setup"])
-        assert result.exit_code == 0
-        assert "No Bash(check *) permission found" in result.output
+    result = runner.invoke(cli, ["--help"], env={"CHECK_TOOLSETS": "companies"})
+    assert result.exit_code == 0
+    assert "setup" in result.output
 
 
-def test_no_warning_when_permission_in_settings():
+def test_custom_directory(tmp_path):
     runner = CliRunner()
-    with runner.isolated_filesystem():
-        _write_settings(
-            ".",
-            "settings.json",
-            {"permissions": {"allow": ["Bash(check *)"]}},
-        )
-        result = runner.invoke(cli, ["setup"])
-        assert result.exit_code == 0
-        assert "No Bash(check *)" not in result.output
+    result = runner.invoke(
+        cli, ["setup", "claude-code", "--directory", str(tmp_path)]
+    )
+    assert result.exit_code == 0
+    target = tmp_path / "CLAUDE.md"
+    assert target.exists()
+    assert CHECK_SENTINEL in target.read_text()
 
 
-def test_no_warning_when_permission_in_local_settings():
+def test_setup_help_shows_targets():
     runner = CliRunner()
-    with runner.isolated_filesystem():
-        _write_settings(
-            ".",
-            "settings.local.json",
-            {"permissions": {"allow": ["Bash(uv run check:*)"]}},
-        )
-        result = runner.invoke(cli, ["setup"])
-        assert result.exit_code == 0
-        assert "No Bash(check *)" not in result.output
+    result = runner.invoke(cli, ["setup", "--help"])
+    assert result.exit_code == 0
+    assert "claude-code" in result.output
+    assert "cursor" in result.output
+    assert "agents-md" in result.output
