@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from mcp_server_check.helpers import (
+    Address,
     Ctx,
     check_api_get,
     check_api_list,
@@ -66,7 +67,7 @@ async def create_employee(
     dob: str | None = None,
     start_date: str | None = None,
     termination_date: str | None = None,
-    residence: dict | None = None,
+    residence: Address | None = None,
     workplaces: list[str] | None = None,
     primary_workplace: str | None = None,
     ssn: str | None = None,
@@ -85,7 +86,7 @@ async def create_employee(
         dob: Date of birth (YYYY-MM-DD).
         start_date: Most recent start date of employment (YYYY-MM-DD).
         termination_date: Most recent termination date (YYYY-MM-DD).
-        residence: Residence address dict with keys: line1, line2, city, state,
+        residence: Residence address with keys: line1, line2, city, state,
             postal_code, country.
         workplaces: List of workplace IDs where the employee works.
         primary_workplace: Workplace ID of the employee's primary workplace.
@@ -132,7 +133,7 @@ async def update_employee(
     dob: str | None = None,
     start_date: str | None = None,
     termination_date: str | None = None,
-    residence: dict | None = None,
+    residence: Address | None = None,
     workplaces: list[str] | None = None,
     primary_workplace: str | None = None,
     ssn: str | None = None,
@@ -151,7 +152,7 @@ async def update_employee(
         dob: Date of birth (YYYY-MM-DD).
         start_date: Most recent start date of employment (YYYY-MM-DD).
         termination_date: Most recent termination date (YYYY-MM-DD).
-        residence: Residence address dict with keys: line1, line2, city, state,
+        residence: Residence address with keys: line1, line2, city, state,
             postal_code, country.
         workplaces: List of workplace IDs where the employee works.
         primary_workplace: Workplace ID of the employee's primary workplace.

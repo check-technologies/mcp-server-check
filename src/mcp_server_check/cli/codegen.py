@@ -201,11 +201,13 @@ def _build_params(func: Callable) -> list[click.Parameter]:
         if not is_required:
             opt_kwargs["default"] = None
 
-        # Dict or list[dict] → JSON param
-        if base_type is dict or (
+        # Dict / TypedDict or list[dict] → JSON param
+        _is_dict = isinstance(base_type, type) and issubclass(base_type, dict)
+        if _is_dict or (
             typing.get_origin(base_type) is list
             and typing.get_args(base_type)
-            and typing.get_args(base_type)[0] is dict
+            and isinstance(typing.get_args(base_type)[0], type)
+            and issubclass(typing.get_args(base_type)[0], dict)
         ):
             params.append(
                 click.Option([f"--{cli_name}"], type=JSONParam(), **opt_kwargs)

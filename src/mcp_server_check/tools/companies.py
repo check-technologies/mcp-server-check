@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from mcp_server_check.helpers import (
+    Address,
     Ctx,
     check_api_get,
     check_api_list,
@@ -60,7 +61,7 @@ async def create_company(
     website: str | None = None,
     email: str | None = None,
     phone: str | None = None,
-    address: dict | None = None,
+    address: Address | None = None,
     pay_frequency: str | None = None,
     start_date: str | None = None,
     metadata: str | None = None,
@@ -78,7 +79,7 @@ async def create_company(
         website: Company website URL.
         email: Email of the payroll department or administrator.
         phone: Company phone number.
-        address: Address dict with keys: line1, line2, city, state, postal_code, country.
+        address: Address with keys: line1, line2, city, state, postal_code, country.
         pay_frequency: Default pay frequency — "weekly", "biweekly", "semimonthly",
             "monthly", "quarterly", or "annually".
         start_date: Date matching first payday using Check (YYYY-MM-DD).
@@ -121,7 +122,7 @@ async def update_company(
     website: str | None = None,
     email: str | None = None,
     phone: str | None = None,
-    address: dict | None = None,
+    address: Address | None = None,
     principal_place_of_business: str | None = None,
     pay_frequency: str | None = None,
     processing_period: str | None = None,
@@ -142,7 +143,7 @@ async def update_company(
         website: Company website URL.
         email: Email of the payroll department or administrator.
         phone: Company phone number.
-        address: Address dict with keys: line1, line2, city, state, postal_code, country.
+        address: Address with keys: line1, line2, city, state, postal_code, country.
         principal_place_of_business: Workplace ID whose address prints on paystubs.
         pay_frequency: Default pay frequency — "weekly", "biweekly", "semimonthly",
             "monthly", "quarterly", or "annually".

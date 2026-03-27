@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from mcp_server_check.helpers import (
+    Address,
     Ctx,
     check_api_get,
     check_api_list,
@@ -47,7 +48,7 @@ async def get_workplace(ctx: Ctx, workplace_id: str) -> dict:
 async def create_workplace(
     ctx: Ctx,
     company: str,
-    address: dict,
+    address: Address,
     name: str | None = None,
     active: bool | None = None,
     metadata: str | None = None,
@@ -56,7 +57,7 @@ async def create_workplace(
 
     Args:
         company: The Check company ID.
-        address: Workplace address dict with keys: line1 (required), line2, city
+        address: Workplace address with keys: line1 (required), line2, city
             (required), state (required), postal_code (required), country.
         name: Human-readable name for the workplace.
         active: Whether the workplace can be associated with employees. Default: true.
@@ -77,7 +78,7 @@ async def update_workplace(
     workplace_id: str,
     company: str | None = None,
     name: str | None = None,
-    address: dict | None = None,
+    address: Address | None = None,
     active: bool | None = None,
     metadata: str | None = None,
 ) -> dict:
@@ -87,7 +88,7 @@ async def update_workplace(
         workplace_id: The Check workplace ID.
         company: The Check company ID.
         name: Human-readable name for the workplace.
-        address: Address dict with keys: line1, line2, city, state, postal_code, country.
+        address: Address with keys: line1, line2, city, state, postal_code, country.
         active: Whether the workplace can be associated with employees.
         metadata: Additional JSON metadata string.
     """

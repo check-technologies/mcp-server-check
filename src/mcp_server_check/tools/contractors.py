@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from mcp_server_check.helpers import (
+    Address,
     Ctx,
     check_api_get,
     check_api_list,
@@ -67,7 +68,7 @@ async def create_contractor(
     ein: str | None = None,
     default_net_pay_split: str | None = None,
     payment_method_preference: str | None = None,
-    address: dict | None = None,
+    address: Address | None = None,
     metadata: str | None = None,
 ) -> dict:
     """Create a new contractor.
@@ -89,7 +90,7 @@ async def create_contractor(
         ein: Contractor's Employer Identification Number (for businesses).
         default_net_pay_split: ID of contractor's default net pay split.
         payment_method_preference: "direct_deposit" or "manual".
-        address: Address dict with keys: line1, line2, city, state, postal_code, country.
+        address: Address with keys: line1, line2, city, state, postal_code, country.
         metadata: Additional JSON metadata string.
     """
     body: dict = {"company": company}
@@ -148,7 +149,7 @@ async def update_contractor(
     ein: str | None = None,
     default_net_pay_split: str | None = None,
     payment_method_preference: str | None = None,
-    address: dict | None = None,
+    address: Address | None = None,
     metadata: str | None = None,
 ) -> dict:
     """Update an existing contractor.
@@ -170,7 +171,7 @@ async def update_contractor(
         ein: Contractor's Employer Identification Number (for businesses).
         default_net_pay_split: ID of contractor's default net pay split.
         payment_method_preference: "direct_deposit" or "manual".
-        address: Address dict with keys: line1, line2, city, state, postal_code, country.
+        address: Address with keys: line1, line2, city, state, postal_code, country.
         metadata: Additional JSON metadata string.
     """
     body: dict = {}
