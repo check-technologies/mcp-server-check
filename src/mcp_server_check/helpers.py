@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Sequence, TypedDict
+from typing import Sequence
+
+from typing_extensions import TypedDict
 from urllib.parse import parse_qs, urlparse
 
 import httpx
