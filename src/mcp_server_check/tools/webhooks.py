@@ -30,7 +30,9 @@ async def list_webhook_configs(
         cursor: Pagination cursor.
     """
     return await check_api_list(
-        ctx, "/webhook_configs", params=build_params(company=company, limit=limit, cursor=cursor)
+        ctx,
+        "/webhook_configs",
+        params=build_params(company=company, limit=limit, cursor=cursor),
     )
 
 

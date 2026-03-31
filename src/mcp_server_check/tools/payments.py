@@ -48,12 +48,18 @@ async def list_payments(
         ctx,
         "/payments",
         params=build_params(
-            company=company, payroll=payroll, payroll_item=payroll_item,
-            contractor_payment=contractor_payment, direction=direction,
-            amount_min=amount_min, amount_max=amount_max, type=type,
+            company=company,
+            payroll=payroll,
+            payroll_item=payroll_item,
+            contractor_payment=contractor_payment,
+            direction=direction,
+            amount_min=amount_min,
+            amount_max=amount_max,
+            type=type,
             completion_date_after=completion_date_after,
             completion_date_before=completion_date_before,
-            limit=limit, cursor=cursor,
+            limit=limit,
+            cursor=cursor,
         ),
     )
 

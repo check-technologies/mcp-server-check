@@ -36,7 +36,14 @@ async def list_forms(
     return await check_api_list(
         ctx,
         "/forms",
-        params=build_params(company=company, limit=limit, cursor=cursor, state=state, lang=lang, type=type),
+        params=build_params(
+            company=company,
+            limit=limit,
+            cursor=cursor,
+            state=state,
+            lang=lang,
+            type=type,
+        ),
     )
 
 
@@ -70,7 +77,9 @@ async def validate_form(
         parameters: List of name/value dicts representing form fields.
             Example: [{"name": "field_name", "value": "field_value"}].
     """
-    return await check_api_post(ctx, f"/forms/{form_id}/validate", data={"parameters": parameters})
+    return await check_api_post(
+        ctx, f"/forms/{form_id}/validate", data={"parameters": parameters}
+    )
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:

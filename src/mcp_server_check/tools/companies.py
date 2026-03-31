@@ -33,7 +33,9 @@ async def list_companies(
         cursor: Pagination cursor from a previous response.
     """
     return await check_api_list(
-        ctx, "/companies", params=build_params(limit=limit, active=active, ids=ids, cursor=cursor)
+        ctx,
+        "/companies",
+        params=build_params(limit=limit, active=active, ids=ids, cursor=cursor),
     )
 
 
@@ -192,7 +194,9 @@ async def get_company_paydays(
     return await check_api_get(
         ctx,
         f"/companies/{company_id}/paydays",
-        params=build_params(start_date=start_date, end_date=end_date, pay_schedule=pay_schedule),
+        params=build_params(
+            start_date=start_date, end_date=end_date, pay_schedule=pay_schedule
+        ),
     )
 
 
@@ -363,7 +367,12 @@ async def create_signatory(
         ctx,
         f"/companies/{company_id}/signatories",
         data=build_body(
-            {"first_name": first_name, "last_name": last_name, "title": title, "email": email},
+            {
+                "first_name": first_name,
+                "last_name": last_name,
+                "title": title,
+                "email": email,
+            },
             middle_name=middle_name,
         ),
     )

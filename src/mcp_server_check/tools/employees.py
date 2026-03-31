@@ -39,8 +39,12 @@ async def list_employees(
         ctx,
         "/employees",
         params=build_params(
-            company=company, limit=limit, ids=ids, cursor=cursor,
-            workplace=workplace, active=active,
+            company=company,
+            limit=limit,
+            ids=ids,
+            cursor=cursor,
+            workplace=workplace,
+            active=active,
         ),
     )
 
@@ -213,8 +217,13 @@ async def list_employee_paystubs(
         ctx,
         f"/employees/{employee_id}/paystubs",
         params=build_params(
-            limit=limit, cursor=cursor, payroll=payroll, status=status,
-            start=start, end=end, type=type,
+            limit=limit,
+            cursor=cursor,
+            payroll=payroll,
+            status=status,
+            start=start,
+            end=end,
+            type=type,
         ),
     )
 

@@ -46,9 +46,14 @@ async def list_notifications(
         ctx,
         "/notifications",
         params=build_params(
-            company=company, limit=limit, cursor=cursor, topic=topic,
-            start_date=start_date, end_date=end_date,
-            recipient_type=recipient_type, recipient=recipient,
+            company=company,
+            limit=limit,
+            cursor=cursor,
+            topic=topic,
+            start_date=start_date,
+            end_date=end_date,
+            recipient_type=recipient_type,
+            recipient=recipient,
         ),
     )
 
@@ -92,9 +97,14 @@ async def list_communications(
         ctx,
         "/communications",
         params=build_params(
-            company=company, limit=limit, cursor=cursor,
-            start_date=start_date, end_date=end_date, type=type,
-            recipient=recipient, recipient_type=recipient_type,
+            company=company,
+            limit=limit,
+            cursor=cursor,
+            start_date=start_date,
+            end_date=end_date,
+            type=type,
+            recipient=recipient,
+            recipient_type=recipient_type,
         ),
     )
 
@@ -124,7 +134,9 @@ async def create_communication(
             message (required).
     """
     return await check_api_post(
-        ctx, "/communications", data=build_body({"company": company}, type=type, email=email)
+        ctx,
+        "/communications",
+        data=build_body({"company": company}, type=type, email=email),
     )
 
 
@@ -154,8 +166,12 @@ async def list_usage_summaries(
         ctx,
         "/usage_summaries",
         params=build_params(
-            limit=limit, cursor=cursor, company=company, category=category,
-            period_start=period_start, period_end=period_end,
+            limit=limit,
+            cursor=cursor,
+            company=company,
+            category=category,
+            period_start=period_start,
+            period_end=period_end,
         ),
     )
 
@@ -185,8 +201,13 @@ async def list_usage_records(
         ctx,
         "/usage_records",
         params=build_params(
-            limit=limit, cursor=cursor, company=company, category=category,
-            resource_type=resource_type, period_start=period_start, period_end=period_end,
+            limit=limit,
+            cursor=cursor,
+            company=company,
+            category=category,
+            resource_type=resource_type,
+            period_start=period_start,
+            period_end=period_end,
         ),
     )
 
@@ -247,7 +268,9 @@ async def list_integration_permissions(
     return await check_api_list(
         ctx,
         "/integration_permissions",
-        params=build_params(limit=limit, cursor=cursor, integration_partner=integration_partner),
+        params=build_params(
+            limit=limit, cursor=cursor, integration_partner=integration_partner
+        ),
     )
 
 
@@ -274,7 +297,9 @@ async def list_integration_accesses(
         company: Filter by company ID.
     """
     return await check_api_list(
-        ctx, "/integration_accesses", params=build_params(limit=limit, cursor=cursor, company=company)
+        ctx,
+        "/integration_accesses",
+        params=build_params(limit=limit, cursor=cursor, company=company),
     )
 
 
@@ -422,7 +447,9 @@ async def update_company_group(
         companies: List of company dicts, each with an "id" key (the company ID).
     """
     return await check_api_patch(
-        ctx, f"/company_groups/{group_id}", data=build_body({}, name=name, companies=companies)
+        ctx,
+        f"/company_groups/{group_id}",
+        data=build_body({}, name=name, companies=companies),
     )
 
 
@@ -515,8 +542,12 @@ async def list_requirements(
         ctx,
         "/requirements",
         params=build_params(
-            company=company, limit=limit, cursor=cursor,
-            category=category, requirement=requirement, status=status,
+            company=company,
+            limit=limit,
+            cursor=cursor,
+            category=category,
+            requirement=requirement,
+            status=status,
         ),
     )
 

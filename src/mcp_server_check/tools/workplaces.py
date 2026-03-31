@@ -30,7 +30,9 @@ async def list_workplaces(
         cursor: Pagination cursor from a previous response.
     """
     return await check_api_list(
-        ctx, "/workplaces", params=build_params(company=company, limit=limit, cursor=cursor)
+        ctx,
+        "/workplaces",
+        params=build_params(company=company, limit=limit, cursor=cursor),
     )
 
 
@@ -64,7 +66,12 @@ async def create_workplace(
     return await check_api_post(
         ctx,
         "/workplaces",
-        data=build_body({"company": company, "address": address}, name=name, active=active, metadata=metadata),
+        data=build_body(
+            {"company": company, "address": address},
+            name=name,
+            active=active,
+            metadata=metadata,
+        ),
     )
 
 
@@ -90,7 +97,14 @@ async def update_workplace(
     return await check_api_patch(
         ctx,
         f"/workplaces/{workplace_id}",
-        data=build_body({}, company=company, name=name, address=address, active=active, metadata=metadata),
+        data=build_body(
+            {},
+            company=company,
+            name=name,
+            address=address,
+            active=active,
+            metadata=metadata,
+        ),
     )
 
 

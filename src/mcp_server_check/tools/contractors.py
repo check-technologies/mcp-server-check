@@ -32,7 +32,9 @@ async def list_contractors(
         cursor: Pagination cursor from a previous response.
     """
     return await check_api_list(
-        ctx, "/contractors", params=build_params(company=company, limit=limit, ids=ids, cursor=cursor)
+        ctx,
+        "/contractors",
+        params=build_params(company=company, limit=limit, ids=ids, cursor=cursor),
     )
 
 

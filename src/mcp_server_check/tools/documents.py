@@ -37,7 +37,9 @@ async def list_company_tax_documents(
     return await check_api_list(
         ctx,
         "/company_tax_documents",
-        params=build_params(limit=limit, cursor=cursor, company=company, year=year, quarter=quarter),
+        params=build_params(
+            limit=limit, cursor=cursor, company=company, year=year, quarter=quarter
+        ),
     )
 
 
@@ -127,7 +129,9 @@ async def list_employee_tax_documents(
     return await check_api_list(
         ctx,
         "/employee_tax_documents",
-        params=build_params(limit=limit, cursor=cursor, employee=employee, company=company, year=year),
+        params=build_params(
+            limit=limit, cursor=cursor, employee=employee, company=company, year=year
+        ),
     )
 
 
@@ -172,7 +176,13 @@ async def list_contractor_tax_documents(
     return await check_api_list(
         ctx,
         "/contractor_tax_documents",
-        params=build_params(limit=limit, cursor=cursor, contractor=contractor, company=company, year=year),
+        params=build_params(
+            limit=limit,
+            cursor=cursor,
+            contractor=contractor,
+            company=company,
+            year=year,
+        ),
     )
 
 
@@ -211,7 +221,9 @@ async def list_setup_documents(
         company: Filter by company ID.
     """
     return await check_api_list(
-        ctx, "/setup_documents", params=build_params(limit=limit, cursor=cursor, company=company)
+        ctx,
+        "/setup_documents",
+        params=build_params(limit=limit, cursor=cursor, company=company),
     )
 
 
@@ -281,7 +293,9 @@ async def create_company_provided_document(
             "articles_of_incorporation_signatory_amendment", "state_registration".
     """
     return await check_api_post(
-        ctx, "/company_provided_documents", data=build_body({"company": company}, document_type=document_type)
+        ctx,
+        "/company_provided_documents",
+        data=build_body({"company": company}, document_type=document_type),
     )
 
 

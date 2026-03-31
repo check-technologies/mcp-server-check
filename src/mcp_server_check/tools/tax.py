@@ -73,7 +73,13 @@ async def list_company_tax_param_settings(
     return await check_api_list(
         ctx,
         f"/company_tax_params/{company_id}/settings",
-        params=build_params(limit=limit, cursor=cursor, as_of=as_of, jurisdiction=jurisdiction, submitter=submitter),
+        params=build_params(
+            limit=limit,
+            cursor=cursor,
+            as_of=as_of,
+            jurisdiction=jurisdiction,
+            submitter=submitter,
+        ),
     )
 
 
@@ -139,8 +145,13 @@ async def list_employee_tax_params(
         ctx,
         "/employee_tax_params",
         params=build_params(
-            employee=employee, limit=limit, cursor=cursor, company=company,
-            as_of=as_of, jurisdiction=jurisdiction, submitter=submitter,
+            employee=employee,
+            limit=limit,
+            cursor=cursor,
+            company=company,
+            as_of=as_of,
+            jurisdiction=jurisdiction,
+            submitter=submitter,
         ),
     )
 
@@ -199,7 +210,13 @@ async def list_employee_tax_param_settings(
     return await check_api_list(
         ctx,
         f"/employee_tax_params/{employee_id}/settings",
-        params=build_params(limit=limit, cursor=cursor, as_of=as_of, jurisdiction=jurisdiction, submitter=submitter),
+        params=build_params(
+            limit=limit,
+            cursor=cursor,
+            as_of=as_of,
+            jurisdiction=jurisdiction,
+            submitter=submitter,
+        ),
     )
 
 
@@ -372,7 +389,9 @@ async def list_tax_filings(
     return await check_api_list(
         ctx,
         "/tax_filings",
-        params=build_params(company=company, limit=limit, cursor=cursor, year=year, period=period),
+        params=build_params(
+            company=company, limit=limit, cursor=cursor, year=year, period=period
+        ),
     )
 
 
@@ -449,7 +468,9 @@ async def list_exemptible_taxes(
         cursor: Pagination cursor.
     """
     return await check_api_list(
-        ctx, "/exemptible_taxes", params=build_params(company=company, limit=limit, cursor=cursor)
+        ctx,
+        "/exemptible_taxes",
+        params=build_params(company=company, limit=limit, cursor=cursor),
     )
 
 
@@ -499,7 +520,9 @@ async def list_employee_tax_statements(
     return await check_api_list(
         ctx,
         "/employee_tax_statements",
-        params=build_params(employee=employee, limit=limit, cursor=cursor, company=company, year=year),
+        params=build_params(
+            employee=employee, limit=limit, cursor=cursor, company=company, year=year
+        ),
     )
 
 
