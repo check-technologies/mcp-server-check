@@ -14,6 +14,8 @@ import httpx
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.tools import FunctionTool
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from mcp_server_check.helpers import CheckContext
 from mcp_server_check.tool_filter import ToolFilter
@@ -383,6 +385,10 @@ def _create_server() -> CheckMCP:
 
 
 mcp = _create_server()
+
+@mcp.custom_route("/health", methods=["GET"])
+async def healthz(request: Request) -> JSONResponse:
+    return JSONResponse({"status": "ok"})
 
 
 def main():
