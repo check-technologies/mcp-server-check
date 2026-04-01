@@ -1,4 +1,4 @@
-"""``check setup`` command — configures AI coding agents with Check API context."""
+"""``check init`` command — configures AI coding agents with Check API context."""
 
 from __future__ import annotations
 
@@ -227,7 +227,7 @@ def _append_or_create(path: str, content: str) -> str:
         return "Created"
 
 
-@click.command("setup")
+@click.command("init")
 @click.argument(
     "target",
     type=click.Choice(sorted(_TARGET_FILES.keys())),
@@ -238,7 +238,7 @@ def _append_or_create(path: str, content: str) -> str:
     type=click.Path(exists=True, file_okay=False),
     help="Target directory (default: current working directory).",
 )
-def setup_command(target: str, directory: str | None) -> None:
+def init_command(target: str, directory: str | None) -> None:
     """Generate AI agent config for Check API.
 
     \b

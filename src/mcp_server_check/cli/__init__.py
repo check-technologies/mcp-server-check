@@ -13,7 +13,7 @@ from mcp_server_check.tool_filter import ToolFilter
 
 from .codegen import build_command, collect_tools
 from .context import resolve_api_key, resolve_base_url
-from .setup import setup_command
+from .setup import init_command
 
 
 # ---------------------------------------------------------------------------
@@ -143,7 +143,7 @@ class _MainCLI(click.Group):
                 standalone.append(row)
 
         if standalone:
-            with formatter.section("Setup"):
+            with formatter.section("Commands"):
                 formatter.write_dl(standalone)
 
         if toolset_cmds:
@@ -232,7 +232,7 @@ def _build_cli() -> click.Group:
         toolset_names[group_name] = toolset_name
         cli.add_command(group, group_name)
 
-    cli.add_command(setup_command, "setup")
+    cli.add_command(init_command, "init")
 
     return cli
 
