@@ -408,7 +408,7 @@ def main():
             file=sys.stderr,
         )
     transport = os.environ.get("CHECK_TRANSPORT", "stdio")
-    mcp.run(transport=transport)
+    mcp.run(transport=transport, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
 
 
 if __name__ == "__main__":
