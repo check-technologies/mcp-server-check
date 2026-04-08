@@ -13,6 +13,8 @@ import httpx
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.tools import FunctionTool
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from mcp_server_check.helpers import CheckContext
 from mcp_server_check.tool_filter import ToolFilter
@@ -376,6 +378,10 @@ def _create_server() -> CheckMCP:
 
 mcp = _create_server()
 
+@mcp.custom_route("/health", methods=["GET"])
+async def healthz(request: Request) -> JSONResponse:
+    return JSONResponse({"status": "ok"})
+
 
 def main():
     if not os.environ.get("CHECK_API_KEY"):
@@ -394,7 +400,7 @@ def main():
             file=sys.stderr,
         )
     transport = os.environ.get("CHECK_TRANSPORT", "stdio")
-    mcp.run(transport=transport)
+    mcp.run(transport=transport, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
 
 
 if __name__ == "__main__":
