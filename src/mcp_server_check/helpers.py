@@ -4,11 +4,19 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from importlib.metadata import PackageNotFoundError, version
 from typing import Sequence
 from urllib.parse import parse_qs, urlparse
 
 import httpx
 from fastmcp import Context
+
+try:
+    _VERSION = version("mcp-server-check")
+except PackageNotFoundError:
+    _VERSION = "dev"
+
+_USER_AGENT = f"mcp-server-check/{_VERSION}"
 
 
 @dataclass
@@ -16,6 +24,7 @@ class CheckContext:
     client: httpx.AsyncClient
     base_url: str
     token_resolver: Callable[[], str] | None = field(default=None, repr=False)
+    user_agent: str = field(default_factory=lambda: _USER_AGENT)
 
 
 Ctx = Context
@@ -161,7 +170,7 @@ async def _check_api_request(
 ) -> dict:
     """Make a request to the Check API with shared error handling."""
     check_ctx = ctx.request_context.lifespan_context
-    headers: dict[str, str] = {}
+    headers: dict[str, str] = {"User-Agent": check_ctx.user_agent}
     if check_ctx.token_resolver is not None:
         headers["Authorization"] = f"Bearer {check_ctx.token_resolver()}"
     try:
