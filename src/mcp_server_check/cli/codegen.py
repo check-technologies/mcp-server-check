@@ -270,13 +270,14 @@ def _make_callback(func: Callable) -> Callable:
                 pkg_version = "dev"
             async with httpx.AsyncClient(
                 base_url=base_url,
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "User-Agent": f"check-cli/{pkg_version}",
-                },
+                headers={"Authorization": f"Bearer {api_key}"},
                 timeout=30.0,
             ) as client:
-                check_ctx = CheckContext(client=client, base_url=base_url)
+                check_ctx = CheckContext(
+                    client=client,
+                    base_url=base_url,
+                    user_agent=f"check-cli/{pkg_version}",
+                )
                 cli_ctx = CLIContext(check_ctx)
                 return await func(cli_ctx, **call_kwargs)
 
