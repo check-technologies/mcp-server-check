@@ -9,6 +9,7 @@ from mcp_server_check.tools.companies import (
     create_company,
     get_company_paydays,
     get_company_report,
+    list_companies,
     list_signatories,
     onboard_company,
     start_implementation,
@@ -16,6 +17,34 @@ from mcp_server_check.tools.companies import (
 )
 
 BASE_URL = "https://sandbox.checkhq.com"
+
+
+@pytest.mark.anyio
+async def test_list_companies_with_implementation_status(mock_api, ctx):
+    route = mock_api.get("/companies").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "next": None,
+                "previous": None,
+                "results": [
+                    {
+                        "id": "com_001",
+                        "legal_name": "Test Co",
+                        "trade_name": "Test",
+                        "pay_frequency": "biweekly",
+                        "onboard": {"status": "blocking"},
+                        "implementation": {"status": "needs_attention"},
+                    }
+                ],
+            },
+        )
+    )
+    result = await list_companies(ctx, implementation_status="needs_attention")
+    assert result["result_count"] == 1
+    assert result["results"][0]["onboard"] == {"status": "blocking"}
+    assert result["results"][0]["implementation"] == {"status": "needs_attention"}
+    assert "implementation_status=needs_attention" in str(route.calls[0].request.url)
 
 
 @pytest.mark.anyio

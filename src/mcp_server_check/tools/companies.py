@@ -23,6 +23,7 @@ async def list_companies(
     active: bool | None = None,
     ids: list[str] | None = None,
     cursor: str | None = None,
+    implementation_status: str | None = None,
 ) -> dict:
     """List companies in your Check account.
 
@@ -31,11 +32,19 @@ async def list_companies(
         active: Filter by active status.
         ids: Filter to specific company IDs.
         cursor: Pagination cursor from a previous response.
+        implementation_status: Filter by implementation status — "needs_attention",
+            "in_review", or "completed".
     """
     return await check_api_list(
         ctx,
         "/companies",
-        params=build_params(limit=limit, active=active, ids=ids, cursor=cursor),
+        params=build_params(
+            limit=limit,
+            active=active,
+            ids=ids,
+            cursor=cursor,
+            implementation_status=implementation_status,
+        ),
     )
 
 
