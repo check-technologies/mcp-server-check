@@ -36,7 +36,14 @@ DEFAULT_LIST_LIMIT = 10
 # When a list response contains many records, only these fields are returned
 # unless the caller explicitly requests full details.
 _SUMMARY_FIELDS: dict[str, Sequence[str]] = {
-    "com_": ("id", "legal_name", "trade_name", "status", "pay_frequency"),
+    "com_": (
+        "id",
+        "legal_name",
+        "trade_name",
+        "pay_frequency",
+        "onboard",
+        "implementation",
+    ),
     "emp_": ("id", "first_name", "last_name", "email", "status", "start_date"),
     "ctr_": ("id", "first_name", "last_name", "business_name", "type", "status"),
     "prl_": (
