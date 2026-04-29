@@ -177,13 +177,15 @@ class TestFromQueryParams:
 
     def test_only_read_only_is_parsed(self):
         """Query params for other filter fields (toolsets, confirm_destructive, etc.) are ignored."""
-        tf = ToolFilter.from_query_params({
-            "read_only": "true",
-            "confirm_destructive": "true",
-            "toolsets": "companies",
-            "tools": "list_companies",
-            "exclude_tools": "delete_company",
-        })
+        tf = ToolFilter.from_query_params(
+            {
+                "read_only": "true",
+                "confirm_destructive": "true",
+                "toolsets": "companies",
+                "tools": "list_companies",
+                "exclude_tools": "delete_company",
+            }
+        )
         assert tf.read_only is True
         assert tf.confirm_destructive is False
         assert tf.toolsets is None
