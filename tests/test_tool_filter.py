@@ -147,6 +147,50 @@ class TestFromHeaders:
         assert tf.read_only is True
 
 
+# --- ToolFilter.from_query_params ---
+
+
+class TestFromQueryParams:
+    def test_read_only_true(self):
+        tf = ToolFilter.from_query_params({"read_only": "true"})
+        assert tf.read_only is True
+
+    def test_read_only_numeric(self):
+        tf = ToolFilter.from_query_params({"read_only": "1"})
+        assert tf.read_only is True
+
+    def test_read_only_false(self):
+        tf = ToolFilter.from_query_params({"read_only": "false"})
+        assert tf.read_only is False
+
+    def test_empty_query_params(self):
+        tf = ToolFilter.from_query_params({})
+        assert tf == ToolFilter()
+
+    def test_no_get_method(self):
+        tf = ToolFilter.from_query_params(42)  # type: ignore[arg-type]
+        assert tf == ToolFilter()
+
+    def test_unrelated_params_ignored(self):
+        tf = ToolFilter.from_query_params({"foo": "bar", "baz": "1"})
+        assert tf == ToolFilter()
+
+    def test_only_read_only_is_parsed(self):
+        """Query params for other filter fields (toolsets, confirm_destructive, etc.) are ignored."""
+        tf = ToolFilter.from_query_params({
+            "read_only": "true",
+            "confirm_destructive": "true",
+            "toolsets": "companies",
+            "tools": "list_companies",
+            "exclude_tools": "delete_company",
+        })
+        assert tf.read_only is True
+        assert tf.confirm_destructive is False
+        assert tf.toolsets is None
+        assert tf.tools is None
+        assert tf.exclude_tools == frozenset()
+
+
 # --- is_tool_allowed precedence ---
 
 
@@ -354,6 +398,21 @@ class TestMerge:
         env = ToolFilter(confirm_destructive=True)
         header = ToolFilter(confirm_destructive=False)
         assert env.merge(header).confirm_destructive is True
+
+    def test_merge_three_way_env_header_query(self):
+        """Env, header, and query-param filters combine correctly."""
+        env = ToolFilter(toolsets=frozenset({"companies", "employees"}))
+        header = ToolFilter(toolsets=frozenset({"companies", "payrolls"}))
+        query = ToolFilter(read_only=True)
+        merged = env.merge(header).merge(query)
+        assert merged.toolsets == frozenset({"companies"})
+        assert merged.read_only is True
+
+    def test_merge_query_param_cannot_relax_env(self):
+        """read_only=False from query params cannot override read_only=True from env."""
+        env = ToolFilter(read_only=True)
+        query = ToolFilter(read_only=False)
+        assert env.merge(query).read_only is True
 
     def test_merge_full_policy_scenario(self):
         """Realistic scenario: env locks down to read-only companies,

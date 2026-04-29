@@ -109,17 +109,25 @@ class CheckMCP(FastMCP):
     def _get_active_filter(self) -> ToolFilter:
         """Return the filter for the current request.
 
-        For HTTP transports, merges request-header overrides with the
-        static (env-based) filter, taking the most restrictive value
-        for each field.  The env filter acts as a policy floor that
-        clients cannot relax.  For stdio, returns the static filter.
+        For HTTP transports, merges request-header and query-parameter
+        overrides with the static (env-based) filter, taking the most
+        restrictive value for each field.  The env filter acts as a
+        policy floor that clients cannot relax.  For stdio, returns
+        the static filter.
         """
         try:
             request = self._mcp_server.request_context.request
-            if request is not None and hasattr(request, "headers"):
-                header_filter = ToolFilter.from_headers(request.headers)
-                if header_filter != ToolFilter():
-                    return self._static_filter.merge(header_filter)
+            if request is not None:
+                result = self._static_filter
+                if hasattr(request, "headers"):
+                    header_filter = ToolFilter.from_headers(request.headers)
+                    if header_filter != ToolFilter():
+                        result = result.merge(header_filter)
+                if hasattr(request, "query_params"):
+                    qp_filter = ToolFilter.from_query_params(request.query_params)
+                    if qp_filter != ToolFilter():
+                        result = result.merge(qp_filter)
+                return result
         except Exception:
             pass
         return self._static_filter

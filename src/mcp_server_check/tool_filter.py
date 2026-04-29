@@ -229,3 +229,20 @@ class ToolFilter:
             read_only=_parse_bool(get("x-mcp-readonly")),
             confirm_destructive=_parse_bool(get("x-mcp-confirm-destructive")),
         )
+
+    @classmethod
+    def from_query_params(cls, query_params: dict[str, str] | object) -> ToolFilter:
+        """Build a ToolFilter from URL query parameters.
+
+        Currently only supports the ``read_only`` parameter.
+
+        Args:
+            query_params: A dict-like object (e.g. Starlette QueryParams)
+                          supporting .get().
+        """
+        get = getattr(query_params, "get", None)
+        if get is None:
+            return cls()
+        return cls(
+            read_only=_parse_bool(get("read_only")),
+        )
