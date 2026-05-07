@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastmcp import FastMCP
 
+from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
     build_params,
@@ -121,10 +122,10 @@ async def cancel_payment(ctx: Ctx, payment_id: str) -> dict:
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
-    mcp.add_tool(list_payments)
-    mcp.add_tool(get_payment)
-    mcp.add_tool(list_payment_attempts)
+    add_annotated_tool(mcp, list_payments)
+    add_annotated_tool(mcp, get_payment)
+    add_annotated_tool(mcp, list_payment_attempts)
     if not read_only:
-        mcp.add_tool(retry_payment)
-        mcp.add_tool(refund_payment)
-        mcp.add_tool(cancel_payment)
+        add_annotated_tool(mcp, retry_payment)
+        add_annotated_tool(mcp, refund_payment)
+        add_annotated_tool(mcp, cancel_payment)

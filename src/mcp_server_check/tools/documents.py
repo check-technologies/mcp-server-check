@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastmcp import FastMCP
 
+from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
     build_body,
@@ -315,28 +316,28 @@ async def upload_company_provided_document_file(
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     # Company Tax Documents
-    mcp.add_tool(list_company_tax_documents)
-    mcp.add_tool(get_company_tax_document)
-    mcp.add_tool(download_company_tax_document)
+    add_annotated_tool(mcp, list_company_tax_documents)
+    add_annotated_tool(mcp, get_company_tax_document)
+    add_annotated_tool(mcp, download_company_tax_document)
     # Company Authorization Documents
-    mcp.add_tool(list_company_authorization_documents)
-    mcp.add_tool(get_company_authorization_document)
-    mcp.add_tool(download_company_authorization_document)
+    add_annotated_tool(mcp, list_company_authorization_documents)
+    add_annotated_tool(mcp, get_company_authorization_document)
+    add_annotated_tool(mcp, download_company_authorization_document)
     # Employee Tax Documents
-    mcp.add_tool(list_employee_tax_documents)
-    mcp.add_tool(get_employee_tax_document)
-    mcp.add_tool(download_employee_tax_document)
+    add_annotated_tool(mcp, list_employee_tax_documents)
+    add_annotated_tool(mcp, get_employee_tax_document)
+    add_annotated_tool(mcp, download_employee_tax_document)
     # Contractor Tax Documents
-    mcp.add_tool(list_contractor_tax_documents)
-    mcp.add_tool(get_contractor_tax_document)
-    mcp.add_tool(download_contractor_tax_document)
+    add_annotated_tool(mcp, list_contractor_tax_documents)
+    add_annotated_tool(mcp, get_contractor_tax_document)
+    add_annotated_tool(mcp, download_contractor_tax_document)
     # Setup Documents
-    mcp.add_tool(list_setup_documents)
-    mcp.add_tool(get_setup_document)
-    mcp.add_tool(download_setup_document)
+    add_annotated_tool(mcp, list_setup_documents)
+    add_annotated_tool(mcp, get_setup_document)
+    add_annotated_tool(mcp, download_setup_document)
     # Company Provided Documents
-    mcp.add_tool(list_company_provided_documents)
-    mcp.add_tool(get_company_provided_document)
+    add_annotated_tool(mcp, list_company_provided_documents)
+    add_annotated_tool(mcp, get_company_provided_document)
     if not read_only:
-        mcp.add_tool(create_company_provided_document)
-        mcp.add_tool(upload_company_provided_document_file)
+        add_annotated_tool(mcp, create_company_provided_document)
+        add_annotated_tool(mcp, upload_company_provided_document_file)

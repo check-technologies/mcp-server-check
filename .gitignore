@@ -7,3 +7,6 @@ build/
 .pytest_cache/
 .ruff_cache/
 .DS_Store
+.env
+.env.*
+!.env.example

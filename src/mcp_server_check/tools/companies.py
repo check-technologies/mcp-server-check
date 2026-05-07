@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastmcp import FastMCP
 
+from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.types import Address
 from mcp_server_check.helpers import (
     Ctx,
@@ -607,23 +608,23 @@ async def request_embedded_setup(ctx: Ctx, company_id: str) -> dict:
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
-    mcp.add_tool(list_companies)
-    mcp.add_tool(get_company)
-    mcp.add_tool(get_company_paydays)
-    mcp.add_tool(list_company_tax_deposits)
-    mcp.add_tool(get_company_benefit_aggregations)
-    mcp.add_tool(get_company_report)
-    mcp.add_tool(list_federal_ein_verifications)
-    mcp.add_tool(get_federal_ein_verification)
-    mcp.add_tool(list_signatories)
-    mcp.add_tool(get_enrollment_profile)
+    add_annotated_tool(mcp, list_companies)
+    add_annotated_tool(mcp, get_company)
+    add_annotated_tool(mcp, get_company_paydays)
+    add_annotated_tool(mcp, list_company_tax_deposits)
+    add_annotated_tool(mcp, get_company_benefit_aggregations)
+    add_annotated_tool(mcp, get_company_report)
+    add_annotated_tool(mcp, list_federal_ein_verifications)
+    add_annotated_tool(mcp, get_federal_ein_verification)
+    add_annotated_tool(mcp, list_signatories)
+    add_annotated_tool(mcp, get_enrollment_profile)
     if not read_only:
-        mcp.add_tool(create_company)
-        mcp.add_tool(update_company)
-        mcp.add_tool(onboard_company)
-        mcp.add_tool(create_signatory)
-        mcp.add_tool(create_enrollment_profile)
-        mcp.add_tool(update_enrollment_profile)
-        mcp.add_tool(start_implementation)
-        mcp.add_tool(cancel_implementation)
-        mcp.add_tool(request_embedded_setup)
+        add_annotated_tool(mcp, create_company)
+        add_annotated_tool(mcp, update_company)
+        add_annotated_tool(mcp, onboard_company)
+        add_annotated_tool(mcp, create_signatory)
+        add_annotated_tool(mcp, create_enrollment_profile)
+        add_annotated_tool(mcp, update_enrollment_profile)
+        add_annotated_tool(mcp, start_implementation)
+        add_annotated_tool(mcp, cancel_implementation)
+        add_annotated_tool(mcp, request_embedded_setup)

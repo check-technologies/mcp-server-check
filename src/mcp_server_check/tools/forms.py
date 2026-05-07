@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastmcp import FastMCP
 
+from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.types import FormParameter
 from mcp_server_check.helpers import (
     Ctx,
@@ -83,7 +84,7 @@ async def validate_form(
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
-    mcp.add_tool(list_forms)
-    mcp.add_tool(get_form)
-    mcp.add_tool(render_form)
-    mcp.add_tool(validate_form)
+    add_annotated_tool(mcp, list_forms)
+    add_annotated_tool(mcp, get_form)
+    add_annotated_tool(mcp, render_form)
+    add_annotated_tool(mcp, validate_form)

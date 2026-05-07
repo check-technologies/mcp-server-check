@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastmcp import FastMCP
 
+from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
     check_api_delete,
@@ -182,12 +183,12 @@ async def get_payroll_item_paper_check(ctx: Ctx, payroll_item_id: str) -> dict:
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
-    mcp.add_tool(list_payroll_items)
-    mcp.add_tool(get_payroll_item)
-    mcp.add_tool(get_payroll_item_paper_check)
+    add_annotated_tool(mcp, list_payroll_items)
+    add_annotated_tool(mcp, get_payroll_item)
+    add_annotated_tool(mcp, get_payroll_item_paper_check)
     if not read_only:
-        mcp.add_tool(create_payroll_item)
-        mcp.add_tool(update_payroll_item)
-        mcp.add_tool(bulk_update_payroll_items)
-        mcp.add_tool(delete_payroll_item)
-        mcp.add_tool(bulk_delete_payroll_items)
+        add_annotated_tool(mcp, create_payroll_item)
+        add_annotated_tool(mcp, update_payroll_item)
+        add_annotated_tool(mcp, bulk_update_payroll_items)
+        add_annotated_tool(mcp, delete_payroll_item)
+        add_annotated_tool(mcp, bulk_delete_payroll_items)

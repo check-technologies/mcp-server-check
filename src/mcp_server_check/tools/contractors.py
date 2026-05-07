@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastmcp import FastMCP
 
+from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.types import Address, FormParameter
 from mcp_server_check.helpers import (
     Ctx,
@@ -275,13 +276,13 @@ async def submit_contractor_form(
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
-    mcp.add_tool(list_contractors)
-    mcp.add_tool(get_contractor)
-    mcp.add_tool(list_contractor_payments_for_contractor)
-    mcp.add_tool(get_contractor_payment_for_payroll)
-    mcp.add_tool(list_contractor_forms)
+    add_annotated_tool(mcp, list_contractors)
+    add_annotated_tool(mcp, get_contractor)
+    add_annotated_tool(mcp, list_contractor_payments_for_contractor)
+    add_annotated_tool(mcp, get_contractor_payment_for_payroll)
+    add_annotated_tool(mcp, list_contractor_forms)
     if not read_only:
-        mcp.add_tool(create_contractor)
-        mcp.add_tool(update_contractor)
-        mcp.add_tool(onboard_contractor)
-        mcp.add_tool(submit_contractor_form)
+        add_annotated_tool(mcp, create_contractor)
+        add_annotated_tool(mcp, update_contractor)
+        add_annotated_tool(mcp, onboard_contractor)
+        add_annotated_tool(mcp, submit_contractor_form)

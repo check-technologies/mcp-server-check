@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastmcp import FastMCP
 
+from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
     check_api_delete,
@@ -126,9 +127,9 @@ async def delete_bank_account(ctx: Ctx, bank_account_id: str) -> dict:
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
-    mcp.add_tool(list_bank_accounts)
-    mcp.add_tool(get_bank_account)
+    add_annotated_tool(mcp, list_bank_accounts)
+    add_annotated_tool(mcp, get_bank_account)
     if not read_only:
-        mcp.add_tool(create_bank_account)
-        mcp.add_tool(update_bank_account)
-        mcp.add_tool(delete_bank_account)
+        add_annotated_tool(mcp, create_bank_account)
+        add_annotated_tool(mcp, update_bank_account)
+        add_annotated_tool(mcp, delete_bank_account)

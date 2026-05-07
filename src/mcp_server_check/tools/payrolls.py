@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastmcp import FastMCP
 
+from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.types import OffCycleOptions
 from mcp_server_check.helpers import (
     Ctx,
@@ -314,19 +315,19 @@ async def simulate_complete_disbursements(ctx: Ctx, payroll_id: str) -> dict:
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
-    mcp.add_tool(list_payrolls)
-    mcp.add_tool(get_payroll)
-    mcp.add_tool(preview_payroll)
-    mcp.add_tool(get_payroll_paper_checks)
-    mcp.add_tool(get_payroll_cash_requirement_report)
-    mcp.add_tool(get_payroll_paper_checks_report)
+    add_annotated_tool(mcp, list_payrolls)
+    add_annotated_tool(mcp, get_payroll)
+    add_annotated_tool(mcp, preview_payroll)
+    add_annotated_tool(mcp, get_payroll_paper_checks)
+    add_annotated_tool(mcp, get_payroll_cash_requirement_report)
+    add_annotated_tool(mcp, get_payroll_paper_checks_report)
     if not read_only:
-        mcp.add_tool(create_payroll)
-        mcp.add_tool(update_payroll)
-        mcp.add_tool(delete_payroll)
-        mcp.add_tool(approve_payroll)
-        mcp.add_tool(reopen_payroll)
-        mcp.add_tool(simulate_start_processing)
-        mcp.add_tool(simulate_complete_funding)
-        mcp.add_tool(simulate_fail_funding)
-        mcp.add_tool(simulate_complete_disbursements)
+        add_annotated_tool(mcp, create_payroll)
+        add_annotated_tool(mcp, update_payroll)
+        add_annotated_tool(mcp, delete_payroll)
+        add_annotated_tool(mcp, approve_payroll)
+        add_annotated_tool(mcp, reopen_payroll)
+        add_annotated_tool(mcp, simulate_start_processing)
+        add_annotated_tool(mcp, simulate_complete_funding)
+        add_annotated_tool(mcp, simulate_fail_funding)
+        add_annotated_tool(mcp, simulate_complete_disbursements)

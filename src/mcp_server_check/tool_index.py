@@ -13,6 +13,7 @@ from typing import Any
 
 from fastmcp.tools import FunctionTool as Tool
 
+from mcp_server_check.annotations import build_tool
 from mcp_server_check.tool_filter import ToolFilter, is_write_tool
 from mcp_server_check.tools import collect_all_tools
 
@@ -117,7 +118,7 @@ class ToolIndex:
         for toolset_name, functions in all_tools.items():
             toolset_list: list[ToolEntry] = []
             for fn in functions:
-                tool = Tool.from_function(fn)
+                tool = build_tool(fn)
                 description = _first_line(fn.__doc__)
                 # Include parameter names in search tokens for richer matching
                 param_names = set()
