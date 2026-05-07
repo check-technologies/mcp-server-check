@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastmcp import FastMCP
 
+from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.types import Address, FormParameter
 from mcp_server_check.helpers import (
     Ctx,
@@ -390,20 +391,20 @@ async def authorize_employee_partner(
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
-    mcp.add_tool(list_employees)
-    mcp.add_tool(get_employee)
-    mcp.add_tool(list_employee_paystubs)
-    mcp.add_tool(get_employee_paystub)
-    mcp.add_tool(list_employee_forms)
-    mcp.add_tool(get_employee_form)
-    mcp.add_tool(get_employee_company_defined_attributes)
-    mcp.add_tool(get_employee_reciprocity_elections)
+    add_annotated_tool(mcp, list_employees)
+    add_annotated_tool(mcp, get_employee)
+    add_annotated_tool(mcp, list_employee_paystubs)
+    add_annotated_tool(mcp, get_employee_paystub)
+    add_annotated_tool(mcp, list_employee_forms)
+    add_annotated_tool(mcp, get_employee_form)
+    add_annotated_tool(mcp, get_employee_company_defined_attributes)
+    add_annotated_tool(mcp, get_employee_reciprocity_elections)
     if not read_only:
-        mcp.add_tool(create_employee)
-        mcp.add_tool(update_employee)
-        mcp.add_tool(onboard_employee)
-        mcp.add_tool(submit_employee_form)
-        mcp.add_tool(sign_and_submit_employee_form)
-        mcp.add_tool(update_employee_company_defined_attributes)
-        mcp.add_tool(update_employee_reciprocity_elections)
-        mcp.add_tool(authorize_employee_partner)
+        add_annotated_tool(mcp, create_employee)
+        add_annotated_tool(mcp, update_employee)
+        add_annotated_tool(mcp, onboard_employee)
+        add_annotated_tool(mcp, submit_employee_form)
+        add_annotated_tool(mcp, sign_and_submit_employee_form)
+        add_annotated_tool(mcp, update_employee_company_defined_attributes)
+        add_annotated_tool(mcp, update_employee_reciprocity_elections)
+        add_annotated_tool(mcp, authorize_employee_partner)

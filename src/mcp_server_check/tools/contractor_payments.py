@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastmcp import FastMCP
 
+from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
     check_api_delete,
@@ -164,10 +165,10 @@ async def get_contractor_payment_paper_check(
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
-    mcp.add_tool(list_contractor_payments)
-    mcp.add_tool(get_contractor_payment)
-    mcp.add_tool(get_contractor_payment_paper_check)
+    add_annotated_tool(mcp, list_contractor_payments)
+    add_annotated_tool(mcp, get_contractor_payment)
+    add_annotated_tool(mcp, get_contractor_payment_paper_check)
     if not read_only:
-        mcp.add_tool(create_contractor_payment)
-        mcp.add_tool(update_contractor_payment)
-        mcp.add_tool(delete_contractor_payment)
+        add_annotated_tool(mcp, create_contractor_payment)
+        add_annotated_tool(mcp, update_contractor_payment)
+        add_annotated_tool(mcp, delete_contractor_payment)

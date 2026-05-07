@@ -165,7 +165,15 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
     index.build()
     server._tool_index = index
 
-    @server.tool()
+    @server.tool(
+        title="Search Tools",
+        annotations={
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
+    )
     def search_tools(
         query: str = "",
         toolset: str | None = None,
@@ -185,7 +193,15 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         results = index.search(query, tool_filter=tf, toolset=toolset, limit=limit)
         return json.dumps(results, indent=2)
 
-    @server.tool()
+    @server.tool(
+        title="List Toolsets",
+        annotations={
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
+    )
     def list_toolsets() -> str:
         """List all available API toolsets with descriptions.
 
@@ -197,7 +213,14 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         results = index.search("", tool_filter=tf)
         return json.dumps(results, indent=2)
 
-    @server.tool()
+    @server.tool(
+        title="Run Tool",
+        annotations={
+            "readOnlyHint": False,
+            "destructiveHint": True,
+            "openWorldHint": False,
+        },
+    )
     async def run_tool(
         ctx: Context,
         tool_name: str,

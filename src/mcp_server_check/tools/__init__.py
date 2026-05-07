@@ -54,12 +54,19 @@ def collect_all_tools() -> dict[str, list[Callable]]:
     """Return {toolset_name: [fn, ...]} for all toolsets.
 
     Calls each module's register() with a collector to capture tool functions.
+    The collector advertises kwargs support so ``add_annotated_tool`` passes the
+    raw function rather than a wrapped Tool object — the index needs the
+    function for introspection and to derive Tool instances itself.
     """
     result: dict[str, list[Callable]] = {}
     for name, module in _TOOLSETS.items():
         functions: list[Callable] = []
 
         class _Collector:
+            # Tells add_annotated_tool to pass the raw function so we can
+            # introspect it during indexing.
+            _annotated_tool_supports_kwargs = True
+
             @staticmethod
             def add_tool(fn: Callable, **kwargs: Any) -> None:
                 functions.append(fn)
@@ -82,10 +89,17 @@ def register_all(mcp: FastMCP, registry: dict[str, str]) -> None:
 
     current_toolset: list[str] = []
 
-    def tracking_add_tool(fn, **kwargs):
-        original_add_tool(fn, **kwargs)
-        tool_name = kwargs.get("name") or fn.__name__
+    def tracking_add_tool(tool, **kwargs):
+        # ``tool`` may be a FunctionTool (the new annotated path) or a raw
+        # callable (legacy / direct callers). Resolve the public tool name
+        # from whichever shape was supplied.
+        result = original_add_tool(tool, **kwargs)
+        if hasattr(tool, "name"):
+            tool_name = tool.name
+        else:
+            tool_name = kwargs.get("name") or tool.__name__
         registry[tool_name] = current_toolset[0]
+        return result
 
     try:
         mcp.add_tool = tracking_add_tool  # type: ignore[assignment]

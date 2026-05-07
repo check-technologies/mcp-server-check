@@ -12,6 +12,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 
+from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import Ctx, check_api_get, check_api_list
 
 
@@ -319,10 +320,10 @@ async def get_onboarding_status(
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
-    mcp.add_tool(get_company_overview)
-    mcp.add_tool(get_employee_snapshot)
-    mcp.add_tool(diagnose_payment)
-    mcp.add_tool(get_payroll_details)
-    mcp.add_tool(get_contractor_snapshot)
-    mcp.add_tool(get_company_tax_overview)
-    mcp.add_tool(get_onboarding_status)
+    add_annotated_tool(mcp, get_company_overview)
+    add_annotated_tool(mcp, get_employee_snapshot)
+    add_annotated_tool(mcp, diagnose_payment)
+    add_annotated_tool(mcp, get_payroll_details)
+    add_annotated_tool(mcp, get_contractor_snapshot)
+    add_annotated_tool(mcp, get_company_tax_overview)
+    add_annotated_tool(mcp, get_onboarding_status)

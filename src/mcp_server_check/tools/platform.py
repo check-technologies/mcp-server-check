@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastmcp import FastMCP
 
+from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.types import EmailDetails
 from mcp_server_check.helpers import (
     Ctx,
@@ -571,42 +572,42 @@ async def get_applied_for_ids_report(ctx: Ctx) -> dict:
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     # Notifications
-    mcp.add_tool(list_notifications)
-    mcp.add_tool(get_notification)
+    add_annotated_tool(mcp, list_notifications)
+    add_annotated_tool(mcp, get_notification)
     # Communications
-    mcp.add_tool(list_communications)
-    mcp.add_tool(get_communication)
+    add_annotated_tool(mcp, list_communications)
+    add_annotated_tool(mcp, get_communication)
     # Usage
-    mcp.add_tool(list_usage_summaries)
-    mcp.add_tool(list_usage_records)
+    add_annotated_tool(mcp, list_usage_summaries)
+    add_annotated_tool(mcp, list_usage_records)
     # Integrations
-    mcp.add_tool(list_integration_partners)
-    mcp.add_tool(get_integration_partner)
-    mcp.add_tool(list_integration_permissions)
-    mcp.add_tool(get_integration_permission)
-    mcp.add_tool(list_integration_accesses)
+    add_annotated_tool(mcp, list_integration_partners)
+    add_annotated_tool(mcp, get_integration_partner)
+    add_annotated_tool(mcp, list_integration_permissions)
+    add_annotated_tool(mcp, get_integration_permission)
+    add_annotated_tool(mcp, list_integration_accesses)
     # Accounting Integrations
-    mcp.add_tool(list_accounting_accounts)
-    mcp.add_tool(get_accounting_mappings)
-    mcp.add_tool(list_accounting_sync_attempts)
+    add_annotated_tool(mcp, list_accounting_accounts)
+    add_annotated_tool(mcp, get_accounting_mappings)
+    add_annotated_tool(mcp, list_accounting_sync_attempts)
     # Company Groups
-    mcp.add_tool(list_company_groups)
+    add_annotated_tool(mcp, list_company_groups)
     # Addresses
-    mcp.add_tool(validate_address)
+    add_annotated_tool(mcp, validate_address)
     # Setups
-    mcp.add_tool(list_setups)
-    mcp.add_tool(get_setup)
+    add_annotated_tool(mcp, list_setups)
+    add_annotated_tool(mcp, get_setup)
     # Requirements
-    mcp.add_tool(list_requirements)
-    mcp.add_tool(get_requirement)
+    add_annotated_tool(mcp, list_requirements)
+    add_annotated_tool(mcp, get_requirement)
     # Reports
-    mcp.add_tool(get_applied_for_ids_report)
+    add_annotated_tool(mcp, get_applied_for_ids_report)
     if not read_only:
-        mcp.add_tool(create_communication)
-        mcp.add_tool(authorize_integration_partner)
-        mcp.add_tool(refresh_accounting_accounts)
-        mcp.add_tool(update_accounting_mappings)
-        mcp.add_tool(toggle_accounting_mappings)
-        mcp.add_tool(sync_accounting)
-        mcp.add_tool(create_company_group)
-        mcp.add_tool(update_company_group)
+        add_annotated_tool(mcp, create_communication)
+        add_annotated_tool(mcp, authorize_integration_partner)
+        add_annotated_tool(mcp, refresh_accounting_accounts)
+        add_annotated_tool(mcp, update_accounting_mappings)
+        add_annotated_tool(mcp, toggle_accounting_mappings)
+        add_annotated_tool(mcp, sync_accounting)
+        add_annotated_tool(mcp, create_company_group)
+        add_annotated_tool(mcp, update_company_group)

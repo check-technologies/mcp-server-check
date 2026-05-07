@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastmcp import FastMCP
 
+from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
     check_api_delete,
@@ -167,12 +168,12 @@ async def preview_external_payroll(ctx: Ctx, external_payroll_id: str) -> dict:
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
-    mcp.add_tool(list_external_payrolls)
-    mcp.add_tool(get_external_payroll)
-    mcp.add_tool(preview_external_payroll)
+    add_annotated_tool(mcp, list_external_payrolls)
+    add_annotated_tool(mcp, get_external_payroll)
+    add_annotated_tool(mcp, preview_external_payroll)
     if not read_only:
-        mcp.add_tool(create_external_payroll)
-        mcp.add_tool(update_external_payroll)
-        mcp.add_tool(delete_external_payroll)
-        mcp.add_tool(approve_external_payroll)
-        mcp.add_tool(reopen_external_payroll)
+        add_annotated_tool(mcp, create_external_payroll)
+        add_annotated_tool(mcp, update_external_payroll)
+        add_annotated_tool(mcp, delete_external_payroll)
+        add_annotated_tool(mcp, approve_external_payroll)
+        add_annotated_tool(mcp, reopen_external_payroll)

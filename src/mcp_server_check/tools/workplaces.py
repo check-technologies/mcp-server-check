@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastmcp import FastMCP
 
+from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.types import Address
 from mcp_server_check.helpers import (
     Ctx,
@@ -109,8 +110,8 @@ async def update_workplace(
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
-    mcp.add_tool(list_workplaces)
-    mcp.add_tool(get_workplace)
+    add_annotated_tool(mcp, list_workplaces)
+    add_annotated_tool(mcp, get_workplace)
     if not read_only:
-        mcp.add_tool(create_workplace)
-        mcp.add_tool(update_workplace)
+        add_annotated_tool(mcp, create_workplace)
+        add_annotated_tool(mcp, update_workplace)

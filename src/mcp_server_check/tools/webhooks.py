@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastmcp import FastMCP
 
+from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
     build_body,
@@ -105,11 +106,11 @@ async def retry_webhook_events(ctx: Ctx, data: dict) -> dict:
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
-    mcp.add_tool(list_webhook_configs)
-    mcp.add_tool(get_webhook_config)
+    add_annotated_tool(mcp, list_webhook_configs)
+    add_annotated_tool(mcp, get_webhook_config)
     if not read_only:
-        mcp.add_tool(create_webhook_config)
-        mcp.add_tool(update_webhook_config)
-        mcp.add_tool(delete_webhook_config)
-        mcp.add_tool(ping_webhook_config)
-        mcp.add_tool(retry_webhook_events)
+        add_annotated_tool(mcp, create_webhook_config)
+        add_annotated_tool(mcp, update_webhook_config)
+        add_annotated_tool(mcp, delete_webhook_config)
+        add_annotated_tool(mcp, ping_webhook_config)
+        add_annotated_tool(mcp, retry_webhook_events)
