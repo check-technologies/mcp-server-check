@@ -33,6 +33,7 @@ class TestDeriveTitle:
             ("render_form", "Render Form"),
             ("ping_webhook_config", "Ping Webhook Config"),
             ("download_employee_tax_document", "Download Employee Tax Document"),
+            ("get_applied_for_ids_report", "Get Applied for IDs Report"),
         ],
     )
     def test_titles(self, name: str, expected: str) -> None:

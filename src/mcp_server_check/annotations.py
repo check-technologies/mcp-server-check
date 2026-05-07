@@ -41,6 +41,7 @@ _ACRONYMS: frozenset[str] = frozenset(
 _WORD_OVERRIDES: dict[str, str] = {
     "w2": "W-2",
     "w4": "W-4",
+    "ids": "IDs",
 }
 
 # Lowercase joining words (skipped only when they appear in the middle of a
