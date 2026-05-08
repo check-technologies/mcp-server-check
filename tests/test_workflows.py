@@ -221,7 +221,7 @@ async def test_get_company_tax_overview(mock_api, ctx):
     mock_api.get("/companies/com_001/tax_elections").mock(
         return_value=httpx.Response(200, json=_list_response([{"id": "ele_001"}]))
     )
-    mock_api.get("/tax_filings").mock(
+    mock_api.get("/filings").mock(
         return_value=httpx.Response(
             200, json=_list_response([{"id": "fil_001", "status": "filed"}])
         )
@@ -231,7 +231,7 @@ async def test_get_company_tax_overview(mock_api, ctx):
 
     assert result["tax_params"]["id"] == "com_001"
     assert result["tax_elections"]["results"][0]["id"] == "ele_001"
-    assert result["tax_filings"]["results"][0]["id"] == "fil_001"
+    assert result["filings"]["results"][0]["id"] == "fil_001"
 
 
 @pytest.mark.anyio

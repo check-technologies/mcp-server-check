@@ -7,13 +7,13 @@ import pytest
 
 from mcp_server_check.tools.tax import (
     get_company_tax_params,
-    get_tax_filing,
+    get_filing,
     list_company_tax_elections,
     list_company_tax_param_settings,
     list_employee_tax_param_settings,
     list_employee_tax_params,
     list_employee_tax_statements,
-    list_tax_filings,
+    list_filings,
     update_company_tax_params,
 )
 
@@ -63,15 +63,19 @@ async def test_list_company_tax_elections(mock_api, ctx):
 
 
 @pytest.mark.anyio
-async def test_list_tax_filings(mock_api, ctx):
-    mock_api.get("/tax_filings").mock(
+async def test_list_filings(mock_api, ctx):
+    mock_api.get("/filings").mock(
         return_value=httpx.Response(
             200,
-            json={"next": None, "previous": None, "results": [{"id": "tf_001"}]},
+            json={
+                "next": None,
+                "previous": None,
+                "results": [{"id": "com_fil_001"}],
+            },
         )
     )
-    result = await list_tax_filings(ctx)
-    assert result["results"] == [{"id": "tf_001"}]
+    result = await list_filings(ctx)
+    assert result["results"] == [{"id": "com_fil_001"}]
 
 
 @pytest.mark.anyio
@@ -128,19 +132,26 @@ async def test_list_employee_tax_param_settings_with_filters(mock_api, ctx):
 
 
 @pytest.mark.anyio
-async def test_list_tax_filings_with_filters(mock_api, ctx):
-    mock_api.get("/tax_filings").mock(
+async def test_list_filings_with_filters(mock_api, ctx):
+    mock_api.get("/filings").mock(
         return_value=httpx.Response(
             200,
-            json={"next": None, "previous": None, "results": [{"id": "tf_001"}]},
+            json={
+                "next": None,
+                "previous": None,
+                "results": [{"id": "com_fil_001"}],
+            },
         )
     )
-    result = await list_tax_filings(ctx, company="com_123", year=2025, period="Q1")
-    assert result["results"] == [{"id": "tf_001"}]
-    req = mock_api.get("/tax_filings").calls.last.request
+    result = await list_filings(
+        ctx, company="com_123", year=2025, period="q1", status="blocked"
+    )
+    assert result["results"] == [{"id": "com_fil_001"}]
+    req = mock_api.get("/filings").calls.last.request
     assert req.url.params["company"] == "com_123"
     assert req.url.params["year"] == "2025"
-    assert req.url.params["period"] == "Q1"
+    assert req.url.params["period"] == "q1"
+    assert req.url.params["status"] == "blocked"
 
 
 @pytest.mark.anyio
@@ -162,9 +173,9 @@ async def test_list_employee_tax_statements_with_filters(mock_api, ctx):
 
 
 @pytest.mark.anyio
-async def test_get_tax_filing(mock_api, ctx):
-    mock_api.get("/tax_filings/tf_001").mock(
-        return_value=httpx.Response(200, json={"id": "tf_001"})
+async def test_get_filing(mock_api, ctx):
+    mock_api.get("/filings/com_fil_001").mock(
+        return_value=httpx.Response(200, json={"id": "com_fil_001"})
     )
-    result = await get_tax_filing(ctx, tax_filing_id="tf_001")
-    assert result["id"] == "tf_001"
+    result = await get_filing(ctx, filing_id="com_fil_001")
+    assert result["id"] == "com_fil_001"

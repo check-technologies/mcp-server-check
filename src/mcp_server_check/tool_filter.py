@@ -61,7 +61,8 @@ _WRITE_KEYWORDS = (
     "toggle_",
     "sync_",
     "upload_",
-    "request_tax_",
+    "add_",
+    "remove_",
 )
 
 # Tools that trigger irreversible real-world effects (money movement, deletion).

@@ -367,63 +367,85 @@ async def update_employee_tax_elections(ctx: Ctx, employee_id: str, data: dict) 
     )
 
 
-# --- Tax Filings ---
+# --- Filings ---
 
 
-async def list_tax_filings(
+async def list_filings(
     ctx: Ctx,
     company: str | None = None,
     limit: int | None = None,
     cursor: str | None = None,
     year: int | None = None,
     period: str | None = None,
+    status: str | None = None,
 ) -> dict:
-    """List tax filings, optionally filtered by company.
+    """List filings, optionally filtered by company.
+
+    Returns filing history and expected upcoming filings. Each filing includes
+    its current status, status_history, blocked_reasons, and amendment
+    relationships.
 
     Args:
-        company: Filter to tax filings belonging to this Check company ID (e.g. "com_xxxxx").
-        limit: Maximum number of results to return.
+        company: Filter to filings belonging to this Check company ID (e.g. "com_xxxxx").
+        limit: Maximum number of results to return (1-500, default 25).
         cursor: Pagination cursor.
         year: Filter by tax year.
-        period: Filter by filing period.
+        period: Filter by filing period (e.g. "annual", "q1", "q2", "q3", "q4", "january", etc.).
+        status: Filter by filing status ("pending", "blocked", "submitted", "filed", or "inapplicable").
     """
     return await check_api_list(
         ctx,
-        "/tax_filings",
+        "/filings",
         params=build_params(
-            company=company, limit=limit, cursor=cursor, year=year, period=period
+            company=company,
+            limit=limit,
+            cursor=cursor,
+            year=year,
+            period=period,
+            status=status,
         ),
     )
 
 
-async def get_tax_filing(ctx: Ctx, tax_filing_id: str) -> dict:
-    """Get details for a specific tax filing.
+async def get_filing(ctx: Ctx, filing_id: str) -> dict:
+    """Get details for a specific filing.
+
+    Returns the full filing object including status, status_history,
+    blocked_reasons, document, and amendment relationships (amends/amended_by).
 
     Args:
-        tax_filing_id: The Check tax filing ID.
+        filing_id: The Check filing ID (prefixed with "com_fil_").
     """
-    return await check_api_get(ctx, f"/tax_filings/{tax_filing_id}")
+    return await check_api_get(ctx, f"/filings/{filing_id}")
 
 
-async def request_tax_filing_refile(ctx: Ctx, tax_filing_id: str) -> dict:
-    """Request a refile for a tax filing.
+async def add_filing_blockers(ctx: Ctx, filing_id: str, data: dict) -> dict:
+    """Add blockers to a filing.
+
+    In production, you can add the "held_by_customer" blocker to any filing
+    with a pending status. This communicates that the employer is not ready
+    for this filing to be filed with the agency.
 
     Args:
-        tax_filing_id: The Check tax filing ID.
+        filing_id: The Check filing ID (prefixed with "com_fil_").
+        data: Request body with blocked_reasons to add (e.g. {"blocked_reasons": ["held_by_customer"]}).
     """
-    return await check_api_post(ctx, f"/tax_filings/{tax_filing_id}/request_refile")
+    return await check_api_post(ctx, f"/filings/{filing_id}/add_blockers", data=data)
 
 
-# --- Tax Filing Events ---
+async def remove_filing_blockers(ctx: Ctx, filing_id: str, data: dict) -> dict:
+    """Remove blockers from a filing.
 
-
-async def get_tax_filing_event(ctx: Ctx, event_id: str) -> dict:
-    """Get a specific tax filing event.
+    Removes eligible blockers from a filing. In production, you can remove
+    the "held_by_customer" blocker.
 
     Args:
-        event_id: The tax filing event ID.
+        filing_id: The Check filing ID (prefixed with "com_fil_").
+        data: Request body with blocked_reasons to remove (e.g. {"blocked_reasons": ["held_by_customer"]}).
     """
-    return await check_api_get(ctx, f"/tax_filing_events/{event_id}")
+    return await check_api_post(
+        ctx, f"/filings/{filing_id}/remove_blockers", data=data
+    )
 
 
 # --- Exempt Status ---
@@ -581,11 +603,9 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, list_company_tax_elections)
     # Employee Tax Elections
     add_annotated_tool(mcp, list_employee_tax_elections)
-    # Tax Filings
-    add_annotated_tool(mcp, list_tax_filings)
-    add_annotated_tool(mcp, get_tax_filing)
-    # Tax Filing Events
-    add_annotated_tool(mcp, get_tax_filing_event)
+    # Filings
+    add_annotated_tool(mcp, list_filings)
+    add_annotated_tool(mcp, get_filing)
     # Exempt Status
     add_annotated_tool(mcp, get_exempt_status)
     # Exemptible Taxes
@@ -602,7 +622,8 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
         add_annotated_tool(mcp, create_company_tax_elections)
         add_annotated_tool(mcp, update_company_tax_elections)
         add_annotated_tool(mcp, update_employee_tax_elections)
-        add_annotated_tool(mcp, request_tax_filing_refile)
+        add_annotated_tool(mcp, add_filing_blockers)
+        add_annotated_tool(mcp, remove_filing_blockers)
         add_annotated_tool(mcp, update_exempt_status)
         add_annotated_tool(mcp, update_exemptible_tax)
         add_annotated_tool(mcp, bulk_update_exemptible_taxes)
