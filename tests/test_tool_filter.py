@@ -43,7 +43,8 @@ class TestIsWriteTool:
             "toggle_accounting_mappings",
             "sync_accounting",
             "upload_company_provided_document_file",
-            "request_tax_filing_refile",
+            "add_filing_blockers",
+            "remove_filing_blockers",
         ],
     )
     def test_write_tools_detected(self, name):
