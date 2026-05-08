@@ -443,9 +443,7 @@ async def remove_filing_blockers(ctx: Ctx, filing_id: str, data: dict) -> dict:
         filing_id: The Check filing ID (prefixed with "com_fil_").
         data: Request body with blocked_reasons to remove (e.g. {"blocked_reasons": ["held_by_customer"]}).
     """
-    return await check_api_post(
-        ctx, f"/filings/{filing_id}/remove_blockers", data=data
-    )
+    return await check_api_post(ctx, f"/filings/{filing_id}/remove_blockers", data=data)
 
 
 # --- Exempt Status ---
