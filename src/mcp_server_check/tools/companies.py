@@ -49,6 +49,29 @@ async def list_companies(
     )
 
 
+async def search_companies(
+    ctx: Ctx,
+    term: str,
+    limit: int | None = None,
+    cursor: str | None = None,
+) -> dict:
+    """Search companies by name.
+
+    Searches across legal name, trade name, and company ID using
+    case-insensitive matching.
+
+    Args:
+        term: Search term to match against company legal name, trade name, or ID.
+        limit: Maximum number of results to return.
+        cursor: Pagination cursor from a previous response.
+    """
+    return await check_api_list(
+        ctx,
+        "/companies/search",
+        params=build_params(term=term, limit=limit, cursor=cursor),
+    )
+
+
 async def get_company(ctx: Ctx, company_id: str) -> dict:
     """Get details for a specific company.
 
@@ -609,6 +632,7 @@ async def request_embedded_setup(ctx: Ctx, company_id: str) -> dict:
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, list_companies)
+    add_annotated_tool(mcp, search_companies)
     add_annotated_tool(mcp, get_company)
     add_annotated_tool(mcp, get_company_paydays)
     add_annotated_tool(mcp, list_company_tax_deposits)

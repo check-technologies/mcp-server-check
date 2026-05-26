@@ -39,6 +39,30 @@ async def list_contractors(
     )
 
 
+async def search_contractors(
+    ctx: Ctx,
+    term: str,
+    limit: int | None = None,
+    cursor: str | None = None,
+) -> dict:
+    """Search contractors by name.
+
+    Splits the search term by spaces and matches each word against first name,
+    middle name, last name, business name, or contractor ID using
+    case-insensitive matching. All terms must match (AND logic).
+
+    Args:
+        term: Search term to match against contractor name fields or ID.
+        limit: Maximum number of results to return.
+        cursor: Pagination cursor from a previous response.
+    """
+    return await check_api_list(
+        ctx,
+        "/contractors/search",
+        params=build_params(term=term, limit=limit, cursor=cursor),
+    )
+
+
 async def get_contractor(ctx: Ctx, contractor_id: str) -> dict:
     """Get details for a specific contractor.
 
@@ -277,6 +301,7 @@ async def submit_contractor_form(
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, list_contractors)
+    add_annotated_tool(mcp, search_contractors)
     add_annotated_tool(mcp, get_contractor)
     add_annotated_tool(mcp, list_contractor_payments_for_contractor)
     add_annotated_tool(mcp, get_contractor_payment_for_payroll)
