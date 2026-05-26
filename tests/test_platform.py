@@ -93,7 +93,7 @@ async def test_create_communication(mock_api, ctx):
 
 @pytest.mark.anyio
 async def test_list_usage_summaries(mock_api, ctx):
-    mock_api.get("/usage_summaries").mock(
+    mock_api.get("/usage/summaries").mock(
         return_value=httpx.Response(
             200,
             json={"next": None, "previous": None, "results": [{"id": "us_001"}]},
@@ -105,7 +105,7 @@ async def test_list_usage_summaries(mock_api, ctx):
 
 @pytest.mark.anyio
 async def test_list_usage_summaries_with_filters(mock_api, ctx):
-    mock_api.get("/usage_summaries").mock(
+    mock_api.get("/usage/summaries").mock(
         return_value=httpx.Response(
             200,
             json={"next": None, "previous": None, "results": [{"id": "us_001"}]},
@@ -115,7 +115,7 @@ async def test_list_usage_summaries_with_filters(mock_api, ctx):
         ctx, company="com_123", category="payroll", period_start="2026-01-01"
     )
     assert result["results"] == [{"id": "us_001"}]
-    req = mock_api.get("/usage_summaries").calls.last.request
+    req = mock_api.get("/usage/summaries").calls.last.request
     assert req.url.params["company"] == "com_123"
     assert req.url.params["category"] == "payroll"
     assert req.url.params["period_start"] == "2026-01-01"
@@ -124,7 +124,7 @@ async def test_list_usage_summaries_with_filters(mock_api, ctx):
 
 @pytest.mark.anyio
 async def test_list_usage_records_with_filters(mock_api, ctx):
-    mock_api.get("/usage_records").mock(
+    mock_api.get("/usage/records").mock(
         return_value=httpx.Response(
             200,
             json={"next": None, "previous": None, "results": [{"id": "ur_001"}]},
@@ -134,7 +134,7 @@ async def test_list_usage_records_with_filters(mock_api, ctx):
         ctx, company="com_123", resource_type="employee", period_start="2026-01-01"
     )
     assert result["results"] == [{"id": "ur_001"}]
-    req = mock_api.get("/usage_records").calls.last.request
+    req = mock_api.get("/usage/records").calls.last.request
     assert req.url.params["company"] == "com_123"
     assert req.url.params["resource_type"] == "employee"
     assert req.url.params["period_start"] == "2026-01-01"

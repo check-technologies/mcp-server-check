@@ -165,7 +165,7 @@ async def list_usage_summaries(
     """
     return await check_api_list(
         ctx,
-        "/usage_summaries",
+        "/usage/summaries",
         params=build_params(
             limit=limit,
             cursor=cursor,
@@ -200,7 +200,7 @@ async def list_usage_records(
     """
     return await check_api_list(
         ctx,
-        "/usage_records",
+        "/usage/records",
         params=build_params(
             limit=limit,
             cursor=cursor,
