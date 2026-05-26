@@ -27,7 +27,7 @@ _SYNONYM_GROUPS: list[set[str]] = [
     {"create", "add", "new", "setup", "set"},
     {"delete", "remove", "destroy"},
     {"update", "edit", "modify", "change", "patch"},
-    {"list", "index", "all", "browse"},
+    {"list", "index", "all", "browse", "search", "find"},
     {"get", "show", "view", "read", "fetch", "retrieve", "detail", "details"},
     {"payment", "disbursement", "deposit", "transfer"},
     {"tax", "withholding", "filing", "w2", "w4"},

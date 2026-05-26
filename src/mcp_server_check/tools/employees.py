@@ -50,6 +50,30 @@ async def list_employees(
     )
 
 
+async def search_employees(
+    ctx: Ctx,
+    term: str,
+    limit: int | None = None,
+    cursor: str | None = None,
+) -> dict:
+    """Search employees by name.
+
+    Splits the search term by spaces and matches each word against first name,
+    middle name, last name, or employee ID using case-insensitive matching.
+    All terms must match (AND logic).
+
+    Args:
+        term: Search term to match against employee name fields or ID.
+        limit: Maximum number of results to return.
+        cursor: Pagination cursor from a previous response.
+    """
+    return await check_api_list(
+        ctx,
+        "/employees/search",
+        params=build_params(term=term, limit=limit, cursor=cursor),
+    )
+
+
 async def get_employee(ctx: Ctx, employee_id: str) -> dict:
     """Get details for a specific employee.
 
@@ -392,6 +416,7 @@ async def authorize_employee_partner(
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, list_employees)
+    add_annotated_tool(mcp, search_employees)
     add_annotated_tool(mcp, get_employee)
     add_annotated_tool(mcp, list_employee_paystubs)
     add_annotated_tool(mcp, get_employee_paystub)
