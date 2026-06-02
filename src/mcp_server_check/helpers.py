@@ -72,7 +72,15 @@ _SUMMARY_FIELDS: dict[str, Sequence[str]] = {
     # Filings are prefixed "com_fil_". This entry must be matched before the
     # bare "com_" company entry — see _detect_entity_prefix for the longest-
     # prefix logic that makes that happen.
-    "com_fil_": ("id", "company", "status", "period", "year", "name", "blocked_reasons"),
+    "com_fil_": (
+        "id",
+        "company",
+        "status",
+        "period",
+        "year",
+        "name",
+        "blocked_reasons",
+    ),
 }
 
 
