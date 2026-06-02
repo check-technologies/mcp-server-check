@@ -511,3 +511,15 @@ cd mcp-server-check
 uv sync --group dev
 uv run pytest  # 311 tests
 ```
+
+### Pre-commit hooks
+
+This repo ships a [pre-commit](https://pre-commit.com/) config that runs `ruff check`
+and `ruff format` (the same checks as CI) before each commit. Enable it once after
+cloning:
+
+```bash
+uv run pre-commit install
+```
+
+To run the hooks manually against all files: `uv run pre-commit run --all-files`.

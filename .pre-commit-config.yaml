@@ -1,0 +1,14 @@
+# Run `uv run pre-commit install` once to enable these hooks locally.
+# They mirror the lint job in .github/workflows/ci.yml (ruff check + format)
+# so formatting/lint issues are caught before pushing.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.6
+    hooks:
+      - id: ruff
+        name: ruff check
+        args: [--fix]
+        files: ^(src|tests)/
+      - id: ruff-format
+        name: ruff format
+        files: ^(src|tests)/
