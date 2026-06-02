@@ -69,17 +69,29 @@ _SUMMARY_FIELDS: dict[str, Sequence[str]] = {
     ),
     "nps_": ("id", "employee", "contractor", "is_default"),
     "psc_": ("id", "name", "pay_frequency", "company"),
+    # Filings are prefixed "com_fil_". This entry must be matched before the
+    # bare "com_" company entry — see _detect_entity_prefix for the longest-
+    # prefix logic that makes that happen.
+    "com_fil_": ("id", "company", "status", "period", "year", "name", "blocked_reasons"),
 }
 
 
 def _detect_entity_prefix(results: list[dict]) -> str | None:
-    """Detect the entity type prefix from the first result's ID."""
+    """Detect the entity type prefix from the first result's ID.
+
+    Returns the longest known ``_SUMMARY_FIELDS`` prefix that the ID starts
+    with. Matching longest-first is essential for multi-segment prefixes like
+    ``com_fil_`` (filings), which would otherwise collide with ``com_``
+    (companies) and get summarized with the wrong field set.
+    """
     if not results:
         return None
     first_id = results[0].get("id", "")
-    if isinstance(first_id, str) and "_" in first_id:
-        prefix = first_id.split("_")[0] + "_"
-        return prefix
+    if not isinstance(first_id, str):
+        return None
+    for prefix in sorted(_SUMMARY_FIELDS, key=len, reverse=True):
+        if first_id.startswith(prefix):
+            return prefix
     return None
 
 
