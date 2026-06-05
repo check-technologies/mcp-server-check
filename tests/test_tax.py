@@ -79,6 +79,30 @@ async def test_list_filings(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_list_filings_preserves_filing_fields(mock_api, ctx):
+    # Filing IDs ("com_fil_...") must not be summarized with the company field
+    # set, which would strip status/blocked_reasons/company. The longest-prefix
+    # match in _detect_entity_prefix keeps the filing-specific fields.
+    filing = {
+        "id": "com_fil_001",
+        "company": "com_123",
+        "status": "blocked",
+        "period": "q1",
+        "year": 2025,
+        "name": "CA DE 9 Q1 2025",
+        "blocked_reasons": ["applied_for_tax_id"],
+    }
+    mock_api.get("/filings").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [filing]},
+        )
+    )
+    result = await list_filings(ctx)
+    assert result["results"] == [filing]
+
+
+@pytest.mark.anyio
 async def test_list_employee_tax_params_with_filters(mock_api, ctx):
     mock_api.get("/employee_tax_params").mock(
         return_value=httpx.Response(

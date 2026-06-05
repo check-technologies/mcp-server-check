@@ -8,6 +8,7 @@ Each skill is a self-contained directory with a `SKILL.md` file and optional `re
 
 | Skill | Description |
 |---|---|
+| [blocked-filings-dashboard](./blocked-filings-dashboard/) | Generate a partner-shareable HTML dashboard of blocked tax filings for a quarter. Shows an expected filing success rate, what-if projections per blocker, KPI cards, charts, and a sortable/filterable table of every blocked filing and its blocker reasons. |
 | [payroll-audit-report](./payroll-audit-report/) | Generate a comprehensive audit report for a company's payrolls over a date range. Summarizes totals by pay period, breaks down earnings/taxes/deductions, and flags anomalies. |
 | [prior-provider-worker-migration](./prior-provider-worker-migration/) | Import employees and contractors into Check from a prior payroll provider's worker report (CSV, XLS, XLSX, or PDF). Parses the report, creates workplaces and workers via the API, and verifies every record against the source data. |
 | [worker-census-report](./worker-census-report/) | Export a complete census of all employees and contractors for a company with full details including addresses, SSN last 4, start dates, workplace assignments, and active/terminated status. |
