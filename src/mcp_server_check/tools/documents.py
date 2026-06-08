@@ -59,7 +59,9 @@ async def download_company_tax_document(ctx: Ctx, document_id: str) -> dict:
     Args:
         document_id: The document ID.
     """
-    return await check_api_get(ctx, f"/documents/company_tax_documents/{document_id}/download")
+    return await check_api_get(
+        ctx, f"/documents/company_tax_documents/{document_id}/download"
+    )
 
 
 # --- Company Authorization Documents ---
@@ -93,7 +95,9 @@ async def get_company_authorization_document(ctx: Ctx, document_id: str) -> dict
     Args:
         document_id: The document ID.
     """
-    return await check_api_get(ctx, f"/documents/company_authorization_documents/{document_id}")
+    return await check_api_get(
+        ctx, f"/documents/company_authorization_documents/{document_id}"
+    )
 
 
 async def download_company_authorization_document(ctx: Ctx, document_id: str) -> dict:
@@ -151,7 +155,9 @@ async def download_employee_tax_document(ctx: Ctx, document_id: str) -> dict:
     Args:
         document_id: The document ID.
     """
-    return await check_api_get(ctx, f"/documents/employee_tax_documents/{document_id}/download")
+    return await check_api_get(
+        ctx, f"/documents/employee_tax_documents/{document_id}/download"
+    )
 
 
 # --- Contractor Tax Documents ---
@@ -193,7 +199,9 @@ async def get_contractor_tax_document(ctx: Ctx, document_id: str) -> dict:
     Args:
         document_id: The document ID.
     """
-    return await check_api_get(ctx, f"/documents/contractor_tax_documents/{document_id}")
+    return await check_api_get(
+        ctx, f"/documents/contractor_tax_documents/{document_id}"
+    )
 
 
 async def download_contractor_tax_document(ctx: Ctx, document_id: str) -> dict:
@@ -202,7 +210,9 @@ async def download_contractor_tax_document(ctx: Ctx, document_id: str) -> dict:
     Args:
         document_id: The document ID.
     """
-    return await check_api_get(ctx, f"/documents/contractor_tax_documents/{document_id}/download")
+    return await check_api_get(
+        ctx, f"/documents/contractor_tax_documents/{document_id}/download"
+    )
 
 
 # --- Setup Documents ---
@@ -243,7 +253,9 @@ async def download_setup_document(ctx: Ctx, document_id: str) -> dict:
     Args:
         document_id: The document ID.
     """
-    return await check_api_get(ctx, f"/documents/setup_documents/{document_id}/download")
+    return await check_api_get(
+        ctx, f"/documents/setup_documents/{document_id}/download"
+    )
 
 
 # --- Company Provided Documents ---
