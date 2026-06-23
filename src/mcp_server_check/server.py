@@ -90,12 +90,30 @@ Prefer the workflow tools when they fit — they combine multiple API calls in o
 async def lifespan(server: FastMCP) -> AsyncIterator[CheckContext]:
     base_url = os.environ.get("CHECK_API_BASE_URL", DEFAULT_BASE_URL).rstrip("/")
     api_key = os.environ["CHECK_API_KEY"]
-    async with httpx.AsyncClient(
-        base_url=base_url,
-        headers={"Authorization": f"Bearer {api_key}"},
-        timeout=30.0,
-    ) as client:
-        yield CheckContext(client=client, base_url=base_url)
+    # Opt-in (off by default): allow a trusted caller to supply a per-request
+    # bearer token via the `X-Check-Token` header — e.g. a provider-scoped token
+    # so one server can serve many providers. Falls back to CHECK_API_KEY.
+    allow_token_header = os.environ.get("CHECK_ALLOW_TOKEN_HEADER", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+    def resolve_token() -> str:
+        if allow_token_header:
+            try:
+                request = server._mcp_server.request_context.request
+                forwarded = request.headers.get("X-Check-Token") if request else None
+                if forwarded:
+                    return forwarded
+            except Exception:
+                pass
+        return api_key
+
+    async with httpx.AsyncClient(base_url=base_url, timeout=30.0) as client:
+        yield CheckContext(
+            client=client, base_url=base_url, token_resolver=resolve_token
+        )
 
 
 class CheckMCP(FastMCP):
