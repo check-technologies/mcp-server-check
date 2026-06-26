@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from importlib.metadata import PackageNotFoundError, version
-from typing import Sequence
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -59,6 +58,16 @@ _SUMMARY_FIELDS: dict[str, Sequence[str]] = {
     "pmt_": ("id", "status", "amount", "payment_method", "direction"),
     "bnk_": ("id", "institution_name", "subtype", "status", "last_four"),
     "wrk_": ("id", "name", "active", "address"),
+    # Logs carry request/response bodies; keep the list view compact and let
+    # get_log return the full record (headers, query params, bodies).
+    "log_": (
+        "id",
+        "method",
+        "path",
+        "status_code",
+        "created_at",
+        "processing_duration",
+    ),
     "ben_": (
         "id",
         "benefit",
