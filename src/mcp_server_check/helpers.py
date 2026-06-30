@@ -176,9 +176,10 @@ def build_body(required: dict, **optional: object) -> dict:
 def build_params(**kwargs: object) -> dict | None:
     """Build query parameters from keyword arguments, dropping ``None`` values.
 
-    Booleans are lowercased (``True`` → ``"true"``), lists are comma-joined,
-    and all other values are passed through. Returns ``None`` when no
-    parameters remain (avoids sending empty ``?``).
+    Booleans are lowercased (``True`` → ``"true"``). Lists are passed through so
+    httpx serializes them as repeated params (``ids=a&ids=b``) — the convention
+    the Check API uses for multi-value filters. All other values pass through.
+    Returns ``None`` when no parameters remain (avoids sending an empty ``?``).
 
     Example::
 
@@ -190,8 +191,6 @@ def build_params(**kwargs: object) -> dict | None:
             continue
         if isinstance(val, bool):
             params[key] = str(val).lower()
-        elif isinstance(val, list):
-            params[key] = ",".join(val)
         else:
             params[key] = val
     return params or None

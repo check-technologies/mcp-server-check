@@ -51,7 +51,11 @@ async def test_list_logs_status_class_filter(mock_api, ctx):
         )
     )
     await list_logs(ctx, status_code=["4xx", "500"])
-    assert route.calls[0].request.url.params["status_code"] == "4xx,500"
+    # Multi-value filters are sent as repeated params, not comma-joined.
+    assert route.calls[0].request.url.params.get_list("status_code") == [
+        "4xx",
+        "500",
+    ]
 
 
 @pytest.mark.anyio
@@ -71,7 +75,7 @@ async def test_list_logs_multi_method_and_time_range(mock_api, ctx):
         limit=100,
     )
     params = route.calls[0].request.url.params
-    assert params["method"] == "GET,POST"
+    assert params.get_list("method") == ["GET", "POST"]
     assert params["path"] == "/payrolls"
     assert params["created_after"] == "2026-06-01T00:00:00Z"
     assert params["created_before"] == "2026-06-02T00:00:00Z"
