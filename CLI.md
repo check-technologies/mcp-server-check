@@ -84,6 +84,7 @@ There are 17 resource groups, each with multiple commands:
 | `documents` | `list-company-tax-documents`, `download-employee-tax-document` |
 | `components` | `create-company-run-payroll-component`, `create-employee-profile-component` |
 | `forms` | `list`, `get`, `render`, `validate` |
+| `logs` | `list`, `get` |
 | `platform` | `list-notifications`, `validate-address`, `sync-accounting` |
 | `workplaces` | `list`, `get`, `create`, `update` |
 

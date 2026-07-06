@@ -53,7 +53,7 @@ The server supports fine-grained tool filtering, configurable via environment va
 
 #### Toolsets
 
-There are 17 toolsets, one per API module: `bank_accounts`, `companies`, `compensation`, `components`, `contractor_payments`, `contractors`, `documents`, `employees`, `external_payrolls`, `forms`, `payments`, `payroll_items`, `payrolls`, `platform`, `tax`, `webhooks`, `workplaces`.
+There are 19 toolsets, one per API module: `bank_accounts`, `companies`, `compensation`, `components`, `contractor_payments`, `contractors`, `documents`, `employees`, `external_payrolls`, `forms`, `logs`, `payments`, `payroll_items`, `payrolls`, `platform`, `tax`, `webhooks`, `workflows`, `workplaces`.
 
 Enable only specific toolsets:
 
@@ -372,6 +372,13 @@ Pay schedules, benefits, post-tax deductions, company benefits, earning rates, e
 | `get_form` | GET | Get a specific form |
 | `render_form` | GET | Render a form for display |
 | `validate_form` | POST | Validate form data before submission |
+
+### Logs (2 tools)
+
+| Tool | Method | Description |
+|---|---|---|
+| `list_logs` | GET | List API request logs; filter by path, method, status code/class, idempotency key, and time range |
+| `get_log` | GET | Get the full record for a single API request log |
 
 ### Payments (6 tools)
 

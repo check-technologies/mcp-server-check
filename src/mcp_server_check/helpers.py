@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from importlib.metadata import PackageNotFoundError, version
-from typing import Sequence
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -59,6 +58,16 @@ _SUMMARY_FIELDS: dict[str, Sequence[str]] = {
     "pmt_": ("id", "status", "amount", "payment_method", "direction"),
     "bnk_": ("id", "institution_name", "subtype", "status", "last_four"),
     "wrk_": ("id", "name", "active", "address"),
+    # Logs carry request/response bodies; keep the list view compact and let
+    # get_log return the full record (headers, query params, bodies).
+    "log_": (
+        "id",
+        "method",
+        "path",
+        "status_code",
+        "created_at",
+        "processing_duration",
+    ),
     "ben_": (
         "id",
         "benefit",
@@ -167,9 +176,10 @@ def build_body(required: dict, **optional: object) -> dict:
 def build_params(**kwargs: object) -> dict | None:
     """Build query parameters from keyword arguments, dropping ``None`` values.
 
-    Booleans are lowercased (``True`` → ``"true"``), lists are comma-joined,
-    and all other values are passed through. Returns ``None`` when no
-    parameters remain (avoids sending empty ``?``).
+    Booleans are lowercased (``True`` → ``"true"``). Lists are passed through so
+    httpx serializes them as repeated params (``ids=a&ids=b``) — the convention
+    the Check API uses for multi-value filters. All other values pass through.
+    Returns ``None`` when no parameters remain (avoids sending an empty ``?``).
 
     Example::
 
@@ -181,8 +191,6 @@ def build_params(**kwargs: object) -> dict | None:
             continue
         if isinstance(val, bool):
             params[key] = str(val).lower()
-        elif isinstance(val, list):
-            params[key] = ",".join(val)
         else:
             params[key] = val
     return params or None
