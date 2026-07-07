@@ -584,6 +584,64 @@ async def get_tax_package(ctx: Ctx, tax_package_id: str) -> dict:
     return await check_api_get(ctx, f"/tax_packages/{tax_package_id}")
 
 
+# --- Taxes (reference data) ---
+
+
+async def list_taxes(
+    ctx: Ctx,
+    ids: list[str] | None = None,
+    jurisdiction: list[str] | None = None,
+    supported: bool | None = None,
+    remittable: bool | None = None,
+    effective: bool | None = None,
+    label_contains: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
+) -> dict:
+    """List tax objects — the levies that arise when running payroll.
+
+    A tax (e.g. Federal Income Tax, a state's SUI) is global reference data:
+    the same across all companies and environments. Distinct from company/
+    employee tax *parameters* and *elections*, which configure how a given
+    company or employee relates to these taxes.
+
+    Args:
+        ids: Tax IDs to look up, for batch lookups (max 500 per request).
+        jurisdiction: Filter by lowercase region code(s), e.g. ["fed", "ny"].
+            Multiple values are OR'd.
+        supported: Filter by whether Check calculates and files the tax.
+        remittable: Filter by whether Check remits the tax to the agency.
+        effective: Filter by whether the tax obligation is currently in
+            effect (defaults to true on the API side).
+        label_contains: Case-insensitive substring match on the tax label.
+        limit: Maximum number of results to return (default 25, max 500).
+        cursor: Pagination cursor from a previous response.
+    """
+    return await check_api_list(
+        ctx,
+        "/taxes",
+        params=build_params(
+            id=ids,
+            jurisdiction=jurisdiction,
+            supported=supported,
+            remittable=remittable,
+            effective=effective,
+            label_contains=label_contains,
+            limit=limit,
+            cursor=cursor,
+        ),
+    )
+
+
+async def get_tax(ctx: Ctx, tax_id: str) -> dict:
+    """Get a single tax object by ID.
+
+    Args:
+        tax_id: The Check tax ID (e.g. "tax_xxxxx").
+    """
+    return await check_api_get(ctx, f"/taxes/{tax_id}")
+
+
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     # Company Tax Params
     add_annotated_tool(mcp, get_company_tax_params)
@@ -613,6 +671,9 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, get_employee_tax_statement)
     # Tax Packages
     add_annotated_tool(mcp, get_tax_package)
+    # Taxes (reference data)
+    add_annotated_tool(mcp, list_taxes)
+    add_annotated_tool(mcp, get_tax)
     if not read_only:
         add_annotated_tool(mcp, update_company_tax_params)
         add_annotated_tool(mcp, update_employee_tax_params)

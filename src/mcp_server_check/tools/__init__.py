@@ -8,6 +8,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from . import (
+    agencies,
     bank_accounts,
     companies,
     compensation,
@@ -30,6 +31,7 @@ from . import (
 )
 
 _TOOLSETS = {
+    "agencies": agencies,
     "bank_accounts": bank_accounts,
     "companies": companies,
     "compensation": compensation,

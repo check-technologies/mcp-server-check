@@ -63,6 +63,7 @@ sensitive employee/contractor data.
 - **Earning Rate** defines an employee's pay rate; **Earning Code** defines the type of earning (regular, overtime, bonus, etc.)
 - **Benefits** are pre-tax deductions (401k, health insurance); **Post-Tax Deductions** are after-tax (garnishments, Roth 401k)
 - **Tax Params** control withholding (W-4 info, state elections); they use `spa_*` IDs
+- **Taxes** (`tax_`) and **Agencies** (`agc_`) are global read-only reference data — the levies themselves and the authorities Check files/remits to; look them up with list_taxes/list_agencies
 - Payrolls must be **approved** before they process — approval triggers real money movement
 - All IDs use prefixes: `com_` (company), `emp_` (employee), `ctr_` (contractor), `prl_` (payroll), `pit_` (payroll item), `pmt_` (payment), `wrk_` (workplace), `bnk_` (bank account)
 

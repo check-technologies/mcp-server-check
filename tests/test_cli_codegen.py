@@ -118,6 +118,19 @@ class TestMakeCommandName:
             == "get-payroll-journal-report"
         )
 
+    def test_list_taxes(self):
+        """'taxes' doesn't match the 'tax' toolset token → full name kept."""
+        assert _make_command_name("list_taxes", "tax") == "list-taxes"
+
+    def test_get_tax(self):
+        assert _make_command_name("get_tax", "tax") == "get"
+
+    def test_list_agencies(self):
+        assert _make_command_name("list_agencies", "agencies") == "list"
+
+    def test_get_agency(self):
+        assert _make_command_name("get_agency", "agencies") == "get"
+
 
 # ---------------------------------------------------------------------------
 # _unwrap_optional
@@ -318,12 +331,13 @@ class TestBuildCommand:
 class TestCollectTools:
     def test_returns_all_toolsets(self):
         tools = collect_tools()
-        assert len(tools) == 19
+        assert len(tools) == 20
         assert "companies" in tools
         assert "employees" in tools
         assert "payrolls" in tools
         assert "bank_accounts" in tools
         assert "tax" in tools
+        assert "agencies" in tools
 
     def test_all_functions_are_async(self):
         tools = collect_tools()

@@ -30,7 +30,7 @@ _SYNONYM_GROUPS: list[set[str]] = [
     {"list", "index", "all", "browse", "search", "find"},
     {"get", "show", "view", "read", "fetch", "retrieve", "detail", "details"},
     {"payment", "disbursement", "deposit", "transfer"},
-    {"tax", "withholding", "filing", "w2", "w4"},
+    {"tax", "withholding", "filing", "w2", "w4", "agency", "agencies"},
     {"bank", "account", "ach", "routing"},
     {"report", "summary", "journal", "export"},
     {"webhook", "callback", "event", "notification"},
@@ -84,6 +84,7 @@ def _first_line(docstring: str | None) -> str:
 
 # Toolset descriptions for the overview
 _TOOLSET_DESCRIPTIONS: dict[str, str] = {
+    "agencies": "Tax agencies — the counterparties Check files and remits to (IRS, state revenue departments).",
     "bank_accounts": "Create, update, delete, and view bank accounts for companies, employees, and contractors.",
     "companies": "Manage companies, signatories, enrollment profiles, reports, and EIN verifications.",
     "compensation": "Manage earning rates, earning codes, benefits, post-tax deductions, net pay splits, and pay schedules.",
@@ -99,7 +100,7 @@ _TOOLSET_DESCRIPTIONS: dict[str, str] = {
     "payroll_items": "Create, update, and delete individual payroll line items within a payroll.",
     "payrolls": "Create, preview, approve, and manage payroll runs. Includes sandbox simulation tools.",
     "platform": "Platform-level tools: notifications, communications, usage, integrations, accounting, setups, and requirements.",
-    "tax": "Manage company and employee tax parameters, elections, filings, exemptions, and tax statements.",
+    "tax": "Manage company and employee tax parameters, elections, filings, exemptions, and tax statements. Includes tax reference data (list_taxes/get_tax).",
     "webhooks": "Create, update, delete, and test webhook configurations.",
     "workflows": "Composite tools that combine multiple API calls: company overview, employee snapshot, contractor snapshot, payroll details, payment diagnostics, tax overview, onboarding status.",
     "workplaces": "Create, update, and view company workplace locations.",
