@@ -28,9 +28,13 @@ when a session starts. Run all commands through `uv run` (they execute inside `.
   (passed via `--api-key` or env). Defaults to the **sandbox** environment.
 
 ### Non-obvious notes
-- No real Check API key is provisioned in this environment. Tests and `--help`/`init` work
-  offline; live API calls (and starting the MCP server) require a valid `CHECK_API_KEY` secret.
-  To exercise tool round-trips without a key, mock the HTTP layer with `respx` (as the tests do)
+- Tests and `--help`/`init` work offline; live API calls (and starting the MCP server) require a
+  valid `CHECK_API_KEY` secret.
+- **Prefer a sandbox key for testing.** Sandbox (`https://sandbox.checkhq.com`) is the default
+  environment for both the CLI and MCP server, supports the `simulate-*` endpoints, and write
+  operations there move no real money. A production key (`--env production` /
+  `https://api.checkhq.com`) touches real payroll data — only use it for read-only checks.
+- To exercise tool round-trips without any key, mock the HTTP layer with `respx` (as the tests do)
   and drive the in-memory server via `fastmcp`'s `Client(mcp)`.
 - `uv.lock` resolves `fastmcp` to a 3.x release even though `pyproject.toml` only pins
   `>=2.0.0`; use `uv sync --frozen` to stay consistent with CI.
