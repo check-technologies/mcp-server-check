@@ -8,12 +8,14 @@ import pytest
 from mcp_server_check.tools.tax import (
     get_company_tax_params,
     get_filing,
+    get_tax,
     list_company_tax_elections,
     list_company_tax_param_settings,
     list_employee_tax_param_settings,
     list_employee_tax_params,
     list_employee_tax_statements,
     list_filings,
+    list_taxes,
     update_company_tax_params,
 )
 
@@ -203,3 +205,82 @@ async def test_get_filing(mock_api, ctx):
     )
     result = await get_filing(ctx, filing_id="com_fil_001")
     assert result["id"] == "com_fil_001"
+
+
+@pytest.mark.anyio
+async def test_list_taxes(mock_api, ctx):
+    mock_api.get("/taxes").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "next": None,
+                "previous": None,
+                "results": [
+                    {
+                        "id": "tax_001",
+                        "label": "Federal Income Tax",
+                        "jurisdiction": "fed",
+                        "payer": "employee",
+                        "supported": True,
+                        "remittable": True,
+                        "effective_from": None,
+                        "effective_to": None,
+                    }
+                ],
+            },
+        )
+    )
+    result = await list_taxes(ctx)
+    assert result["result_count"] == 1
+    assert result["results"][0]["id"] == "tax_001"
+    assert result["results"][0]["payer"] == "employee"
+
+
+@pytest.mark.anyio
+async def test_list_taxes_with_filters(mock_api, ctx):
+    route = mock_api.get("/taxes").mock(
+        return_value=httpx.Response(
+            200, json={"next": None, "previous": None, "results": []}
+        )
+    )
+    await list_taxes(
+        ctx,
+        ids=["tax_001", "tax_002"],
+        jurisdiction=["fed", "ny"],
+        supported=True,
+        remittable=False,
+        effective=False,
+        label_contains="unemployment",
+        limit=100,
+    )
+    params = route.calls[0].request.url.params
+    # Multi-value filters are sent as repeated params, not comma-joined.
+    assert params.get_list("id") == ["tax_001", "tax_002"]
+    assert params.get_list("jurisdiction") == ["fed", "ny"]
+    assert params["supported"] == "true"
+    assert params["remittable"] == "false"
+    assert params["effective"] == "false"
+    assert params["label_contains"] == "unemployment"
+    assert params["limit"] == "100"
+
+
+@pytest.mark.anyio
+async def test_get_tax(mock_api, ctx):
+    mock_api.get("/taxes/tax_001").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "id": "tax_001",
+                "label": "Federal Income Tax",
+                "jurisdiction": "fed",
+                "payer": "employee",
+                "supported": True,
+                "remittable": True,
+                "effective_from": None,
+                "effective_to": None,
+            },
+        )
+    )
+    result = await get_tax(ctx, tax_id="tax_001")
+    assert result["id"] == "tax_001"
+    assert result["jurisdiction"] == "fed"

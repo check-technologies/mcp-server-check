@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 TOOLSETS: frozenset[str] = frozenset(
     {
+        "agencies",
         "bank_accounts",
         "companies",
         "compensation",

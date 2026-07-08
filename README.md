@@ -53,7 +53,7 @@ The server supports fine-grained tool filtering, configurable via environment va
 
 #### Toolsets
 
-There are 19 toolsets, one per API module: `bank_accounts`, `companies`, `compensation`, `components`, `contractor_payments`, `contractors`, `documents`, `employees`, `external_payrolls`, `forms`, `logs`, `payments`, `payroll_items`, `payrolls`, `platform`, `tax`, `webhooks`, `workflows`, `workplaces`.
+There are 20 toolsets, one per API module: `agencies`, `bank_accounts`, `companies`, `compensation`, `components`, `contractor_payments`, `contractors`, `documents`, `employees`, `external_payrolls`, `forms`, `logs`, `payments`, `payroll_items`, `payrolls`, `platform`, `tax`, `webhooks`, `workflows`, `workplaces`.
 
 Enable only specific toolsets:
 
@@ -391,9 +391,9 @@ Pay schedules, benefits, post-tax deductions, company benefits, earning rates, e
 | `refund_payment` | POST | Refund a payment |
 | `cancel_payment` | POST | Cancel a payment |
 
-### Tax (31 tools)
+### Tax (33 tools)
 
-Tax parameters, elections, filings, exempt status, exemptible taxes, statements, and packages.
+Tax parameters, elections, filings, exempt status, exemptible taxes, statements, packages, and tax reference data.
 
 | Tool | Method | Description |
 |---|---|---|
@@ -419,12 +419,11 @@ Tax parameters, elections, filings, exempt status, exemptible taxes, statements,
 | **Employee Tax Elections** | | |
 | `list_employee_tax_elections` | GET | List tax elections for an employee |
 | `update_employee_tax_elections` | PATCH | Update employee tax elections |
-| **Tax Filings** | | |
-| `list_tax_filings` | GET | List tax filings |
-| `get_tax_filing` | GET | Get a specific tax filing |
-| `request_tax_filing_refile` | POST | Request a refile |
-| **Tax Filing Events** | | |
-| `get_tax_filing_event` | GET | Get a specific tax filing event |
+| **Filings** | | |
+| `list_filings` | GET | List tax filings |
+| `get_filing` | GET | Get a specific tax filing |
+| `add_filing_blockers` | POST | Add blockers to a filing |
+| `remove_filing_blockers` | POST | Remove blockers from a filing |
 | **Exempt Status** | | |
 | `get_exempt_status` | GET | Get exempt status for an employee |
 | `update_exempt_status` | PATCH | Update exempt status |
@@ -438,6 +437,18 @@ Tax parameters, elections, filings, exempt status, exemptible taxes, statements,
 | **Tax Packages** | | |
 | `request_tax_package` | POST | Request a tax package |
 | `get_tax_package` | GET | Get a specific tax package |
+| **Taxes (reference data)** | | |
+| `list_taxes` | GET | List tax objects (payroll levies); filter by jurisdiction, payer, supported/remittable, effective status |
+| `get_tax` | GET | Get a specific tax object |
+
+### Agencies (2 tools)
+
+The counterparties Check files and remits to (IRS, state revenue departments). Global read-only reference data.
+
+| Tool | Method | Description |
+|---|---|---|
+| `list_agencies` | GET | List agencies; filter by jurisdiction or label |
+| `get_agency` | GET | Get a specific agency |
 
 ### Webhooks (7 tools)
 

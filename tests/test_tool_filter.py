@@ -436,11 +436,12 @@ class TestMerge:
 
 
 class TestToolsets:
-    def test_has_19_toolsets(self):
-        assert len(TOOLSETS) == 19
+    def test_has_20_toolsets(self):
+        assert len(TOOLSETS) == 20
 
     def test_known_toolsets(self):
         expected = {
+            "agencies",
             "bank_accounts",
             "companies",
             "compensation",
