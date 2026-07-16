@@ -12,6 +12,7 @@ from typing import Any
 import httpx
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
+from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 from fastmcp.tools import FunctionTool
 
 from mcp_server_check.helpers import CheckContext
@@ -31,6 +32,12 @@ and payments programmatically.
 using their credentials, including actions taken by AI agents. Always confirm \
 before executing write operations that affect payroll, money movement, or \
 sensitive employee/contractor data.
+
+Tools that move money, change funding/payout destinations, or make \
+irreversible changes (approve, delete, cancel, refund, retry, bank account \
+changes, payroll/payment creation) automatically prompt the user for \
+approval via MCP elicitation before executing. This confirmation comes from \
+the user directly and cannot be provided on their behalf.
 
 ## Entity Model
 - **Company** → has Workplaces, Employees, Contractors, Pay Schedules, Bank Accounts
@@ -96,6 +103,67 @@ async def lifespan(server: FastMCP) -> AsyncIterator[CheckContext]:
         timeout=30.0,
     ) as client:
         yield CheckContext(client=client, base_url=base_url)
+
+
+async def _confirm_destructive(
+    ctx: Context, tool_name: str, arguments: dict | None
+) -> str | None:
+    """Ask the user to approve a destructive tool call via MCP elicitation.
+
+    Returns None when the user approves, otherwise a human-readable reason
+    the call was blocked. Fails closed: if the client does not support
+    elicitation, the call is blocked rather than allowed through.
+    """
+    details = json.dumps(arguments or {}, indent=2, sort_keys=True)
+    message = (
+        f"'{tool_name}' can move money or make irreversible changes.\n\n"
+        f"Arguments:\n{details}\n\n"
+        f"Approve this operation?"
+    )
+    try:
+        result = await ctx.elicit(message, response_type=None)
+    except Exception:
+        return (
+            f"'{tool_name}' requires user confirmation, but this client does not "
+            "support MCP elicitation, so the call was blocked. Run this operation "
+            "from a client that supports elicitation, or from the Check dashboard."
+        )
+    if result.action == "accept":
+        return None
+    verb = "declined" if result.action == "decline" else "cancelled"
+    return (
+        f"The user {verb} the confirmation prompt for '{tool_name}'. "
+        "Do not retry unless the user explicitly asks you to."
+    )
+
+
+class ConfirmDestructiveMiddleware(Middleware):
+    """Gate destructive tools behind a user-visible confirmation prompt.
+
+    Covers individually registered tools (all-tools mode and hosted mounts).
+    In dynamic mode the target tool name arrives as an argument to run_tool,
+    which applies the same gate itself.
+    """
+
+    def __init__(self, server: CheckMCP) -> None:
+        self._server = server
+
+    async def on_call_tool(
+        self, context: MiddlewareContext, call_next: CallNext
+    ) -> Any:
+        name = context.message.name
+        tf = self._server._get_active_filter()
+        if tf.requires_confirmation(name):
+            ctx = context.fastmcp_context
+            if ctx is None:
+                raise ToolError(
+                    f"'{name}' requires user confirmation, but no request "
+                    "context is available, so the call was blocked."
+                )
+            denial = await _confirm_destructive(ctx, name, context.message.arguments)
+            if denial is not None:
+                raise ToolError(denial)
+        return await call_next(context)
 
 
 class CheckMCP(FastMCP):
@@ -226,18 +294,19 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         ctx: Context,
         tool_name: str,
         arguments: str | dict | None = None,
-        confirm: bool = False,
     ) -> str:
         """Execute an API tool by name with the given arguments.
 
         Use search_tools first to find the tool name and its parameter schema.
 
+        Destructive tools (approve, delete, cancel, refund, retry, bank account
+        changes, payroll/payment creation) prompt the user for approval via MCP
+        elicitation before executing; the confirmation comes from the user
+        directly and cannot be supplied by the model.
+
         tool_name: The exact tool name (e.g. "list_companies", "get_employee").
         arguments: Tool arguments as a JSON string or dict (e.g. '{"company_id": "com_xxx"}'
             or {"company_id": "com_xxx"}).
-        confirm: Set to true to confirm execution of a destructive tool (approve,
-            delete, simulate, refund, cancel). Required when CHECK_CONFIRM_DESTRUCTIVE
-            is enabled and the tool is destructive.
         """
         tf = server._get_active_filter()
         parsed_args: dict = {}
@@ -256,19 +325,16 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
                     {"error": "Arguments must be a JSON string or object"}
                 )
 
-        if tf.requires_confirmation(tool_name) and not confirm:
-            return json.dumps(
-                {
-                    "confirmation_required": True,
-                    "tool_name": tool_name,
-                    "arguments": parsed_args,
-                    "message": (
-                        f"⚠️  '{tool_name}' is a destructive operation that may "
-                        f"trigger irreversible effects (money movement, data deletion, "
-                        f"etc.). Call run_tool again with confirm=true to proceed."
-                    ),
-                }
-            )
+        if tf.requires_confirmation(tool_name):
+            denial = await _confirm_destructive(ctx, tool_name, parsed_args)
+            if denial is not None:
+                return json.dumps(
+                    {
+                        "error": denial,
+                        "confirmation_required": True,
+                        "tool_name": tool_name,
+                    }
+                )
 
         try:
             result = await index.run(
@@ -393,6 +459,7 @@ def setup_tools(server: CheckMCP, tool_mode: str = "dynamic") -> None:
         register_all(server, registry=server._registry)
     else:
         _setup_dynamic_mode(server)
+    server.add_middleware(ConfirmDestructiveMiddleware(server))
     _register_resources(server)
 
 
@@ -420,6 +487,17 @@ def main():
         print("Running in all-tools mode (legacy)", file=sys.stderr)
     if mcp._static_filter.read_only:
         print("Running in read-only mode (CHECK_READ_ONLY is set)", file=sys.stderr)
+    if mcp._static_filter.confirm_destructive:
+        print(
+            "Destructive tools require user confirmation via MCP elicitation",
+            file=sys.stderr,
+        )
+    else:
+        print(
+            "WARNING: destructive-tool confirmation is DISABLED "
+            "(CHECK_CONFIRM_DESTRUCTIVE=false)",
+            file=sys.stderr,
+        )
     if mcp._static_filter.toolsets:
         print(
             f"Active toolsets: {', '.join(sorted(mcp._static_filter.toolsets))}",

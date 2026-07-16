@@ -87,10 +87,17 @@ class TestDeriveAnnotations:
         assert a.idempotentHint is True
 
     def test_non_destructive_bulk_update(self) -> None:
-        a = derive_annotations("bulk_update_payroll_items")
+        a = derive_annotations("bulk_update_exemptible_taxes")
         assert a.readOnlyHint is False
         assert a.destructiveHint is False
         assert a.idempotentHint is True
+
+    def test_destructive_bulk_update_payroll_items(self) -> None:
+        # Shapes the amounts a payroll disburses, so it carries the
+        # destructive hint and the confirmation gate.
+        a = derive_annotations("bulk_update_payroll_items")
+        assert a.readOnlyHint is False
+        assert a.destructiveHint is True
 
     def test_destructive_bulk_delete(self) -> None:
         a = derive_annotations("bulk_delete_payroll_items")

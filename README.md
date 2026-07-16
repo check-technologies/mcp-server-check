@@ -26,6 +26,7 @@ CHECK_API_KEY=your-key uv run mcp-server-check
 | `CHECK_TOOLS` | No | — | Comma-separated allowlist of individual tool names |
 | `CHECK_EXCLUDE_TOOLS` | No | — | Comma-separated list of tool names to hide |
 | `CHECK_READ_ONLY` | No | — | Set to `1`, `true`, or `yes` to disable all write/mutating tools |
+| `CHECK_CONFIRM_DESTRUCTIVE` | No | `true` | Destructive tools prompt the user for approval via MCP elicitation. Set to `false` to disable (self-hosted automation only — not recommended) |
 | `CHECK_TRANSPORT` | No | `stdio` | Transport protocol: `stdio`, `sse`, or `streamable-http` |
 
 ### Sandbox vs Production
@@ -84,6 +85,14 @@ Set `CHECK_READ_ONLY=1` to run the server with only read-only tools (list, get, 
 ```bash
 CHECK_READ_ONLY=1 CHECK_API_KEY=your-key uv run mcp-server-check
 ```
+
+#### Destructive-Tool Confirmation
+
+Tools that move money (`approve_payroll`, `retry_payment`, `cancel_payment`, `refund_payment`), change funding or payout destinations (`create_bank_account`, `update_bank_account`, `delete_bank_account`), shape what a payroll disburses (`create_payroll`, `create_payroll_item`, `create_contractor_payment`, `create_net_pay_split`, and their update variants), or delete data (`delete_*`, `bulk_delete_*`, `cancel_*`) require an explicit, user-visible confirmation before they execute.
+
+The confirmation uses [MCP elicitation](https://modelcontextprotocol.io/specification/draft/client/elicitation): the server sends the tool name and full arguments to the client, which renders an approve/decline prompt to the human user. The model cannot answer the prompt itself, and clients cannot disable the gate over HTTP (the `X-MCP-Confirm-Destructive` header can only turn it on when the server has opted out). If the connected client does not support elicitation, destructive calls fail closed with an explanatory error.
+
+This gate is **on by default**. Self-hosted deployments running trusted automation can opt out with `CHECK_CONFIRM_DESTRUCTIVE=false`, which logs a warning at startup.
 
 #### HTTP Headers (Remote Transport)
 
