@@ -67,10 +67,8 @@ _WRITE_KEYWORDS = (
     "remove_",
 )
 
-# Tools that trigger irreversible real-world effects (money movement, deletion)
-# or shape the amounts/recipients/destinations of money movement.
-# These always require explicit user confirmation (via MCP elicitation) unless
-# the server operator opts out with CHECK_CONFIRM_DESTRUCTIVE=false.
+# Tools that trigger irreversible real-world effects (money movement, deletion).
+# These require explicit confirmation when CHECK_CONFIRM_DESTRUCTIVE is enabled.
 _DESTRUCTIVE_PREFIXES = (
     "approve_",
     "delete_",
@@ -83,22 +81,6 @@ _DESTRUCTIVE_EXACT = frozenset(
     {
         "start_implementation",
         "cancel_implementation",
-        # Money movement: re-initiates a failed transfer.
-        "retry_payment",
-        # Funding/payout destinations: adding or repointing a bank account
-        # reroutes where pay is drawn from or sent to.
-        "create_bank_account",
-        "update_bank_account",
-        # Upstream instruction tools: these shape the amounts and recipients
-        # that an approved payroll then disburses.
-        "create_payroll",
-        "update_payroll",
-        "create_payroll_item",
-        "update_payroll_item",
-        "bulk_update_payroll_items",
-        "create_contractor_payment",
-        "update_contractor_payment",
-        "create_net_pay_split",
     }
 )
 
@@ -113,8 +95,8 @@ def is_write_tool(name: str) -> bool:
 def is_destructive_tool(name: str) -> bool:
     """Return True if the tool triggers irreversible effects (money movement, deletion).
 
-    These tools require explicit user confirmation (via MCP elicitation)
-    unless the server operator disables the confirmation tier.
+    These tools should require explicit confirmation when the confirmation
+    tier is enabled.
     """
     if name in _DESTRUCTIVE_EXACT:
         return True
@@ -134,16 +116,6 @@ def _parse_bool(value: str | None) -> bool:
     return (value or "").lower() in ("1", "true", "yes")
 
 
-def _parse_bool_default_true(value: str | None) -> bool:
-    """Parse a string as a boolean flag that defaults to True when unset.
-
-    Only an explicit "0"/"false"/"no" disables the flag.
-    """
-    if value is None or value.strip() == "":
-        return True
-    return value.lower() not in ("0", "false", "no")
-
-
 @dataclass(frozen=True)
 class ToolFilter:
     """Immutable filter configuration for tool visibility.
@@ -159,10 +131,7 @@ class ToolFilter:
     tools: frozenset[str] | None = None
     exclude_tools: frozenset[str] = frozenset()
     read_only: bool = False
-    # Destructive tools require user-visible confirmation by default.  Server
-    # operators may opt out with CHECK_CONFIRM_DESTRUCTIVE=false; clients can
-    # never disable it (merge() takes the OR of both sides).
-    confirm_destructive: bool = True
+    confirm_destructive: bool = False
 
     def __post_init__(self) -> None:
         if self.toolsets is not None:
@@ -241,7 +210,7 @@ class ToolFilter:
             exclude_tools=_parse_comma_set(os.environ.get("CHECK_EXCLUDE_TOOLS"))
             or frozenset(),
             read_only=_parse_bool(os.environ.get("CHECK_READ_ONLY")),
-            confirm_destructive=_parse_bool_default_true(
+            confirm_destructive=_parse_bool(
                 os.environ.get("CHECK_CONFIRM_DESTRUCTIVE")
             ),
         )
@@ -277,10 +246,6 @@ class ToolFilter:
         get = getattr(query_params, "get", None)
         if get is None:
             return cls()
-        # confirm_destructive is False here (not the dataclass default) so a
-        # client-derived filter stays neutral under merge()'s OR — it must
-        # never re-enable the gate when the server operator has opted out.
         return cls(
             read_only=_parse_bool(get("read_only")),
-            confirm_destructive=False,
         )
