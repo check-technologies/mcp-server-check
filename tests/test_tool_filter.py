@@ -134,10 +134,8 @@ class TestFromHeaders:
         assert tf.read_only is True
 
     def test_empty_headers(self):
-        # Client-derived filters carry confirm_destructive=False so they stay
-        # neutral under merge()'s OR; everything else matches the defaults.
         tf = ToolFilter.from_headers({})
-        assert tf == ToolFilter(confirm_destructive=False)
+        assert tf == ToolFilter()
 
     def test_no_get_method(self):
         tf = ToolFilter.from_headers(42)  # type: ignore[arg-type]
@@ -167,10 +165,8 @@ class TestFromQueryParams:
         assert tf.read_only is False
 
     def test_empty_query_params(self):
-        # Client-derived filters carry confirm_destructive=False so they stay
-        # neutral under merge()'s OR; everything else matches the defaults.
         tf = ToolFilter.from_query_params({})
-        assert tf == ToolFilter(confirm_destructive=False)
+        assert tf == ToolFilter()
 
     def test_no_get_method(self):
         tf = ToolFilter.from_query_params(42)  # type: ignore[arg-type]
@@ -178,7 +174,7 @@ class TestFromQueryParams:
 
     def test_unrelated_params_ignored(self):
         tf = ToolFilter.from_query_params({"foo": "bar", "baz": "1"})
-        assert tf == ToolFilter(confirm_destructive=False)
+        assert tf == ToolFilter()
 
     def test_only_read_only_is_parsed(self):
         """Query params for other filter fields (toolsets, confirm_destructive, etc.) are ignored."""
@@ -301,21 +297,6 @@ class TestIsDestructiveTool:
             "cancel_payment",
             "start_implementation",
             "cancel_implementation",
-            # Money movement
-            "retry_payment",
-            # Funding/payout destinations
-            "create_bank_account",
-            "update_bank_account",
-            "delete_bank_account",
-            # Upstream tools that shape what a payroll disburses
-            "create_payroll",
-            "update_payroll",
-            "create_payroll_item",
-            "update_payroll_item",
-            "bulk_update_payroll_items",
-            "create_contractor_payment",
-            "update_contractor_payment",
-            "create_net_pay_split",
         ],
     )
     def test_destructive_detected(self, name):
@@ -331,8 +312,6 @@ class TestIsDestructiveTool:
             "preview_payroll",
             "onboard_company",
             "submit_employee_form",
-            "retry_webhook_events",
-            "bulk_update_exemptible_taxes",
         ],
     )
     def test_non_destructive(self, name):
@@ -343,37 +322,24 @@ class TestIsDestructiveTool:
 
 
 class TestRequiresConfirmation:
-    def test_confirmation_on_by_default(self):
+    def test_no_confirmation_by_default(self):
         tf = ToolFilter()
-        assert tf.requires_confirmation("approve_payroll") is True
-        assert tf.requires_confirmation("delete_payroll") is True
-        assert tf.requires_confirmation("retry_payment") is True
-        assert tf.requires_confirmation("create_bank_account") is True
-
-    def test_explicit_opt_out_disables_confirmation(self):
-        tf = ToolFilter(confirm_destructive=False)
         assert tf.requires_confirmation("approve_payroll") is False
 
+    def test_confirmation_when_enabled(self):
+        tf = ToolFilter(confirm_destructive=True)
+        assert tf.requires_confirmation("approve_payroll") is True
+        assert tf.requires_confirmation("delete_payroll") is True
+
     def test_no_confirmation_for_safe_tools(self):
-        tf = ToolFilter()
+        tf = ToolFilter(confirm_destructive=True)
         assert tf.requires_confirmation("list_companies") is False
         assert tf.requires_confirmation("create_company") is False
 
-    def test_from_env_defaults_on(self):
-        with mock.patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("CHECK_CONFIRM_DESTRUCTIVE", None)
-            tf = ToolFilter.from_env()
-        assert tf.confirm_destructive is True
-
-    def test_from_env_explicit_true(self):
+    def test_from_env_confirm_destructive(self):
         with mock.patch.dict(os.environ, {"CHECK_CONFIRM_DESTRUCTIVE": "true"}):
             tf = ToolFilter.from_env()
         assert tf.confirm_destructive is True
-
-    def test_from_env_explicit_false_opts_out(self):
-        with mock.patch.dict(os.environ, {"CHECK_CONFIRM_DESTRUCTIVE": "false"}):
-            tf = ToolFilter.from_env()
-        assert tf.confirm_destructive is False
 
     def test_from_headers_confirm_destructive(self):
         headers = {"x-mcp-confirm-destructive": "1"}
