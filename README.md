@@ -391,9 +391,9 @@ Pay schedules, benefits, post-tax deductions, company benefits, earning rates, e
 | `refund_payment` | POST | Refund a payment |
 | `cancel_payment` | POST | Cancel a payment |
 
-### Tax (33 tools)
+### Tax (28 tools)
 
-Tax parameters, elections, filings, exempt status, exemptible taxes, statements, packages, and tax reference data.
+Tax parameters, elections (including tax exemptions), filings, statements, packages, and tax reference data.
 
 | Tool | Method | Description |
 |---|---|---|
@@ -413,24 +413,17 @@ Tax parameters, elections, filings, exempt status, exemptible taxes, statements,
 | `bulk_get_employee_tax_param_settings` | POST | Bulk get tax param settings |
 | `bulk_update_employee_tax_param_settings` | POST | Bulk update tax param settings |
 | **Company Tax Elections** | | |
-| `list_company_tax_elections` | GET | List tax elections for a company |
+| `list_company_tax_elections` | GET | List tax elections (exemption settings); filter by company, tax, exemptible, jurisdiction |
 | `create_company_tax_elections` | POST | Create company tax elections |
-| `update_company_tax_elections` | PATCH | Update company tax elections |
+| `update_company_tax_elections` | PATCH | Update company tax elections (incl. exemptions) |
 | **Employee Tax Elections** | | |
-| `list_employee_tax_elections` | GET | List tax elections for an employee |
-| `update_employee_tax_elections` | PATCH | Update employee tax elections |
+| `list_employee_tax_elections` | GET | List tax elections (exemption settings); filter by employee, company, tax, exemptible, jurisdiction |
+| `update_employee_tax_elections` | PATCH | Update employee tax elections (incl. exemptions) |
 | **Filings** | | |
 | `list_filings` | GET | List tax filings |
 | `get_filing` | GET | Get a specific tax filing |
 | `add_filing_blockers` | POST | Add blockers to a filing |
 | `remove_filing_blockers` | POST | Remove blockers from a filing |
-| **Exempt Status** | | |
-| `get_exempt_status` | GET | Get exempt status for an employee |
-| `update_exempt_status` | PATCH | Update exempt status |
-| **Exemptible Taxes** | | |
-| `list_exemptible_taxes` | GET | List exemptible taxes |
-| `update_exemptible_tax` | PATCH | Update an exemptible tax |
-| `bulk_update_exemptible_taxes` | PATCH | Bulk update exemptible taxes |
 | **Employee Tax Statements** | | |
 | `list_employee_tax_statements` | GET | List employee tax statements |
 | `get_employee_tax_statement` | GET | Get a specific tax statement |

@@ -235,7 +235,7 @@ async def check_api_get(ctx: Ctx, path: str, params: dict | None = None) -> dict
     return await _check_api_request(ctx, "GET", path, params=params)
 
 
-async def check_api_post(ctx: Ctx, path: str, data: dict | None = None) -> dict:
+async def check_api_post(ctx: Ctx, path: str, data: dict | list | None = None) -> dict:
     """Make a POST request to the Check API."""
     return await _check_api_request(ctx, "POST", path, data=data)
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -11,12 +13,14 @@ from mcp_server_check.tools.tax import (
     get_tax,
     list_company_tax_elections,
     list_company_tax_param_settings,
+    list_employee_tax_elections,
     list_employee_tax_param_settings,
     list_employee_tax_params,
     list_employee_tax_statements,
     list_filings,
     list_taxes,
     update_company_tax_params,
+    update_employee_tax_elections,
 )
 
 
@@ -54,14 +58,50 @@ async def test_list_employee_tax_params(mock_api, ctx):
 
 @pytest.mark.anyio
 async def test_list_company_tax_elections(mock_api, ctx):
-    mock_api.get("/companies/com_001/tax_elections").mock(
+    mock_api.get("/company_tax_elections").mock(
         return_value=httpx.Response(
             200,
-            json={"next": None, "previous": None, "results": [{"id": "te_001"}]},
+            json={"next": None, "previous": None, "results": [{"id": "txe_001"}]},
         )
     )
-    result = await list_company_tax_elections(ctx, company_id="com_001")
-    assert result["results"] == [{"id": "te_001"}]
+    result = await list_company_tax_elections(ctx, company="com_001")
+    assert result["results"] == [{"id": "txe_001"}]
+    req = mock_api.get("/company_tax_elections").calls.last.request
+    assert req.url.params["company"] == "com_001"
+
+
+@pytest.mark.anyio
+async def test_list_employee_tax_elections_with_filters(mock_api, ctx):
+    mock_api.get("/employee_tax_elections").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "txe_001"}]},
+        )
+    )
+    result = await list_employee_tax_elections(
+        ctx, employee="emp_123", exemptible=True, jurisdiction="fed"
+    )
+    assert result["results"] == [{"id": "txe_001"}]
+    req = mock_api.get("/employee_tax_elections").calls.last.request
+    assert req.url.params["employee"] == "emp_123"
+    assert req.url.params["exemptible"] == "true"
+    assert req.url.params["jurisdiction"] == "fed"
+    assert "as_of" not in req.url.params
+
+
+@pytest.mark.anyio
+async def test_update_employee_tax_elections(mock_api, ctx):
+    route = mock_api.patch("/employee_tax_elections").mock(
+        return_value=httpx.Response(200, json={"results": [{"id": "txe_001"}]})
+    )
+    election = {
+        "id": "txe_001",
+        "employee": "emp_123",
+        "setting": {"exempt": True, "effective_start": "2026-01-01"},
+    }
+    result = await update_employee_tax_elections(ctx, data=[election])
+    assert result["results"] == [{"id": "txe_001"}]
+    assert json.loads(route.calls.last.request.content) == [election]
 
 
 @pytest.mark.anyio
