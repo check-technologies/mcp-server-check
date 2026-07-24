@@ -218,8 +218,8 @@ async def test_get_company_tax_overview(mock_api, ctx):
     mock_api.get("/company_tax_params/com_001").mock(
         return_value=httpx.Response(200, json={"id": "com_001", "params": []})
     )
-    mock_api.get("/companies/com_001/tax_elections").mock(
-        return_value=httpx.Response(200, json=_list_response([{"id": "ele_001"}]))
+    mock_api.get("/company_tax_elections").mock(
+        return_value=httpx.Response(200, json=_list_response([{"id": "txe_001"}]))
     )
     mock_api.get("/filings").mock(
         return_value=httpx.Response(
@@ -230,7 +230,7 @@ async def test_get_company_tax_overview(mock_api, ctx):
     result = await get_company_tax_overview(ctx, company_id="com_001")
 
     assert result["tax_params"]["id"] == "com_001"
-    assert result["tax_elections"]["results"][0]["id"] == "ele_001"
+    assert result["tax_elections"]["results"][0]["id"] == "txe_001"
     assert result["filings"]["results"][0]["id"] == "fil_001"
 
 
