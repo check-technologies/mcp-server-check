@@ -244,7 +244,8 @@ async def get_company_tax_overview(
     if include_elections:
         calls["tax_elections"] = check_api_list(
             ctx,
-            f"/companies/{company_id}/tax_elections",
+            "/company_tax_elections",
+            params={"company": company_id},
         )
     if include_filings:
         calls["filings"] = check_api_list(

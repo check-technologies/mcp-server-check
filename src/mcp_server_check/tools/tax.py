@@ -284,50 +284,64 @@ async def bulk_update_employee_tax_param_settings(ctx: Ctx, data: dict) -> dict:
 
 async def list_company_tax_elections(
     ctx: Ctx,
-    company_id: str,
-    limit: int | None = None,
-    cursor: str | None = None,
+    company: str | None = None,
+    tax: str | None = None,
+    as_of: str | None = None,
+    exemptible: bool | None = None,
+    jurisdiction: str | None = None,
 ) -> dict:
-    """List tax elections for a company.
+    """List tax elections (exemption settings) for company-paid taxes.
+
+    Tax elections replace the former exempt status and exemptible taxes
+    endpoints. Each election has an ``exemptible`` flag and a ``setting``
+    object holding the current ``exempt`` value and its effective dates.
 
     Args:
-        company_id: The Check company ID.
-        limit: Maximum number of results to return.
-        cursor: Pagination cursor.
+        company: Filter to this Check company ID (e.g. "com_xxxxx").
+        tax: Filter to this Check tax ID (e.g. "tax_xxxxx").
+        as_of: Return elections applicable on this date (defaults to today).
+        exemptible: If true, only return taxes that qualify for exemption.
+        jurisdiction: Filter by region code (e.g. "fed", "ny", "pa").
     """
     return await check_api_list(
         ctx,
-        f"/companies/{company_id}/tax_elections",
-        params=build_params(limit=limit, cursor=cursor),
+        "/company_tax_elections",
+        params=build_params(
+            company=company,
+            tax=tax,
+            as_of=as_of,
+            exemptible=exemptible,
+            jurisdiction=jurisdiction,
+        ),
     )
 
 
-async def create_company_tax_elections(ctx: Ctx, company_id: str, data: dict) -> dict:
+async def create_company_tax_elections(ctx: Ctx, data: list[dict]) -> dict:
     """Create tax elections for a company.
 
-    The payload is a complex nested structure — pass the full request body as a dict.
+    The request body is a JSON array of tax elections. Each item requires
+    ``id`` (the ``txe_*`` tax election ID) and ``company`` (the ``com_*``
+    company ID), plus a ``setting`` object with ``exempt`` (bool),
+    ``effective_start`` (date), and optionally ``effective_end`` (date).
 
     Args:
-        company_id: The Check company ID.
-        data: Tax election data.
+        data: List of tax elections to create.
     """
-    return await check_api_post(
-        ctx, f"/companies/{company_id}/tax_elections", data=data
-    )
+    return await check_api_post(ctx, "/company_tax_elections", data=data)
 
 
-async def update_company_tax_elections(ctx: Ctx, company_id: str, data: dict) -> dict:
-    """Update tax elections for a company.
+async def update_company_tax_elections(ctx: Ctx, data: list[dict]) -> dict:
+    """Update tax elections (exemption settings) for a company.
 
-    The payload is a complex nested structure — pass the full request body as a dict.
+    The request body is a JSON array of tax election updates. Each item
+    requires ``id`` (the ``txe_*`` tax election ID) and ``company`` (the
+    ``com_*`` company ID), plus a ``setting`` object with ``exempt`` (bool),
+    ``effective_start`` (date), and optionally ``effective_end`` (date).
 
     Args:
-        company_id: The Check company ID.
-        data: Tax election fields to update.
+        data: List of tax election updates.
     """
-    return await check_api_patch(
-        ctx, f"/companies/{company_id}/tax_elections", data=data
-    )
+    return await check_api_patch(ctx, "/company_tax_elections", data=data)
 
 
 # --- Employee Tax Elections ---
@@ -335,36 +349,53 @@ async def update_company_tax_elections(ctx: Ctx, company_id: str, data: dict) ->
 
 async def list_employee_tax_elections(
     ctx: Ctx,
-    employee_id: str,
-    limit: int | None = None,
-    cursor: str | None = None,
+    employee: str | None = None,
+    company: str | None = None,
+    tax: str | None = None,
+    as_of: str | None = None,
+    exemptible: bool | None = None,
+    jurisdiction: str | None = None,
 ) -> dict:
-    """List tax elections for an employee.
+    """List tax elections (exemption settings) for employee-paid taxes.
+
+    Tax elections replace the former per-employee exempt status endpoint.
+    Each election has an ``exemptible`` flag and a ``setting`` object holding
+    the current ``exempt`` value and its effective dates.
 
     Args:
-        employee_id: The Check employee ID.
-        limit: Maximum number of results to return.
-        cursor: Pagination cursor.
+        employee: Filter to this Check employee ID (e.g. "emp_xxxxx").
+        company: Filter to this Check company ID (e.g. "com_xxxxx").
+        tax: Filter to this Check tax ID (e.g. "tax_xxxxx").
+        as_of: Return elections applicable on this date (defaults to today).
+        exemptible: If true, only return taxes that qualify for exemption.
+        jurisdiction: Filter by region code (e.g. "fed", "ny", "pa").
     """
     return await check_api_list(
         ctx,
-        f"/employees/{employee_id}/tax_elections",
-        params=build_params(limit=limit, cursor=cursor),
+        "/employee_tax_elections",
+        params=build_params(
+            employee=employee,
+            company=company,
+            tax=tax,
+            as_of=as_of,
+            exemptible=exemptible,
+            jurisdiction=jurisdiction,
+        ),
     )
 
 
-async def update_employee_tax_elections(ctx: Ctx, employee_id: str, data: dict) -> dict:
-    """Update tax elections for an employee.
+async def update_employee_tax_elections(ctx: Ctx, data: list[dict]) -> dict:
+    """Update tax elections (exemption settings) for an employee.
 
-    The payload is a complex nested structure — pass the full request body as a dict.
+    The request body is a JSON array of tax election updates. Each item
+    requires ``id`` (the ``txe_*`` tax election ID) and ``employee`` (the
+    ``emp_*`` employee ID), plus a ``setting`` object with ``exempt`` (bool),
+    ``effective_start`` (date), and optionally ``effective_end`` (date).
 
     Args:
-        employee_id: The Check employee ID.
-        data: Tax election fields to update.
+        data: List of tax election updates.
     """
-    return await check_api_patch(
-        ctx, f"/employees/{employee_id}/tax_elections", data=data
-    )
+    return await check_api_patch(ctx, "/employee_tax_elections", data=data)
 
 
 # --- Filings ---
@@ -444,78 +475,6 @@ async def remove_filing_blockers(ctx: Ctx, filing_id: str, data: dict) -> dict:
         data: Request body with blocked_reasons to remove (e.g. {"blocked_reasons": ["held_by_customer"]}).
     """
     return await check_api_post(ctx, f"/filings/{filing_id}/remove_blockers", data=data)
-
-
-# --- Exempt Status ---
-
-
-async def get_exempt_status(ctx: Ctx, employee_id: str) -> dict:
-    """Get exempt status for an employee.
-
-    Args:
-        employee_id: The Check employee ID.
-    """
-    return await check_api_get(ctx, f"/employees/{employee_id}/exempt_status")
-
-
-async def update_exempt_status(ctx: Ctx, employee_id: str, data: dict) -> dict:
-    """Update exempt status for an employee.
-
-    The payload is a complex structure — pass the full request body as a dict.
-
-    Args:
-        employee_id: The Check employee ID.
-        data: Exempt status fields to update.
-    """
-    return await check_api_patch(
-        ctx, f"/employees/{employee_id}/exempt_status", data=data
-    )
-
-
-# --- Exemptible Taxes ---
-
-
-async def list_exemptible_taxes(
-    ctx: Ctx,
-    company: str | None = None,
-    limit: int | None = None,
-    cursor: str | None = None,
-) -> dict:
-    """List exemptible taxes, optionally filtered by company.
-
-    Args:
-        company: Filter to exemptible taxes belonging to this Check company ID (e.g. "com_xxxxx").
-        limit: Maximum number of results to return.
-        cursor: Pagination cursor.
-    """
-    return await check_api_list(
-        ctx,
-        "/exemptible_taxes",
-        params=build_params(company=company, limit=limit, cursor=cursor),
-    )
-
-
-async def update_exemptible_tax(ctx: Ctx, tax_id: str, data: dict) -> dict:
-    """Update an exemptible tax.
-
-    The payload is a complex structure — pass the full request body as a dict.
-
-    Args:
-        tax_id: The exemptible tax ID.
-        data: Fields to update.
-    """
-    return await check_api_patch(ctx, f"/exemptible_taxes/{tax_id}", data=data)
-
-
-async def bulk_update_exemptible_taxes(ctx: Ctx, data: dict) -> dict:
-    """Bulk update exemptible taxes.
-
-    The payload is a complex bulk structure — pass the full request body as a dict.
-
-    Args:
-        data: Bulk update payload.
-    """
-    return await check_api_patch(ctx, "/exemptible_taxes", data=data)
 
 
 # --- Employee Tax Statements ---
@@ -662,10 +621,6 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     # Filings
     add_annotated_tool(mcp, list_filings)
     add_annotated_tool(mcp, get_filing)
-    # Exempt Status
-    add_annotated_tool(mcp, get_exempt_status)
-    # Exemptible Taxes
-    add_annotated_tool(mcp, list_exemptible_taxes)
     # Employee Tax Statements
     add_annotated_tool(mcp, list_employee_tax_statements)
     add_annotated_tool(mcp, get_employee_tax_statement)
@@ -683,7 +638,4 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
         add_annotated_tool(mcp, update_employee_tax_elections)
         add_annotated_tool(mcp, add_filing_blockers)
         add_annotated_tool(mcp, remove_filing_blockers)
-        add_annotated_tool(mcp, update_exempt_status)
-        add_annotated_tool(mcp, update_exemptible_tax)
-        add_annotated_tool(mcp, bulk_update_exemptible_taxes)
         add_annotated_tool(mcp, request_tax_package)
