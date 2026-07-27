@@ -294,6 +294,7 @@ async def get_company_report(
     start_date: str | None = None,
     end_date: str | None = None,
     year: str | None = None,
+    include_contractor_id: bool | None = None,
 ) -> dict:
     """Get a report for a company.
 
@@ -306,6 +307,8 @@ async def get_company_report(
             payroll_summary, tax_liabilities, contractor_payments, child_support_payments.
         end_date: Report end date (YYYY-MM-DD). Required for the same reports as start_date.
         year: Tax year (e.g. "2025"). Required for w2_preview.
+        include_contractor_id: For payroll_journal and payroll_summary reports,
+            include the Contractor ID column in CSV output.
     """
     if report_type not in COMPANY_REPORT_TYPES:
         return {
@@ -318,7 +321,12 @@ async def get_company_report(
     return await check_api_get(
         ctx,
         f"/companies/{company_id}/reports/{report_type}",
-        params=build_params(start_date=start_date, end_date=end_date, year=year),
+        params=build_params(
+            start_date=start_date,
+            end_date=end_date,
+            year=year,
+            include_contractor_id=include_contractor_id,
+        ),
     )
 
 
