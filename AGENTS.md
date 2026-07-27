@@ -38,3 +38,26 @@ when a session starts. Run all commands through `uv run` (they execute inside `.
   and drive the in-memory server via `fastmcp`'s `Client(mcp)`.
 - `uv.lock` resolves `fastmcp` to a 3.x release even though `pyproject.toml` only pins
   `>=2.0.0`; use `uv sync --frozen` to stay consistent with CI.
+
+### Keeping this repo in sync with `check-api` (primary use of this environment)
+
+The main reason this environment pairs `mcp-server-check` with `check-api` is the
+**"Sync MCP Server & CLI"** workflow: when a change merges into `check-api`, decide whether it
+altered the **public** API surface (public serializers/views/routes — never `internal_api/`,
+`check/admin/`, or `/check-internal-admin-interface/`) and, if so, open a PR here that re-syncs
+the tool functions (which also regenerates the CLI). That workflow needs, and this environment
+provides:
+
+- **`check-api` checked out as a sibling** (default `/agent/repos/check-api-primary`) purely for
+  reading source and computing merge diffs (`git diff <base> <head>`). It does **not** need the
+  check-api Django/Postgres/webpack stack running — the classification is static (serializers,
+  views, `urls.py`, and `.cursor/rules/api-design-guidelines.mdc` for the back-compat call).
+- **Git write access to this repo** for branch + commit + push (base branch is `main`); PRs are
+  opened here and a human always reviews — never auto-merge.
+- **Slack** for the Phase 7 notification to **#api-docs** (`C01QLJECWUR`), tagging Ian
+  (`UN5UHR9HP`).
+
+Remember the CLI is generated from the tool functions (`cli/codegen.py`): editing a tool's
+signature + `Args:` docstring updates both the MCP schema and `uv run check <resource> <action>
+--help`. Response-only shape changes are usually a no-op here (responses pass through as raw
+dicts); the request surface (params/body/endpoints) is what drives edits.
