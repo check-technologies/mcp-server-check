@@ -268,7 +268,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 | Tool | Method | Description |
 |---|---|---|
-| `list_external_payrolls` | GET | List external payrolls |
+| `list_external_payrolls` | GET | List external payrolls; optionally omit line items with `include_items=false` |
 | `get_external_payroll` | GET | Get details for a specific external payroll |
 | `create_external_payroll` | POST | Create a new external payroll |
 | `update_external_payroll` | PATCH | Update an external payroll |
@@ -377,7 +377,7 @@ Pay schedules, benefits, post-tax deductions, company benefits, earning rates, e
 
 | Tool | Method | Description |
 |---|---|---|
-| `list_logs` | GET | List API request logs; filter by path, method, status code/class, idempotency key, and time range |
+| `list_logs` | GET | List API request logs; filter by path, method, status code/class, log ID, idempotency key, and time range |
 | `get_log` | GET | Get the full record for a single API request log |
 
 ### Payments (6 tools)
