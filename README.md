@@ -377,7 +377,7 @@ Pay schedules, benefits, post-tax deductions, company benefits, earning rates, e
 
 | Tool | Method | Description |
 |---|---|---|
-| `list_logs` | GET | List API request logs; filter by path, method, status code/class, idempotency key, and time range |
+| `list_logs` | GET | List API request logs; filter by path, method, status code/class, log ID, idempotency key, and time range |
 | `get_log` | GET | Get the full record for a single API request log |
 
 ### Payments (6 tools)

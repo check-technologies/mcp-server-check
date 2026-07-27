@@ -20,6 +20,7 @@ async def list_logs(
     path: str | None = None,
     method: list[str] | None = None,
     status_code: list[str] | None = None,
+    id: list[str] | None = None,
     idempotency_key: str | None = None,
     created_after: str | None = None,
     created_before: str | None = None,
@@ -42,6 +43,8 @@ async def list_logs(
         status_code: Filter by exact status code(s) and/or class(es). Accepts
             exact codes ("404") and the classes "2xx", "3xx", "4xx", "5xx".
             Multiple values are OR'd, so ["4xx", "500"] returns all 4xx plus 500.
+        id: Filter to specific log IDs (e.g. ["log_xxxxx"]). Repeated values
+            are OR'd.
         idempotency_key: Filter to requests sent with this idempotency key.
         created_after: ISO-8601 datetime lower bound on created_at (inclusive),
             e.g. "2026-06-01T00:00:00Z".
@@ -56,6 +59,7 @@ async def list_logs(
             path=path,
             method=method,
             status_code=status_code,
+            id=id,
             idempotency_key=idempotency_key,
             created_after=created_after,
             created_before=created_before,
