@@ -59,6 +59,21 @@ async def test_list_logs_status_class_filter(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_list_logs_id_filter(mock_api, ctx):
+    route = mock_api.get("/logs").mock(
+        return_value=httpx.Response(
+            200, json={"next": None, "previous": None, "results": []}
+        )
+    )
+    await list_logs(ctx, id=["log_abc", "log_def"])
+    # Multi-value filters are sent as repeated params, not comma-joined.
+    assert route.calls[0].request.url.params.get_list("id") == [
+        "log_abc",
+        "log_def",
+    ]
+
+
+@pytest.mark.anyio
 async def test_list_logs_multi_method_and_time_range(mock_api, ctx):
     route = mock_api.get("/logs").mock(
         return_value=httpx.Response(
