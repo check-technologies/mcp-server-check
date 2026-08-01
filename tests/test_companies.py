@@ -99,9 +99,11 @@ async def test_get_company_report_with_dates(mock_api, ctx):
         report_type="payroll_journal",
         start_date="2026-01-01",
         end_date="2026-01-31",
+        include_contractor_id=True,
     )
     assert result["report"] == "data"
     assert "start_date=2026-01-01" in str(route.calls[0].request.url)
+    assert route.calls[0].request.url.params["include_contractor_id"] == "true"
 
 
 @pytest.mark.anyio

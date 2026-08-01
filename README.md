@@ -155,8 +155,8 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 | `get_company_paydays` | GET | Get upcoming paydays for a company |
 | `list_company_tax_deposits` | GET | List tax deposits for a company |
 | `get_company_benefit_aggregations` | GET | Get benefit aggregations for a company |
-| `get_payroll_journal_report` | GET | Get payroll journal report |
-| `get_payroll_summary_report` | GET | Get payroll summary report |
+| `get_payroll_journal_report` | GET | Get payroll journal report; optional `include_contractor_id` for CSV |
+| `get_payroll_summary_report` | GET | Get payroll summary report; optional `include_contractor_id` for CSV |
 | `get_tax_liabilities_report` | GET | Get tax liabilities report |
 | `get_contractor_payments_report` | GET | Get contractor payments report |
 | `get_child_support_payments_report` | GET | Get child support payments report |
@@ -268,7 +268,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 | Tool | Method | Description |
 |---|---|---|
-| `list_external_payrolls` | GET | List external payrolls |
+| `list_external_payrolls` | GET | List external payrolls; optionally omit line items with `include_items=false` |
 | `get_external_payroll` | GET | Get details for a specific external payroll |
 | `create_external_payroll` | POST | Create a new external payroll |
 | `update_external_payroll` | PATCH | Update an external payroll |
@@ -377,7 +377,7 @@ Pay schedules, benefits, post-tax deductions, company benefits, earning rates, e
 
 | Tool | Method | Description |
 |---|---|---|
-| `list_logs` | GET | List API request logs; filter by path, method, status code/class, idempotency key, and time range |
+| `list_logs` | GET | List API request logs; filter by path, method, status code/class, log ID, idempotency key, and time range |
 | `get_log` | GET | Get the full record for a single API request log |
 
 ### Payments (6 tools)
