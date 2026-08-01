@@ -34,12 +34,13 @@ async def test_list_external_payrolls_with_filters(mock_api, ctx):
         )
     )
     result = await list_external_payrolls(
-        ctx, company="com_123", pay_schedule="psc_456"
+        ctx, company="com_123", pay_schedule="psc_456", include_items=False
     )
     assert result["results"] == [{"id": "ep_001"}]
     req = mock_api.get("/external_payrolls").calls.last.request
     assert req.url.params["company"] == "com_123"
     assert req.url.params["pay_schedule"] == "psc_456"
+    assert req.url.params["include_items"] == "false"
 
 
 @pytest.mark.anyio

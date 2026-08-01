@@ -22,6 +22,7 @@ async def list_external_payrolls(
     ids: list[str] | None = None,
     cursor: str | None = None,
     pay_schedule: str | None = None,
+    include_items: bool | None = None,
 ) -> dict:
     """List external payrolls, optionally filtered by company.
 
@@ -31,6 +32,8 @@ async def list_external_payrolls(
         ids: Filter to specific external payroll IDs.
         cursor: Pagination cursor from a previous response.
         pay_schedule: Filter by pay schedule ID.
+        include_items: When false, omit payroll line items from list responses
+            (faster for large companies). Items are included by default.
     """
     params: dict = {}
     if company is not None:
@@ -43,6 +46,8 @@ async def list_external_payrolls(
         params["cursor"] = cursor
     if pay_schedule is not None:
         params["pay_schedule"] = pay_schedule
+    if include_items is not None:
+        params["include_items"] = str(include_items).lower()
     return await check_api_list(ctx, "/external_payrolls", params=params or None)
 
 
