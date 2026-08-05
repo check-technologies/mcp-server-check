@@ -106,6 +106,25 @@ async def test_approve_payroll(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_approve_payroll_with_preview_started_at(mock_api, ctx):
+    route = mock_api.post("/payrolls/prl_001/approve").mock(
+        return_value=httpx.Response(
+            200, json={"id": "prl_001", "approval_status": "approved"}
+        )
+    )
+    preview_started_at = "2019-06-29T18:26:56.848920Z"
+    result = await approve_payroll(
+        ctx,
+        payroll_id="prl_001",
+        preview_started_at=preview_started_at,
+    )
+    assert result["approval_status"] == "approved"
+    assert route.calls.last.request.content == (
+        b'{"preview_started_at": "2019-06-29T18:26:56.848920Z"}'
+    )
+
+
+@pytest.mark.anyio
 async def test_reopen_payroll(mock_api, ctx):
     mock_api.post("/payrolls/prl_001/reopen").mock(
         return_value=httpx.Response(

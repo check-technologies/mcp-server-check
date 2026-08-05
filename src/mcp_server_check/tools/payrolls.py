@@ -224,13 +224,25 @@ async def preview_payroll(ctx: Ctx, payroll_id: str) -> dict:
     return await check_api_get(ctx, f"/payrolls/{payroll_id}/preview")
 
 
-async def approve_payroll(ctx: Ctx, payroll_id: str) -> dict:
+async def approve_payroll(
+    ctx: Ctx,
+    payroll_id: str,
+    preview_started_at: str | None = None,
+) -> dict:
     """Approve a payroll for processing.
 
     Args:
         payroll_id: The Check payroll ID.
+        preview_started_at: Optional ISO-8601 timestamp from a prior preview
+            (e.g. "2019-06-29T18:26:56.848920Z"). When provided, approval
+            fails with a ``preview_superseded`` error if the payroll was
+            re-previewed after this timestamp.
     """
-    return await check_api_post(ctx, f"/payrolls/{payroll_id}/approve")
+    return await check_api_post(
+        ctx,
+        f"/payrolls/{payroll_id}/approve",
+        data=build_body({}, preview_started_at=preview_started_at),
+    )
 
 
 async def reopen_payroll(ctx: Ctx, payroll_id: str) -> dict:
