@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -119,9 +121,9 @@ async def test_approve_payroll_with_preview_started_at(mock_api, ctx):
         preview_started_at=preview_started_at,
     )
     assert result["approval_status"] == "approved"
-    assert route.calls.last.request.content == (
-        b'{"preview_started_at": "2019-06-29T18:26:56.848920Z"}'
-    )
+    assert json.loads(route.calls.last.request.content) == {
+        "preview_started_at": preview_started_at,
+    }
 
 
 @pytest.mark.anyio
