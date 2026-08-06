@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -103,6 +105,25 @@ async def test_approve_payroll(mock_api, ctx):
     )
     result = await approve_payroll(ctx, payroll_id="prl_001")
     assert result["approval_status"] == "approved"
+
+
+@pytest.mark.anyio
+async def test_approve_payroll_with_preview_started_at(mock_api, ctx):
+    route = mock_api.post("/payrolls/prl_001/approve").mock(
+        return_value=httpx.Response(
+            200, json={"id": "prl_001", "approval_status": "approved"}
+        )
+    )
+    preview_started_at = "2019-06-29T18:26:56.848920Z"
+    result = await approve_payroll(
+        ctx,
+        payroll_id="prl_001",
+        preview_started_at=preview_started_at,
+    )
+    assert result["approval_status"] == "approved"
+    assert json.loads(route.calls.last.request.content) == {
+        "preview_started_at": preview_started_at,
+    }
 
 
 @pytest.mark.anyio
