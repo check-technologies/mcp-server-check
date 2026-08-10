@@ -289,6 +289,8 @@ async def list_company_tax_elections(
     as_of: str | None = None,
     exemptible: bool | None = None,
     jurisdiction: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> dict:
     """List tax elections (exemption settings) for company-paid taxes.
 
@@ -296,12 +298,19 @@ async def list_company_tax_elections(
     endpoints. Each election has an ``exemptible`` flag and a ``setting``
     object holding the current ``exempt`` value and its effective dates.
 
+    Results are paginated. When ``next`` is non-null in the response, pass it
+    back as ``cursor`` to fetch the following page — required to enumerate
+    companies with many elections (e.g. heavy PA/OH local tax exposure), which
+    span more than one page.
+
     Args:
         company: Filter to this Check company ID (e.g. "com_xxxxx").
         tax: Filter to this Check tax ID (e.g. "tax_xxxxx").
         as_of: Return elections applicable on this date (defaults to today).
         exemptible: If true, only return taxes that qualify for exemption.
         jurisdiction: Filter by region code (e.g. "fed", "ny", "pa").
+        limit: Maximum number of results to return per page.
+        cursor: Pagination cursor from a previous response's ``next`` field.
     """
     return await check_api_list(
         ctx,
@@ -312,6 +321,8 @@ async def list_company_tax_elections(
             as_of=as_of,
             exemptible=exemptible,
             jurisdiction=jurisdiction,
+            limit=limit,
+            cursor=cursor,
         ),
     )
 
@@ -355,12 +366,17 @@ async def list_employee_tax_elections(
     as_of: str | None = None,
     exemptible: bool | None = None,
     jurisdiction: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> dict:
     """List tax elections (exemption settings) for employee-paid taxes.
 
     Tax elections replace the former per-employee exempt status endpoint.
     Each election has an ``exemptible`` flag and a ``setting`` object holding
     the current ``exempt`` value and its effective dates.
+
+    Results are paginated. When ``next`` is non-null in the response, pass it
+    back as ``cursor`` to fetch the following page.
 
     Args:
         employee: Filter to this Check employee ID (e.g. "emp_xxxxx").
@@ -369,6 +385,8 @@ async def list_employee_tax_elections(
         as_of: Return elections applicable on this date (defaults to today).
         exemptible: If true, only return taxes that qualify for exemption.
         jurisdiction: Filter by region code (e.g. "fed", "ny", "pa").
+        limit: Maximum number of results to return per page.
+        cursor: Pagination cursor from a previous response's ``next`` field.
     """
     return await check_api_list(
         ctx,
@@ -380,6 +398,8 @@ async def list_employee_tax_elections(
             as_of=as_of,
             exemptible=exemptible,
             jurisdiction=jurisdiction,
+            limit=limit,
+            cursor=cursor,
         ),
     )
 

@@ -71,6 +71,24 @@ async def test_list_company_tax_elections(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_list_company_tax_elections_paginates(mock_api, ctx):
+    mock_api.get("/company_tax_elections").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "txe_001"}]},
+        )
+    )
+    await list_company_tax_elections(
+        ctx, company="com_001", jurisdiction="pa", limit=100, cursor="abc123"
+    )
+    params = mock_api.get("/company_tax_elections").calls.last.request.url.params
+    assert params["company"] == "com_001"
+    assert params["jurisdiction"] == "pa"
+    assert params["limit"] == "100"
+    assert params["cursor"] == "abc123"
+
+
+@pytest.mark.anyio
 async def test_list_employee_tax_elections_with_filters(mock_api, ctx):
     mock_api.get("/employee_tax_elections").mock(
         return_value=httpx.Response(
@@ -79,13 +97,20 @@ async def test_list_employee_tax_elections_with_filters(mock_api, ctx):
         )
     )
     result = await list_employee_tax_elections(
-        ctx, employee="emp_123", exemptible=True, jurisdiction="fed"
+        ctx,
+        employee="emp_123",
+        exemptible=True,
+        jurisdiction="fed",
+        limit=50,
+        cursor="xyz789",
     )
     assert result["results"] == [{"id": "txe_001"}]
     req = mock_api.get("/employee_tax_elections").calls.last.request
     assert req.url.params["employee"] == "emp_123"
     assert req.url.params["exemptible"] == "true"
     assert req.url.params["jurisdiction"] == "fed"
+    assert req.url.params["limit"] == "50"
+    assert req.url.params["cursor"] == "xyz789"
     assert "as_of" not in req.url.params
 
 
