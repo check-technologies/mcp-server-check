@@ -95,6 +95,39 @@ async def test_create_component_with_data(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_create_component_with_subtype(mock_api, ctx):
+    mock_api.post("/companies/com_001/components/team_setup/deductions").mock(
+        return_value=httpx.Response(200, json={"url": "https://embed.checkhq.com/..."})
+    )
+    result = await create_component(
+        ctx,
+        entity_type="company",
+        entity_id="com_001",
+        component_type="team_setup",
+        subtype="deductions",
+        data={"employee": "emp_001"},
+    )
+    assert "url" in result
+
+
+@pytest.mark.anyio
+async def test_create_component_with_subtype_and_data(mock_api, ctx):
+    route = mock_api.post("/companies/com_001/components/team_setup/workplaces").mock(
+        return_value=httpx.Response(200, json={"url": "https://embed.checkhq.com/..."})
+    )
+    result = await create_component(
+        ctx,
+        entity_type="company",
+        entity_id="com_001",
+        component_type="team_setup",
+        subtype="workplaces",
+        data={"show_entity_ids": True},
+    )
+    assert "url" in result
+    assert route.calls.last.request.content == b'{"show_entity_ids": true}'
+
+
+@pytest.mark.anyio
 async def test_create_component_invalid_entity_type(mock_api, ctx):
     result = await create_component(
         ctx, entity_type="invalid", entity_id="x", component_type="tax_setup"

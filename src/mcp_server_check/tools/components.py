@@ -101,6 +101,7 @@ async def create_component(
     entity_type: str,
     entity_id: str,
     component_type: str,
+    subtype: str | None = None,
     data: dict | None = None,
 ) -> dict:
     """Create an embedded UI component URL for a company, employee, or contractor.
@@ -112,7 +113,13 @@ async def create_component(
         entity_id: The Check entity ID (e.g. "com_xxxxx", "emp_xxxxx", "ctr_xxxxx").
         component_type: The component to create. Use list_component_types to see
             valid values (e.g. "tax_setup", "payment_setup", "run_payroll").
-        data: Optional component configuration.
+        subtype: Optional component subtype appended to the URL path (e.g. for
+            company "team_setup": roster subtypes "workplaces", "employees",
+            "contractors"; single-employee subtypes "deductions",
+            "personal_details", "employment_details").
+        data: Optional component configuration. For company "team_setup"
+            single-employee subtypes ("deductions", "personal_details",
+            "employment_details"), include employee (e.g. "emp_xxxxx") in data.
     """
     path_prefix = _ENTITY_PATH.get(entity_type)
     if path_prefix is None:
@@ -132,9 +139,14 @@ async def create_component(
                 f"Valid types: {', '.join(valid_types)}."
             ),
         }
+    component_path = (
+        f"/{path_prefix}/{entity_id}/components/{component_type}/{subtype}"
+        if subtype
+        else f"/{path_prefix}/{entity_id}/components/{component_type}"
+    )
     return await check_api_post(
         ctx,
-        f"/{path_prefix}/{entity_id}/components/{component_type}",
+        component_path,
         data=data,
     )
 
