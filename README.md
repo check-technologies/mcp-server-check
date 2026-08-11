@@ -453,7 +453,9 @@ The counterparties Check files and remits to (IRS, state revenue departments). G
 | `update_webhook_config` | PATCH | Update a webhook configuration |
 | `delete_webhook_config` | DELETE | Delete a webhook configuration |
 | `ping_webhook_config` | POST | Send a test ping |
-| `retry_webhook_events` | POST | Retry failed webhook events |
+| `list_webhook_deliveries` | GET | List webhook deliveries with status + attempts |
+| `get_webhook_delivery` | GET | Get a webhook delivery |
+| `retry_webhook_delivery` | POST | Re-enqueue a webhook delivery (sandbox only) |
 
 ### Platform (29 tools)
 
