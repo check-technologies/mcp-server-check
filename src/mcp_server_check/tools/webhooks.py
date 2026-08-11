@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
@@ -93,24 +95,80 @@ async def ping_webhook_config(ctx: Ctx, webhook_config_id: str) -> dict:
     return await check_api_post(ctx, f"/webhook_configs/{webhook_config_id}/ping")
 
 
-async def retry_webhook_events(ctx: Ctx, data: dict) -> dict:
-    """Retry failed webhook events.
-
-    The payload structure varies — pass the full request body as a dict with
-    event IDs or filters.
+async def list_webhook_deliveries(
+    ctx: Ctx,
+    webhook_config: str | None = None,
+    company: str | None = None,
+    topic: str | None = None,
+    status: str | None = None,
+    created_after: str | None = None,
+    created_before: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
+) -> dict:
+    """List webhook deliveries — the webhooks Check generated for your provider,
+    newest first, with their delivery status and embedded delivery attempts.
 
     Args:
-        data: Retry configuration (event IDs or filters).
+        webhook_config: Filter to deliveries sent to this webhook config (e.g. "whc_xxxxx").
+        company: Filter to deliveries associated with this Check company ID (e.g. "com_xxxxx").
+        topic: Filter by webhook topic (e.g. "payroll", "employee"); invalid topics
+            return a validation error.
+        status: Filter by delivery status: "pending", "retrying", "delivered", or "failed".
+        created_after: ISO-8601 lower bound on when the delivery was created.
+        created_before: ISO-8601 upper bound on when the delivery was created.
+        limit: Maximum number of results to return (max 100).
+        cursor: Pagination cursor.
     """
-    return await check_api_post(ctx, "/webhook_events/retry", data=data)
+    return await check_api_list(
+        ctx,
+        "/webhook_deliveries",
+        params=build_params(
+            webhook_config=webhook_config,
+            company=company,
+            topic=topic,
+            status=status,
+            created_after=created_after,
+            created_before=created_before,
+            limit=limit,
+            cursor=cursor,
+        ),
+    )
+
+
+async def get_webhook_delivery(ctx: Ctx, webhook_delivery_id: str) -> dict:
+    """Get a webhook delivery, including its delivery status and the attempts
+    made to deliver it (a null attempt status_code means no HTTP response was
+    received — e.g. a timeout or TLS failure).
+
+    Args:
+        webhook_delivery_id: The Check webhook delivery ID (e.g. "whe_xxxxx").
+    """
+    return await check_api_get(ctx, f"/webhook_deliveries/{webhook_delivery_id}")
+
+
+async def retry_webhook_delivery(ctx: Ctx, webhook_delivery_id: str) -> dict:
+    """Re-enqueue a webhook delivery. Sandbox only — returns a 400 in the live
+    environment, where Check's automatic retry schedule handles redelivery.
+
+    Args:
+        webhook_delivery_id: The Check webhook delivery ID (e.g. "whe_xxxxx").
+    """
+    return await check_api_post(
+        ctx,
+        f"/webhook_deliveries/{webhook_delivery_id}/retry",
+        headers={"X-Idempotency-Key": str(uuid.uuid4())},
+    )
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, list_webhook_configs)
     add_annotated_tool(mcp, get_webhook_config)
+    add_annotated_tool(mcp, list_webhook_deliveries)
+    add_annotated_tool(mcp, get_webhook_delivery)
     if not read_only:
         add_annotated_tool(mcp, create_webhook_config)
         add_annotated_tool(mcp, update_webhook_config)
         add_annotated_tool(mcp, delete_webhook_config)
         add_annotated_tool(mcp, ping_webhook_config)
-        add_annotated_tool(mcp, retry_webhook_events)
+        add_annotated_tool(mcp, retry_webhook_delivery)

@@ -202,10 +202,13 @@ async def _check_api_request(
     path: str,
     params: dict | None = None,
     data: dict | list | None = None,
+    extra_headers: dict[str, str] | None = None,
 ) -> dict:
     """Make a request to the Check API with shared error handling."""
     check_ctx = ctx.request_context.lifespan_context
     headers: dict[str, str] = {"User-Agent": check_ctx.user_agent}
+    if extra_headers:
+        headers.update(extra_headers)
     if check_ctx.token_resolver is not None:
         headers["Authorization"] = f"Bearer {check_ctx.token_resolver()}"
     try:
@@ -235,9 +238,14 @@ async def check_api_get(ctx: Ctx, path: str, params: dict | None = None) -> dict
     return await _check_api_request(ctx, "GET", path, params=params)
 
 
-async def check_api_post(ctx: Ctx, path: str, data: dict | list | None = None) -> dict:
+async def check_api_post(
+    ctx: Ctx,
+    path: str,
+    data: dict | list | None = None,
+    headers: dict[str, str] | None = None,
+) -> dict:
     """Make a POST request to the Check API."""
-    return await _check_api_request(ctx, "POST", path, data=data)
+    return await _check_api_request(ctx, "POST", path, data=data, extra_headers=headers)
 
 
 async def check_api_patch(ctx: Ctx, path: str, data: dict | list) -> dict:

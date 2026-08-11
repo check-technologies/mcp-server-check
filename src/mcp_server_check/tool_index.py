@@ -101,7 +101,7 @@ _TOOLSET_DESCRIPTIONS: dict[str, str] = {
     "payrolls": "Create, preview, approve, and manage payroll runs. Includes sandbox simulation tools.",
     "platform": "Platform-level tools: notifications, communications, usage, integrations, accounting, setups, and requirements.",
     "tax": "Manage company and employee tax parameters, elections, filings, exemptions, and tax statements. Includes tax reference data (list_taxes/get_tax).",
-    "webhooks": "Create, update, delete, and test webhook configurations.",
+    "webhooks": "Create, update, delete, and test webhook configurations; inspect and retry webhook deliveries.",
     "workflows": "Composite tools that combine multiple API calls: company overview, employee snapshot, contractor snapshot, payroll details, payment diagnostics, tax overview, onboarding status.",
     "workplaces": "Create, update, and view company workplace locations.",
 }
