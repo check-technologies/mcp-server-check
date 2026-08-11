@@ -124,7 +124,7 @@ async def test_create_component_with_subtype_and_data(mock_api, ctx):
         data={"show_entity_ids": True},
     )
     assert "url" in result
-    assert route.calls.last.request.content == b'{"show_entity_ids": true}'
+    assert route.calls.last.request.content == b'{"show_entity_ids":true}'
 
 
 @pytest.mark.anyio
