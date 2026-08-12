@@ -303,6 +303,12 @@ check webhooks create-config \
 
 # Test it
 check webhooks ping-config whc_xxxxx
+
+# List webhook events
+check webhooks list-events --status delivered
+
+# Retry a failed event (sandbox only)
+check webhooks retry-event whe_xxxxx
 ```
 
 ## Comparison with MCP Server

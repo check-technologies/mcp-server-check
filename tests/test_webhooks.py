@@ -8,11 +8,11 @@ import pytest
 from mcp_server_check.tools.webhooks import (
     create_webhook_config,
     delete_webhook_config,
-    get_webhook_delivery,
+    get_event,
+    list_events,
     list_webhook_configs,
-    list_webhook_deliveries,
     ping_webhook_config,
-    retry_webhook_delivery,
+    retry_event,
 )
 
 
@@ -54,8 +54,8 @@ async def test_ping_webhook_config(mock_api, ctx):
 
 
 @pytest.mark.anyio
-async def test_list_webhook_deliveries(mock_api, ctx):
-    route = mock_api.get("/webhook_deliveries").mock(
+async def test_list_events(mock_api, ctx):
+    route = mock_api.get("/events").mock(
         return_value=httpx.Response(
             200,
             json={
@@ -65,7 +65,7 @@ async def test_list_webhook_deliveries(mock_api, ctx):
                     {
                         "id": "whe_001",
                         "status": "delivered",
-                        "attempts": [
+                        "delivery_attempts": [
                             {"status_code": 200, "created_at": "2026-08-01T00:00:00Z"}
                         ],
                     }
@@ -73,7 +73,7 @@ async def test_list_webhook_deliveries(mock_api, ctx):
             },
         )
     )
-    result = await list_webhook_deliveries(
+    result = await list_events(
         ctx,
         webhook_config="whc_001",
         status="delivered",
@@ -87,29 +87,29 @@ async def test_list_webhook_deliveries(mock_api, ctx):
 
 
 @pytest.mark.anyio
-async def test_get_webhook_delivery(mock_api, ctx):
-    mock_api.get("/webhook_deliveries/whe_001").mock(
+async def test_get_event(mock_api, ctx):
+    mock_api.get("/events/whe_001").mock(
         return_value=httpx.Response(
             200,
             json={
                 "id": "whe_001",
                 "status": "failed",
-                "attempts": [
+                "delivery_attempts": [
                     {"status_code": None, "created_at": "2026-08-01T00:00:00Z"}
                 ],
             },
         )
     )
-    result = await get_webhook_delivery(ctx, webhook_delivery_id="whe_001")
+    result = await get_event(ctx, event_id="whe_001")
     assert result["status"] == "failed"
-    assert result["attempts"][0]["status_code"] is None
+    assert result["delivery_attempts"][0]["status_code"] is None
 
 
 @pytest.mark.anyio
-async def test_retry_webhook_delivery_sends_idempotency_key(mock_api, ctx):
-    route = mock_api.post("/webhook_deliveries/whe_001/retry").mock(
+async def test_retry_event_sends_idempotency_key(mock_api, ctx):
+    route = mock_api.post("/events/whe_001/retry").mock(
         return_value=httpx.Response(202, json={"id": "whe_001", "status": "pending"})
     )
-    result = await retry_webhook_delivery(ctx, webhook_delivery_id="whe_001")
+    result = await retry_event(ctx, event_id="whe_001")
     assert result["id"] == "whe_001"
     assert route.calls.last.request.headers.get("X-Idempotency-Key")
