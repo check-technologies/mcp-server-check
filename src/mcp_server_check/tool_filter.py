@@ -76,8 +76,8 @@ _WRITE_KEYWORDS = (
 # preview_correction starts a dry run and changes the correction's state.
 _WRITE_EXACT = frozenset({"preview_correction"})
 
-# Tools that trigger irreversible real-world effects (money movement, deletion).
-# These require explicit confirmation when CHECK_CONFIRM_DESTRUCTIVE is enabled.
+# Tools that trigger irreversible real-world effects (deletion, approval, refunds).
+# CHECK_EXCLUDE_DESTRUCTIVE removes these from a deployment entirely.
 _DESTRUCTIVE_PREFIXES = (
     "approve_",
     "delete_",
@@ -98,6 +98,30 @@ _DESTRUCTIVE_EXACT = frozenset(
     }
 )
 
+# Tools that move funds or change where funds are drawn from / sent to.
+# CHECK_EXCLUDE_MONEY_MOVEMENT removes these from a deployment entirely.
+#
+# Matched by exact name rather than prefix: prefixes would sweep in unrelated
+# tools (retry_webhook_delivery) and read-only ones (list_payments), while
+# missing approve_payroll's real significance. tests/test_tool_drift.py asserts
+# every name here still exists and that no new money-path tool escapes
+# classification.
+_MONEY_MOVEMENT_EXACT = frozenset(
+    {
+        # Disburses a payroll: debits the company, credits workers.
+        "approve_payroll",
+        # Re-initiates, reverses, or halts an existing transfer.
+        "retry_payment",
+        "refund_payment",
+        "cancel_payment",
+        # Funding/payout destinations: adding or repointing a bank account
+        # reroutes where pay is drawn from or sent to.
+        "create_bank_account",
+        "update_bank_account",
+        "delete_bank_account",
+    }
+)
+
 
 def is_write_tool(name: str) -> bool:
     """Return True if the tool name matches a write/mutating pattern."""
@@ -109,14 +133,19 @@ def is_write_tool(name: str) -> bool:
 
 
 def is_destructive_tool(name: str) -> bool:
-    """Return True if the tool triggers irreversible effects (money movement, deletion).
+    """Return True if the tool triggers irreversible effects (deletion, approval).
 
-    These tools should require explicit confirmation when the confirmation
-    tier is enabled.
+    Also drives the ``destructiveHint`` MCP annotation (see annotations.py),
+    so changes here are visible to clients.
     """
     if name in _DESTRUCTIVE_EXACT:
         return True
     return any(name.startswith(p) for p in _DESTRUCTIVE_PREFIXES)
+
+
+def is_money_movement_tool(name: str) -> bool:
+    """Return True if the tool moves funds or changes a funding/payout destination."""
+    return name in _MONEY_MOVEMENT_EXACT
 
 
 def _parse_comma_set(value: str | None) -> frozenset[str] | None:
@@ -136,9 +165,11 @@ def _parse_bool(value: str | None) -> bool:
 class ToolFilter:
     """Immutable filter configuration for tool visibility.
 
-    Filtering precedence: exclude_tools > preview_toolsets > read_only > tools
-    > toolsets.
+    Filtering precedence: exclude_tools > exclusion flags > preview_toolsets
+    > read_only > tools > toolsets.
     - exclude_tools always wins (tool is hidden).
+    - exclude_money_movement / exclude_destructive hide whole categories, and
+      apply even to tools named in the ``tools`` allowlist.
     - A tool in a preview toolset is hidden unless preview_toolsets names it,
       even when tools or toolsets name it.
     - read_only hides write/mutating tools.
@@ -150,7 +181,8 @@ class ToolFilter:
     tools: frozenset[str] | None = None
     exclude_tools: frozenset[str] = frozenset()
     read_only: bool = False
-    confirm_destructive: bool = False
+    exclude_money_movement: bool = False
+    exclude_destructive: bool = False
     preview_toolsets: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
@@ -188,6 +220,14 @@ class ToolFilter:
         """Determine whether a tool should be visible given this filter."""
         # Exclude always wins
         if tool_name in self.exclude_tools:
+            return False
+
+        # Category exclusions act as a policy floor: they are checked before
+        # the `tools` allowlist below, so an allowlisted tool stays hidden.
+        if self.exclude_money_movement and is_money_movement_tool(tool_name):
+            return False
+
+        if self.exclude_destructive and is_destructive_tool(tool_name):
             return False
 
         if not self.is_preview_enabled(toolset_name):
@@ -243,13 +283,11 @@ class ToolFilter:
             tools=merged_tools,
             exclude_tools=self.exclude_tools | other.exclude_tools,
             read_only=self.read_only or other.read_only,
-            confirm_destructive=self.confirm_destructive or other.confirm_destructive,
+            exclude_money_movement=self.exclude_money_movement
+            or other.exclude_money_movement,
+            exclude_destructive=self.exclude_destructive or other.exclude_destructive,
             preview_toolsets=self.preview_toolsets | other.preview_toolsets,
         )
-
-    def requires_confirmation(self, tool_name: str) -> bool:
-        """Return True if this tool requires explicit confirmation before execution."""
-        return self.confirm_destructive and is_destructive_tool(tool_name)
 
     @classmethod
     def from_env(cls) -> ToolFilter:
@@ -260,8 +298,11 @@ class ToolFilter:
             exclude_tools=_parse_comma_set(os.environ.get("CHECK_EXCLUDE_TOOLS"))
             or frozenset(),
             read_only=_parse_bool(os.environ.get("CHECK_READ_ONLY")),
-            confirm_destructive=_parse_bool(
-                os.environ.get("CHECK_CONFIRM_DESTRUCTIVE")
+            exclude_money_movement=_parse_bool(
+                os.environ.get("CHECK_EXCLUDE_MONEY_MOVEMENT")
+            ),
+            exclude_destructive=_parse_bool(
+                os.environ.get("CHECK_EXCLUDE_DESTRUCTIVE")
             ),
             preview_toolsets=_parse_comma_set(os.environ.get("CHECK_PREVIEW_TOOLSETS"))
             or frozenset(),
@@ -282,7 +323,8 @@ class ToolFilter:
             tools=_parse_comma_set(get("x-mcp-tools")),
             exclude_tools=_parse_comma_set(get("x-mcp-exclude-tools")) or frozenset(),
             read_only=_parse_bool(get("x-mcp-readonly")),
-            confirm_destructive=_parse_bool(get("x-mcp-confirm-destructive")),
+            exclude_money_movement=_parse_bool(get("x-mcp-exclude-money-movement")),
+            exclude_destructive=_parse_bool(get("x-mcp-exclude-destructive")),
             preview_toolsets=_parse_comma_set(get("x-mcp-preview-toolsets"))
             or frozenset(),
         )

@@ -654,17 +654,20 @@ async def test_dynamic_mode_runs_preview_tool_when_opted_in(mock_api, monkeypatc
 
 
 @pytest.mark.anyio
-async def test_dynamic_mode_approve_correction_requires_confirmation():
+async def test_dynamic_mode_exclude_destructive_blocks_approve_correction():
     server = _make_dynamic_server(
         ToolFilter(
-            confirm_destructive=True, preview_toolsets=frozenset({"corrections"})
+            exclude_destructive=True, preview_toolsets=frozenset({"corrections"})
         )
     )
-    result = await server.call_tool(
-        "run_tool",
-        {"tool_name": "approve_correction", "arguments": {"correction_id": "cor_1"}},
-    )
-    assert json.loads(result.content[0].text)["confirmation_required"] is True
+    with pytest.raises(ToolError, match="not available"):
+        await server.call_tool(
+            "run_tool",
+            {
+                "tool_name": "approve_correction",
+                "arguments": {"correction_id": "cor_1"},
+            },
+        )
 
 
 @pytest.mark.anyio
@@ -683,3 +686,63 @@ async def test_toolsets_resource_follows_preview_opt_in(
 
     assert "companies" in toolsets
     assert ("corrections" in toolsets) is visible
+
+
+# --- Directory-safe profile (category exclusion flags) ---
+
+_DIRECTORY_SAFE = ToolFilter(exclude_money_movement=True, exclude_destructive=True)
+
+_EXCLUDED_ON_DIRECTORY = [
+    "approve_payroll",
+    "retry_payment",
+    "refund_payment",
+    "cancel_payment",
+    "create_bank_account",
+    "update_bank_account",
+    "delete_bank_account",
+    "delete_payroll",
+    "bulk_delete_payroll_items",
+]
+
+
+@pytest.mark.anyio
+async def test_directory_profile_hides_money_and_destructive_tools():
+    server = _make_all_tools_server(_DIRECTORY_SAFE)
+    tool_names = {t.name for t in await server.list_tools()}
+
+    for name in _EXCLUDED_ON_DIRECTORY:
+        assert name not in tool_names, f"'{name}' should be hidden"
+
+    # Payroll preparation stays available: agents can build a run, not disburse it.
+    for name in ("list_companies", "create_payroll", "create_payroll_item"):
+        assert name in tool_names, f"'{name}' should remain available"
+
+
+@pytest.mark.anyio
+async def test_directory_profile_blocks_execution():
+    """Hidden is not enough — calling the tool directly must fail too."""
+    server = _make_all_tools_server(_DIRECTORY_SAFE)
+    with pytest.raises(ToolError, match="not available in the current configuration"):
+        await server.call_tool("approve_payroll", {"payroll_id": "prl_test"})
+
+
+@pytest.mark.anyio
+async def test_directory_profile_hides_tools_from_search():
+    """Dynamic mode: excluded tools are absent from search_tools results."""
+    server = _make_dynamic_server(_DIRECTORY_SAFE)
+    result = await server.call_tool("search_tools", {"query": "approve payroll"})
+    payload = result.content[0].text
+
+    for name in _EXCLUDED_ON_DIRECTORY:
+        assert f'"{name}"' not in payload, f"'{name}' should not appear in search"
+
+
+@pytest.mark.anyio
+async def test_directory_profile_blocks_run_tool():
+    """Dynamic mode: run_tool refuses an excluded tool before any API call."""
+    server = _make_dynamic_server(_DIRECTORY_SAFE)
+    with pytest.raises(ToolError, match="not available in the current configuration"):
+        await server.call_tool(
+            "run_tool",
+            {"tool_name": "approve_payroll", "arguments": {"payroll_id": "prl_test"}},
+        )

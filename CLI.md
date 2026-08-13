@@ -214,6 +214,10 @@ export CHECK_TOOLS=list_companies,get_company
 
 # Exclude specific tools
 export CHECK_EXCLUDE_TOOLS=delete_company,delete_employee
+
+# Exclude whole categories
+export CHECK_EXCLUDE_MONEY_MOVEMENT=1
+export CHECK_EXCLUDE_DESTRUCTIVE=1
 ```
 
 ### Preview Toolsets
@@ -227,7 +231,7 @@ check --preview-toolsets <toolset> <toolset> --help
 export CHECK_PREVIEW_TOOLSETS=<toolset>
 ```
 
-**Filtering precedence:** `CHECK_EXCLUDE_TOOLS` > `CHECK_PREVIEW_TOOLSETS` > `CHECK_READ_ONLY` > `CHECK_TOOLS` > `CHECK_TOOLSETS`.
+**Filtering precedence:** `CHECK_EXCLUDE_TOOLS` > `CHECK_EXCLUDE_MONEY_MOVEMENT` / `CHECK_EXCLUDE_DESTRUCTIVE` > `CHECK_PREVIEW_TOOLSETS` > `CHECK_READ_ONLY` > `CHECK_TOOLS` > `CHECK_TOOLSETS`.
 
 ## Exit Codes
 
