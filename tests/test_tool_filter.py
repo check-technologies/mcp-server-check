@@ -10,6 +10,7 @@ from mcp_server_check.tool_filter import (
     TOOLSETS,
     ToolFilter,
     is_destructive_tool,
+    is_money_movement_tool,
     is_write_tool,
 )
 
@@ -177,18 +178,20 @@ class TestFromQueryParams:
         assert tf == ToolFilter()
 
     def test_only_read_only_is_parsed(self):
-        """Query params for other filter fields (toolsets, confirm_destructive, etc.) are ignored."""
+        """Query params for other filter fields (toolsets, exclusion flags, etc.) are ignored."""
         tf = ToolFilter.from_query_params(
             {
                 "read_only": "true",
-                "confirm_destructive": "true",
+                "exclude_money_movement": "true",
+                "exclude_destructive": "true",
                 "toolsets": "companies",
                 "tools": "list_companies",
                 "exclude_tools": "delete_company",
             }
         )
         assert tf.read_only is True
-        assert tf.confirm_destructive is False
+        assert tf.exclude_money_movement is False
+        assert tf.exclude_destructive is False
         assert tf.toolsets is None
         assert tf.tools is None
         assert tf.exclude_tools == frozenset()
@@ -318,33 +321,146 @@ class TestIsDestructiveTool:
         assert not is_destructive_tool(name), f"{name} should NOT be destructive"
 
 
-# --- requires_confirmation ---
+# --- is_money_movement_tool ---
 
 
-class TestRequiresConfirmation:
-    def test_no_confirmation_by_default(self):
+class TestIsMoneyMovementTool:
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "approve_payroll",
+            "retry_payment",
+            "refund_payment",
+            "cancel_payment",
+            "create_bank_account",
+            "update_bank_account",
+            "delete_bank_account",
+        ],
+    )
+    def test_money_movement_detected(self, name):
+        assert is_money_movement_tool(name), f"{name} should be money movement"
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            # Reads that would match a naive *payment* substring rule
+            "list_payments",
+            "get_payment",
+            "list_payment_attempts",
+            "diagnose_payment",
+            "list_bank_accounts",
+            "get_bank_account",
+            # Prefix lookalikes that move no money
+            "retry_webhook_delivery",
+            "cancel_implementation",
+            "approve_external_payroll",
+            # Amount-shaping tools that cannot disburse on their own
+            "create_payroll",
+            "create_payroll_item",
+            "create_contractor_payment",
+            "create_net_pay_split",
+        ],
+    )
+    def test_not_money_movement(self, name):
+        assert not is_money_movement_tool(name), f"{name} should NOT be money movement"
+
+
+# --- category exclusion flags ---
+
+
+class TestExcludeMoneyMovement:
+    def test_disabled_by_default(self):
         tf = ToolFilter()
-        assert tf.requires_confirmation("approve_payroll") is False
+        assert tf.is_tool_allowed("approve_payroll", "payrolls") is True
 
-    def test_confirmation_when_enabled(self):
-        tf = ToolFilter(confirm_destructive=True)
-        assert tf.requires_confirmation("approve_payroll") is True
-        assert tf.requires_confirmation("delete_payroll") is True
+    def test_hides_money_movement_tools(self):
+        tf = ToolFilter(exclude_money_movement=True)
+        assert tf.is_tool_allowed("approve_payroll", "payrolls") is False
+        assert tf.is_tool_allowed("create_bank_account", "bank_accounts") is False
 
-    def test_no_confirmation_for_safe_tools(self):
-        tf = ToolFilter(confirm_destructive=True)
-        assert tf.requires_confirmation("list_companies") is False
-        assert tf.requires_confirmation("create_company") is False
+    def test_leaves_other_tools_visible(self):
+        tf = ToolFilter(exclude_money_movement=True)
+        assert tf.is_tool_allowed("list_companies", "companies") is True
+        assert tf.is_tool_allowed("create_payroll", "payrolls") is True
+        assert tf.is_tool_allowed("delete_payroll", "payrolls") is True
 
-    def test_from_env_confirm_destructive(self):
-        with mock.patch.dict(os.environ, {"CHECK_CONFIRM_DESTRUCTIVE": "true"}):
+    def test_overrides_tools_allowlist(self):
+        """Category exclusion is a floor: it beats an explicit allowlist."""
+        tf = ToolFilter(
+            tools=frozenset({"approve_payroll"}), exclude_money_movement=True
+        )
+        assert tf.is_tool_allowed("approve_payroll", "payrolls") is False
+
+    def test_from_env(self):
+        with mock.patch.dict(os.environ, {"CHECK_EXCLUDE_MONEY_MOVEMENT": "true"}):
             tf = ToolFilter.from_env()
-        assert tf.confirm_destructive is True
+        assert tf.exclude_money_movement is True
 
-    def test_from_headers_confirm_destructive(self):
-        headers = {"x-mcp-confirm-destructive": "1"}
-        tf = ToolFilter.from_headers(headers)
-        assert tf.confirm_destructive is True
+    def test_from_headers(self):
+        tf = ToolFilter.from_headers({"x-mcp-exclude-money-movement": "1"})
+        assert tf.exclude_money_movement is True
+
+
+class TestExcludeDestructive:
+    def test_disabled_by_default(self):
+        tf = ToolFilter()
+        assert tf.is_tool_allowed("delete_payroll", "payrolls") is True
+
+    def test_hides_destructive_tools(self):
+        tf = ToolFilter(exclude_destructive=True)
+        assert tf.is_tool_allowed("delete_payroll", "payrolls") is False
+        assert tf.is_tool_allowed("bulk_delete_payroll_items", "payroll_items") is False
+        assert tf.is_tool_allowed("cancel_implementation", "companies") is False
+
+    def test_leaves_other_writes_visible(self):
+        tf = ToolFilter(exclude_destructive=True)
+        assert tf.is_tool_allowed("create_payroll", "payrolls") is True
+        assert tf.is_tool_allowed("update_employee", "employees") is True
+
+    def test_overrides_tools_allowlist(self):
+        tf = ToolFilter(tools=frozenset({"delete_payroll"}), exclude_destructive=True)
+        assert tf.is_tool_allowed("delete_payroll", "payrolls") is False
+
+    def test_from_env(self):
+        with mock.patch.dict(os.environ, {"CHECK_EXCLUDE_DESTRUCTIVE": "true"}):
+            tf = ToolFilter.from_env()
+        assert tf.exclude_destructive is True
+
+    def test_from_headers(self):
+        tf = ToolFilter.from_headers({"x-mcp-exclude-destructive": "1"})
+        assert tf.exclude_destructive is True
+
+
+class TestDirectorySafeProfile:
+    """Both flags together — the Anthropic directory deployment profile."""
+
+    def test_money_and_destructive_tools_hidden(self):
+        tf = ToolFilter(exclude_money_movement=True, exclude_destructive=True)
+        for name, toolset in [
+            ("approve_payroll", "payrolls"),
+            ("cancel_payment", "payments"),
+            ("refund_payment", "payments"),
+            ("retry_payment", "payments"),
+            ("create_bank_account", "bank_accounts"),
+            ("update_bank_account", "bank_accounts"),
+            ("delete_bank_account", "bank_accounts"),
+            ("delete_payroll", "payrolls"),
+            ("bulk_delete_payroll_items", "payroll_items"),
+        ]:
+            assert tf.is_tool_allowed(name, toolset) is False, name
+
+    def test_payroll_preparation_still_possible(self):
+        """Agents can still prepare a payroll run; they just cannot disburse it."""
+        tf = ToolFilter(exclude_money_movement=True, exclude_destructive=True)
+        for name, toolset in [
+            ("list_companies", "companies"),
+            ("create_payroll", "payrolls"),
+            ("create_payroll_item", "payroll_items"),
+            ("create_contractor_payment", "contractor_payments"),
+            ("create_net_pay_split", "compensation"),
+            ("preview_payroll", "payrolls"),
+        ]:
+            assert tf.is_tool_allowed(name, toolset) is True, name
 
 
 class TestMerge:
@@ -397,10 +513,24 @@ class TestMerge:
         merged = env.merge(header)
         assert merged.tools == frozenset({"list_companies"})
 
-    def test_merge_confirm_destructive_or(self):
-        env = ToolFilter(confirm_destructive=True)
-        header = ToolFilter(confirm_destructive=False)
-        assert env.merge(header).confirm_destructive is True
+    def test_merge_exclude_money_movement_or(self):
+        """A client cannot relax an exclusion the server set."""
+        env = ToolFilter(exclude_money_movement=True)
+        header = ToolFilter(exclude_money_movement=False)
+        assert env.merge(header).exclude_money_movement is True
+
+    def test_merge_exclude_destructive_or(self):
+        env = ToolFilter(exclude_destructive=True)
+        header = ToolFilter(exclude_destructive=False)
+        assert env.merge(header).exclude_destructive is True
+
+    def test_merge_header_can_add_exclusions(self):
+        """A client may tighten beyond the server policy."""
+        env = ToolFilter()
+        header = ToolFilter(exclude_money_movement=True, exclude_destructive=True)
+        merged = env.merge(header)
+        assert merged.exclude_money_movement is True
+        assert merged.exclude_destructive is True
 
     def test_merge_three_way_env_header_query(self):
         """Env, header, and query-param filters combine correctly."""
