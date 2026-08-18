@@ -48,13 +48,25 @@ async def get_webhook_config(ctx: Ctx, webhook_config_id: str) -> dict:
     return await check_api_get(ctx, f"/webhook_configs/{webhook_config_id}")
 
 
-async def create_webhook_config(ctx: Ctx, url: str) -> dict:
+async def create_webhook_config(
+    ctx: Ctx,
+    url: str,
+    api_version: str | None = None,
+) -> dict:
     """Create a new webhook configuration.
 
     Args:
         url: The webhook endpoint URL.
+        api_version: API version to serialize outbound webhook payloads at,
+            independent of your account default. Accepts the same values as the
+            Check-Version header (e.g. "2025-01-01", "2021-09-02"). Omit to
+            follow your account's default API version.
     """
-    return await check_api_post(ctx, "/webhook_configs", data={"url": url})
+    return await check_api_post(
+        ctx,
+        "/webhook_configs",
+        data=build_body({"url": url}, api_version=api_version),
+    )
 
 
 async def update_webhook_config(
@@ -62,6 +74,7 @@ async def update_webhook_config(
     webhook_config_id: str,
     url: str | None = None,
     active: bool | None = None,
+    api_version: str | None = None,
 ) -> dict:
     """Update a webhook configuration.
 
@@ -69,11 +82,15 @@ async def update_webhook_config(
         webhook_config_id: The Check webhook config ID.
         url: The webhook endpoint URL.
         active: Whether the webhook config is active.
+        api_version: API version to serialize outbound webhook payloads at,
+            independent of your account default. Accepts the same values as the
+            Check-Version header (e.g. "2025-01-01", "2021-09-02"). Omit to
+            leave the current value unchanged.
     """
     return await check_api_patch(
         ctx,
         f"/webhook_configs/{webhook_config_id}",
-        data=build_body({}, url=url, active=active),
+        data=build_body({}, url=url, active=active, api_version=api_version),
     )
 
 
