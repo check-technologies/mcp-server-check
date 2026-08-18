@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -51,9 +53,10 @@ async def test_create_webhook_config_with_api_version(mock_api, ctx):
         api_version="2025-01-01",
     )
     assert result["api_version"] == "2025-01-01"
-    assert route.calls.last.request.content == (
-        b'{"url": "https://example.com/webhook", "api_version": "2025-01-01"}'
-    )
+    assert json.loads(route.calls.last.request.content) == {
+        "url": "https://example.com/webhook",
+        "api_version": "2025-01-01",
+    }
 
 
 @pytest.mark.anyio
@@ -69,7 +72,9 @@ async def test_update_webhook_config_with_api_version(mock_api, ctx):
         api_version="2021-09-02",
     )
     assert result["api_version"] == "2021-09-02"
-    assert route.calls.last.request.content == b'{"api_version": "2021-09-02"}'
+    assert json.loads(route.calls.last.request.content) == {
+        "api_version": "2021-09-02",
+    }
 
 
 @pytest.mark.anyio
