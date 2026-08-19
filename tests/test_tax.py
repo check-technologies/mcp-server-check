@@ -19,6 +19,7 @@ from mcp_server_check.tools.tax import (
     list_employee_tax_statements,
     list_filings,
     list_taxes,
+    request_tax_package,
     update_company_tax_params,
     update_employee_tax_elections,
 )
@@ -270,6 +271,37 @@ async def test_get_filing(mock_api, ctx):
     )
     result = await get_filing(ctx, filing_id="com_fil_001")
     assert result["id"] == "com_fil_001"
+
+
+@pytest.mark.anyio
+async def test_request_tax_package_with_filings(mock_api, ctx):
+    route = mock_api.post("/tax_packages").mock(
+        return_value=httpx.Response(
+            201,
+            json={
+                "id": "tax_pkg_001",
+                "company": "com_001",
+                "contents": {
+                    "employee_tax_statements": ["ets_001"],
+                    "filings": ["com_fil_aaa", "com_fil_bbb"],
+                },
+            },
+        )
+    )
+    result = await request_tax_package(
+        ctx,
+        company="com_001",
+        employee_tax_statements=["ets_001"],
+        filings=["com_fil_aaa", "com_fil_bbb"],
+    )
+    assert result["id"] == "tax_pkg_001"
+    assert json.loads(route.calls.last.request.content) == {
+        "company": "com_001",
+        "contents": {
+            "employee_tax_statements": ["ets_001"],
+            "filings": ["com_fil_aaa", "com_fil_bbb"],
+        },
+    }
 
 
 @pytest.mark.anyio
