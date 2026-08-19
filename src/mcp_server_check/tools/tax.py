@@ -541,16 +541,31 @@ async def get_employee_tax_statement(ctx: Ctx, statement_id: str) -> dict:
 async def request_tax_package(
     ctx: Ctx,
     company: str,
-    contents: str | None = None,
+    employee_tax_statements: list[str] | None = None,
+    filings: list[str] | None = None,
 ) -> dict:
     """Request a tax package.
 
     Args:
-        company: The Check company ID.
-        contents: JSON string of employee_tax_statements IDs to generate.
+        company: The Check company ID (e.g. "com_xxxxx").
+        employee_tax_statements: Employee tax statement IDs to include
+            (e.g. ["ets_xxxxx"]).
+        filings: Company filing IDs to include employer copies for
+            (e.g. ["com_fil_xxxxx"]).
     """
+    contents: dict[str, list[str]] = {}
+    if employee_tax_statements is not None:
+        contents["employee_tax_statements"] = employee_tax_statements
+    if filings is not None:
+        contents["filings"] = filings
+
     return await check_api_post(
-        ctx, "/tax_packages", data=build_body({"company": company}, contents=contents)
+        ctx,
+        "/tax_packages",
+        data=build_body(
+            {"company": company},
+            contents=contents if contents else None,
+        ),
     )
 
 
