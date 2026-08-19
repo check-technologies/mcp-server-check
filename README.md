@@ -4,7 +4,7 @@
 
 > **Terms of Service** — By using this MCP server to access the Check API, you agree to the [MCP Usage Terms](TERMS_OF_SERVICE.md), which are in addition to your existing agreement with Check.
 
-An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 263 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
+An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 261 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
 
@@ -141,7 +141,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 ## Available Tools
 
-263 tools organized across 17 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
+261 tools organized across 17 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
 
 ### Companies (26 tools)
 
@@ -457,7 +457,7 @@ The counterparties Check files and remits to (IRS, state revenue departments). G
 | `get_webhook_delivery` | GET | Get a webhook delivery |
 | `retry_webhook_delivery` | POST | Re-enqueue a webhook delivery (sandbox only) |
 
-### Platform (29 tools)
+### Platform (27 tools)
 
 Notifications, communications, usage, integrations, accounting, company groups, addresses, setups, and requirements.
 
@@ -490,8 +490,6 @@ Notifications, communications, usage, integrations, accounting, company groups, 
 | `list_accounting_sync_attempts` | GET | List accounting sync attempts |
 | **Company Groups** | | |
 | `list_company_groups` | GET | List company groups |
-| `create_company_group` | POST | Create a company group |
-| `update_company_group` | PATCH | Update a company group |
 | **Addresses** | | |
 | `validate_address` | POST | Validate an address |
 | **Setups** | | |

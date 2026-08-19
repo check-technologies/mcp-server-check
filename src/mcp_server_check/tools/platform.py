@@ -418,42 +418,6 @@ async def list_company_groups(
     )
 
 
-async def create_company_group(
-    ctx: Ctx,
-    name: str | None = None,
-    companies: list[dict] | None = None,
-) -> dict:
-    """Create a new company group.
-
-    Args:
-        name: Name of the company group.
-        companies: List of company dicts, each with an "id" key (the company ID).
-    """
-    return await check_api_post(
-        ctx, "/company_groups", data=build_body({}, name=name, companies=companies)
-    )
-
-
-async def update_company_group(
-    ctx: Ctx,
-    group_id: str,
-    name: str | None = None,
-    companies: list[dict] | None = None,
-) -> dict:
-    """Update a company group.
-
-    Args:
-        group_id: The company group ID.
-        name: Name of the company group.
-        companies: List of company dicts, each with an "id" key (the company ID).
-    """
-    return await check_api_patch(
-        ctx,
-        f"/company_groups/{group_id}",
-        data=build_body({}, name=name, companies=companies),
-    )
-
-
 # --- Addresses ---
 
 
@@ -609,5 +573,3 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
         add_annotated_tool(mcp, update_accounting_mappings)
         add_annotated_tool(mcp, toggle_accounting_mappings)
         add_annotated_tool(mcp, sync_accounting)
-        add_annotated_tool(mcp, create_company_group)
-        add_annotated_tool(mcp, update_company_group)
