@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -13,6 +15,7 @@ from mcp_server_check.tools.webhooks import (
     list_webhook_deliveries,
     ping_webhook_config,
     retry_webhook_delivery,
+    update_webhook_config,
 )
 
 
@@ -35,6 +38,43 @@ async def test_create_webhook_config(mock_api, ctx):
     )
     result = await create_webhook_config(ctx, url="https://example.com/webhook")
     assert result["id"] == "whc_new"
+
+
+@pytest.mark.anyio
+async def test_create_webhook_config_with_api_version(mock_api, ctx):
+    route = mock_api.post("/webhook_configs").mock(
+        return_value=httpx.Response(
+            201, json={"id": "whc_new", "api_version": "2025-01-01"}
+        )
+    )
+    result = await create_webhook_config(
+        ctx,
+        url="https://example.com/webhook",
+        api_version="2025-01-01",
+    )
+    assert result["api_version"] == "2025-01-01"
+    assert json.loads(route.calls.last.request.content) == {
+        "url": "https://example.com/webhook",
+        "api_version": "2025-01-01",
+    }
+
+
+@pytest.mark.anyio
+async def test_update_webhook_config_with_api_version(mock_api, ctx):
+    route = mock_api.patch("/webhook_configs/whc_001").mock(
+        return_value=httpx.Response(
+            200, json={"id": "whc_001", "api_version": "2021-09-02"}
+        )
+    )
+    result = await update_webhook_config(
+        ctx,
+        webhook_config_id="whc_001",
+        api_version="2021-09-02",
+    )
+    assert result["api_version"] == "2021-09-02"
+    assert json.loads(route.calls.last.request.content) == {
+        "api_version": "2021-09-02",
+    }
 
 
 @pytest.mark.anyio
