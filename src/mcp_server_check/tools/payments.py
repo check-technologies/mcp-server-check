@@ -42,7 +42,7 @@ async def list_payments(
         type: Filter by payment type: "company_cash_requirement", "employee_net_pay", "net_pay_refund", "collection", or "refund".
         completion_date_after: Filter to payments with completion date on or after this date (YYYY-MM-DD).
         completion_date_before: Filter to payments with completion date on or before this date (YYYY-MM-DD).
-        limit: Maximum number of results to return.
+        limit: Maximum number of results to return (default 25, max 100).
         cursor: Pagination cursor.
     """
     return await check_api_list(
