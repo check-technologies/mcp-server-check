@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
+    build_params,
     check_api_delete,
     check_api_get,
     check_api_list,
@@ -22,7 +23,7 @@ async def list_contractor_payments(
     limit: int | None = None,
     ids: list[str] | None = None,
     cursor: str | None = None,
-    payroll: str | None = None,
+    payroll: list[str] | None = None,
 ) -> dict:
     """List contractor payments, optionally filtered by company or contractor.
 
@@ -32,22 +33,17 @@ async def list_contractor_payments(
         limit: Maximum number of results to return (default 10, max 100).
         ids: Filter to specific contractor payment IDs.
         cursor: Pagination cursor from a previous response.
-        payroll: Filter by payroll ID.
+        payroll: Filter by payroll ID(s) (e.g. ["prl_xxxxx"]). Repeated values are OR'd.
     """
-    params: dict = {}
-    if company is not None:
-        params["company"] = company
-    if contractor is not None:
-        params["contractor"] = contractor
-    if limit is not None:
-        params["limit"] = limit
-    if ids:
-        params["ids"] = ",".join(ids)
-    if cursor:
-        params["cursor"] = cursor
-    if payroll is not None:
-        params["payroll"] = payroll
-    return await check_api_list(ctx, "/contractor_payments", params=params or None)
+    params = build_params(
+        company=company,
+        contractor=contractor,
+        limit=limit,
+        ids=",".join(ids) if ids else None,
+        cursor=cursor,
+        payroll=payroll,
+    )
+    return await check_api_list(ctx, "/contractor_payments", params=params)
 
 
 async def get_contractor_payment(ctx: Ctx, contractor_payment_id: str) -> dict:
