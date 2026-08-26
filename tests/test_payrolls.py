@@ -32,8 +32,9 @@ async def test_list_payrolls_with_filters(mock_api, ctx):
     result = await list_payrolls(
         ctx,
         company="com_123",
-        type="regular",
+        type=["regular", "off_cycle"],
         status="paid",
+        is_void=False,
         managed=True,
         approved=False,
         pay_schedule="psc_456",
@@ -45,8 +46,9 @@ async def test_list_payrolls_with_filters(mock_api, ctx):
     assert result["results"] == [{"id": "prl_001"}]
     req = mock_api.get("/payrolls").calls.last.request
     assert req.url.params["company"] == "com_123"
-    assert req.url.params["type"] == "regular"
+    assert req.url.params.get_list("type") == ["regular", "off_cycle"]
     assert req.url.params["status"] == "paid"
+    assert req.url.params["is_void"] == "false"
     assert req.url.params["managed"] == "true"
     assert req.url.params["approved"] == "false"
     assert req.url.params["pay_schedule"] == "psc_456"
