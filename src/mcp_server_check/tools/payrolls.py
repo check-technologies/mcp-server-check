@@ -24,8 +24,9 @@ async def list_payrolls(
     limit: int | None = None,
     ids: list[str] | None = None,
     cursor: str | None = None,
-    type: str | None = None,
+    type: list[str] | None = None,
     status: str | None = None,
+    is_void: bool | None = None,
     managed: bool | None = None,
     approved: bool | None = None,
     pay_schedule: str | None = None,
@@ -41,8 +42,10 @@ async def list_payrolls(
         limit: Maximum number of results to return (default 10, max 100).
         ids: Filter to specific payroll IDs.
         cursor: Pagination cursor from a previous response.
-        type: Filter by payroll type — "regular", "off_cycle", "amendment", or "balancing".
+        type: Filter by payroll type(s) — "regular", "off_cycle", "amendment", or
+            "balancing". Multiple values are OR'd.
         status: Filter by payroll status — "draft", "pending", "processing", "paid", "partially_paid", or "failed".
+        is_void: Filter to void payrolls (true) or non-void payrolls (false).
         managed: Filter by managed status.
         approved: Filter by approval status.
         pay_schedule: Filter by pay schedule ID.
@@ -61,6 +64,7 @@ async def list_payrolls(
             cursor=cursor,
             type=type,
             status=status,
+            is_void=is_void,
             managed=managed,
             approved=approved,
             pay_schedule=pay_schedule,
