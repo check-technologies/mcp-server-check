@@ -23,7 +23,7 @@ async def list_contractor_payments(
     limit: int | None = None,
     ids: list[str] | None = None,
     cursor: str | None = None,
-    payroll: list[str] | None = None,
+    payroll: str | None = None,
 ) -> dict:
     """List contractor payments, optionally filtered by company or contractor.
 
@@ -33,7 +33,7 @@ async def list_contractor_payments(
         limit: Maximum number of results to return (default 10, max 100).
         ids: Filter to specific contractor payment IDs.
         cursor: Pagination cursor from a previous response.
-        payroll: Filter by payroll ID(s) (e.g. ["prl_xxxxx"]). Repeated values are OR'd.
+        payroll: Filter by payroll ID (e.g. "prl_xxxxx").
     """
     params = build_params(
         company=company,
