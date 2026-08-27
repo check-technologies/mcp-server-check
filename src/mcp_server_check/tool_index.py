@@ -94,6 +94,7 @@ _TOOLSET_DESCRIPTIONS: dict[str, str] = {
     "documents": "Access company tax documents, authorization documents, employee/contractor tax documents, and setup documents.",
     "employees": "Manage W-2 employees, their forms, paystubs, attributes, and reciprocity elections.",
     "external_payrolls": "Create and manage external (imported) payrolls for historical data.",
+    "form_filing_configs": "Manage form filing configurations, including applicability rules and filing parameters.",
     "forms": "List and render tax forms (W-4, state withholding, etc.).",
     "logs": "Search and retrieve your API request logs for debugging — filter by path, method, status code/class, idempotency key, and time range.",
     "payments": "View payments, payment attempts, and retry/refund/cancel payments.",
