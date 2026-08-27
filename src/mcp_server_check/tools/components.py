@@ -118,8 +118,9 @@ async def create_component(
             "contractors"; single-employee subtypes "deductions",
             "personal_details", "employment_details").
         data: Optional component configuration. For company "team_setup"
-            single-employee subtypes ("deductions", "personal_details",
-            "employment_details"), include employee (e.g. "emp_xxxxx") in data.
+            single-employee subtypes "deductions" and "employment_details",
+            include employee (e.g. "emp_xxxxx") in data. For "personal_details",
+            include exactly one of employee or contractor (e.g. "ctr_xxxxx").
     """
     path_prefix = _ENTITY_PATH.get(entity_type)
     if path_prefix is None:
