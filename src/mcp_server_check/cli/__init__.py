@@ -29,12 +29,9 @@ def _build_filter(ctx: click.Context) -> ToolFilter:
     read_only = root.params.get("read_only", False) if root.params else False
     env_filter = ToolFilter.from_env()
     if read_only and not env_filter.read_only:
-        return ToolFilter(
-            toolsets=env_filter.toolsets,
-            tools=env_filter.tools,
-            exclude_tools=env_filter.exclude_tools,
-            read_only=True,
-        )
+        # Merge rather than rebuild field-by-field so filter fields added later
+        # are carried through automatically.
+        return env_filter.merge(ToolFilter(read_only=True))
     return env_filter
 
 

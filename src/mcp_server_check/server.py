@@ -226,7 +226,6 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         ctx: Context,
         tool_name: str,
         arguments: str | dict | None = None,
-        confirm: bool = False,
     ) -> str:
         """Execute an API tool by name with the given arguments.
 
@@ -235,9 +234,6 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         tool_name: The exact tool name (e.g. "list_companies", "get_employee").
         arguments: Tool arguments as a JSON string or dict (e.g. '{"company_id": "com_xxx"}'
             or {"company_id": "com_xxx"}).
-        confirm: Set to true to confirm execution of a destructive tool (approve,
-            delete, simulate, refund, cancel). Required when CHECK_CONFIRM_DESTRUCTIVE
-            is enabled and the tool is destructive.
         """
         tf = server._get_active_filter()
         parsed_args: dict = {}
@@ -255,20 +251,6 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
                 return json.dumps(
                     {"error": "Arguments must be a JSON string or object"}
                 )
-
-        if tf.requires_confirmation(tool_name) and not confirm:
-            return json.dumps(
-                {
-                    "confirmation_required": True,
-                    "tool_name": tool_name,
-                    "arguments": parsed_args,
-                    "message": (
-                        f"⚠️  '{tool_name}' is a destructive operation that may "
-                        f"trigger irreversible effects (money movement, data deletion, "
-                        f"etc.). Call run_tool again with confirm=true to proceed."
-                    ),
-                }
-            )
 
         try:
             result = await index.run(

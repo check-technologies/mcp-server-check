@@ -26,6 +26,8 @@ CHECK_API_KEY=your-key uv run mcp-server-check
 | `CHECK_TOOLS` | No | — | Comma-separated allowlist of individual tool names |
 | `CHECK_EXCLUDE_TOOLS` | No | — | Comma-separated list of tool names to hide |
 | `CHECK_READ_ONLY` | No | — | Set to `1`, `true`, or `yes` to disable all write/mutating tools |
+| `CHECK_EXCLUDE_MONEY_MOVEMENT` | No | — | Set to `1`, `true`, or `yes` to remove tools that move funds or change funding/payout destinations |
+| `CHECK_EXCLUDE_DESTRUCTIVE` | No | — | Set to `1`, `true`, or `yes` to remove irreversible tools (delete, approve, cancel, refund, simulate) |
 | `CHECK_TRANSPORT` | No | `stdio` | Transport protocol: `stdio`, `sse`, or `streamable-http` |
 
 ### Sandbox vs Production
@@ -48,8 +50,10 @@ The server supports fine-grained tool filtering, configurable via environment va
 | Individual tools | `CHECK_TOOLS` | `X-MCP-Tools` |
 | Exclude tools | `CHECK_EXCLUDE_TOOLS` | `X-MCP-Exclude-Tools` |
 | Read-only | `CHECK_READ_ONLY` | `X-MCP-Readonly` |
+| Exclude money movement | `CHECK_EXCLUDE_MONEY_MOVEMENT` | `X-MCP-Exclude-Money-Movement` |
+| Exclude destructive | `CHECK_EXCLUDE_DESTRUCTIVE` | `X-MCP-Exclude-Destructive` |
 
-**Filtering precedence:** `exclude_tools` > `read_only` > `tools` > `toolsets`. Exclude always wins; if `tools` is set it acts as an allowlist independent of toolsets.
+**Filtering precedence:** `exclude_tools` > category exclusions (money movement, destructive) > `read_only` > `tools` > `toolsets`. Exclude always wins; category exclusions apply even to tools named in the `tools` allowlist; if `tools` is set it acts as an allowlist independent of toolsets.
 
 #### Toolsets
 
@@ -85,6 +89,20 @@ Set `CHECK_READ_ONLY=1` to run the server with only read-only tools (list, get, 
 CHECK_READ_ONLY=1 CHECK_API_KEY=your-key uv run mcp-server-check
 ```
 
+#### Category Exclusions
+
+Two flags remove whole categories of tools from a deployment. Unlike `CHECK_EXCLUDE_TOOLS`, they do not need updating as tools are added.
+
+`CHECK_EXCLUDE_MONEY_MOVEMENT=1` removes the tools that move funds or change where funds are drawn from and sent to: `approve_payroll`, `retry_payment`, `refund_payment`, `cancel_payment`, and `create`/`update`/`delete_bank_account`.
+
+`CHECK_EXCLUDE_DESTRUCTIVE=1` removes tools with irreversible effects — everything matching `delete_`, `bulk_delete_`, `approve_`, `cancel_`, `refund_`, `simulate_`, plus `start_implementation` and `cancel_implementation`.
+
+```bash
+CHECK_EXCLUDE_MONEY_MOVEMENT=1 CHECK_EXCLUDE_DESTRUCTIVE=1 CHECK_API_KEY=your-key uv run mcp-server-check
+```
+
+With both set, an agent can still prepare a payroll run (`create_payroll`, `create_payroll_item`, `create_contractor_payment`, `preview_payroll`) but cannot approve or disburse it, and cannot add or repoint a bank account. Excluded tools are hidden from `list_tools` and `search_tools`, and calling one directly returns an error before any API request is made.
+
 #### HTTP Headers (Remote Transport)
 
 When running with `CHECK_TRANSPORT=sse` or `CHECK_TRANSPORT=streamable-http`, clients can pass configuration via HTTP headers:
@@ -93,9 +111,11 @@ When running with `CHECK_TRANSPORT=sse` or `CHECK_TRANSPORT=streamable-http`, cl
 X-MCP-Toolsets: companies,employees
 X-MCP-Readonly: true
 X-MCP-Exclude-Tools: create_company,delete_company
+X-MCP-Exclude-Money-Movement: true
+X-MCP-Exclude-Destructive: true
 ```
 
-Header-based configuration takes precedence over environment variables when headers provide any filter settings.
+Header and environment settings are merged, taking the most restrictive value for each. A client can narrow what the server exposes but never widen it: if the server sets `CHECK_READ_ONLY=1` or a category exclusion, no header can turn it off.
 
 ### Dynamic Tool Mode (Default)
 
