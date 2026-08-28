@@ -111,6 +111,25 @@ async def test_create_component_with_subtype(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_create_team_setup_personal_details_with_contractor(mock_api, ctx):
+    route = mock_api.post(
+        "/companies/com_001/components/team_setup/personal_details"
+    ).mock(
+        return_value=httpx.Response(200, json={"url": "https://embed.checkhq.com/..."})
+    )
+    result = await create_component(
+        ctx,
+        entity_type="company",
+        entity_id="com_001",
+        component_type="team_setup",
+        subtype="personal_details",
+        data={"contractor": "ctr_001"},
+    )
+    assert "url" in result
+    assert route.calls.last.request.content == b'{"contractor":"ctr_001"}'
+
+
+@pytest.mark.anyio
 async def test_create_component_with_subtype_and_data(mock_api, ctx):
     route = mock_api.post("/companies/com_001/components/team_setup/workplaces").mock(
         return_value=httpx.Response(200, json={"url": "https://embed.checkhq.com/..."})
