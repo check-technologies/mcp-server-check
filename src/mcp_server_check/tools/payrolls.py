@@ -101,6 +101,7 @@ async def create_payroll(
     contractor_payments: list[dict] | None = None,
     metadata: str | None = None,
     bank_account: str | None = None,
+    correction: str | None = None,
 ) -> dict:
     """Create a new payroll.
 
@@ -126,6 +127,9 @@ async def create_payroll(
             "workplace", "paper_check_number".
         metadata: Additional JSON metadata string.
         bank_account: ID of the bank account to fund the payroll.
+        correction: Check correction session ID (e.g. "cor_xxxxx") to attach this
+            payroll as a replacement. Requires correction:write scope and the
+            corrections API feature flag. Write-only; cannot be changed after creation.
     """
     return await check_api_post(
         ctx,
@@ -147,6 +151,7 @@ async def create_payroll(
             contractor_payments=contractor_payments,
             metadata=metadata,
             bank_account=bank_account,
+            correction=correction,
         ),
     )
 
