@@ -30,6 +30,7 @@ TOOLSETS: frozenset[str] = frozenset(
         "payroll_items",
         "payrolls",
         "platform",
+        "report_runs",
         "tax",
         "webhooks",
         "workflows",

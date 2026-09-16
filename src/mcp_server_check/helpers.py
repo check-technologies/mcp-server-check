@@ -78,6 +78,14 @@ _SUMMARY_FIELDS: dict[str, Sequence[str]] = {
     ),
     "nps_": ("id", "employee", "contractor", "is_default"),
     "psc_": ("id", "name", "pay_frequency", "company"),
+    "run_": (
+        "id",
+        "report",
+        "status",
+        "company",
+        "created_at",
+        "completed_at",
+    ),
     # Filings are prefixed "com_fil_". This entry must be matched before the
     # bare "com_" company entry — see _detect_entity_prefix for the longest-
     # prefix logic that makes that happen.
