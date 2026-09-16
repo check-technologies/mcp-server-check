@@ -32,7 +32,7 @@ _SYNONYM_GROUPS: list[set[str]] = [
     {"payment", "disbursement", "deposit", "transfer"},
     {"tax", "withholding", "filing", "w2", "w4", "agency", "agencies"},
     {"bank", "account", "ach", "routing"},
-    {"report", "summary", "journal", "export", "run", "download"},
+    {"report", "summary", "journal", "export"},
     {"webhook", "callback", "event", "notification"},
     {"approve", "submit", "confirm"},
     {"simulate", "sandbox", "test"},

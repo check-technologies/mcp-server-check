@@ -83,7 +83,7 @@ Prefer the workflow tools when they fit — they combine multiple API calls in o
 - Bank accounts require verification before they can fund payrolls
 - Employee SSNs are write-once; after setting, only last 4 digits are readable
 - Tax parameter updates require the `spa_*` setting ID, not the parameter name
-- Report runs (`run_`) are asynchronous: create_report_run starts one, get_report_run polls it until "completed" or "failed", and download_report_run returns a link that expires in about a minute
+- Report runs (`run_`) are asynchronous: create one, poll it until "completed", then download — the download link expires in about a minute
 """
 
 

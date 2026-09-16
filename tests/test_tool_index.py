@@ -194,6 +194,28 @@ class TestToolIndexSearch:
         employee_names = [n for n in names if "employee" in n]
         assert len(employee_names) > 0
 
+    def test_search_report_finds_every_report_run_tool(self):
+        """Report run tools are discoverable by their own name tokens."""
+        results = self.index.search("report", self.no_filter, limit=50)
+        names = {r["name"] for r in results}
+        assert {
+            "list_report_runs",
+            "get_report_run",
+            "download_report_run",
+            "create_report_run",
+        } <= names
+
+    def test_run_payroll_ranks_payroll_tools_first(self):
+        """'run' is a verb: it must not pull report runs above create_payroll.
+
+        Adding "run"/"download" to the report synonym group does exactly that,
+        so the group stays topical.
+        """
+        names = [r["name"] for r in self.index.search("run payroll", self.no_filter)]
+        assert "create_payroll" in names
+        if "download_report_run" in names:
+            assert names.index("create_payroll") < names.index("download_report_run")
+
 
 # --- ToolIndex.search with ToolFilter ---
 

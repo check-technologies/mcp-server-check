@@ -8,11 +8,16 @@ import httpx
 import pytest
 
 from mcp_server_check.tools.report_runs import (
+    REPORT_RUN_TYPES,
     create_report_run,
     download_report_run,
     get_report_run,
     list_report_runs,
 )
+
+
+def test_report_run_type_count():
+    assert len(REPORT_RUN_TYPES) == 2
 
 
 @pytest.mark.anyio
@@ -88,6 +93,11 @@ async def test_create_report_run_omits_idempotency_key_when_unset(mock_api, ctx)
         parameters={"payday_from": "2026-01-01", "payday_to": "2026-03-31"},
     )
     assert "X-Idempotency-Key" not in route.calls.last.request.headers
+    # Unset optionals stay out of the body rather than going up as nulls.
+    assert json.loads(route.calls.last.request.content) == {
+        "report": "payroll_summary",
+        "parameters": {"payday_from": "2026-01-01", "payday_to": "2026-03-31"},
+    }
 
 
 @pytest.mark.anyio
