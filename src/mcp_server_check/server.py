@@ -343,7 +343,10 @@ def _register_resources(server: CheckMCP) -> None:
             "values": COMPANY_REPORT_TYPES,
         },
         "report_run_type": {
-            "description": "Valid report values for create_report_run.",
+            "description": (
+                "Valid report values for create_report_run, and for the "
+                "report_type filter on list_report_runs."
+            ),
             "values": REPORT_RUN_TYPES,
         },
         "company_component_type": {

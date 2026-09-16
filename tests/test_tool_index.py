@@ -205,16 +205,28 @@ class TestToolIndexSearch:
             "create_report_run",
         } <= names
 
-    def test_run_payroll_ranks_payroll_tools_first(self):
-        """'run' is a verb: it must not pull report runs above create_payroll.
+    def test_search_payroll_journal_finds_report_run_tools(self):
+        """The report names are searchable, so they belong on the first line.
 
-        Adding "run"/"download" to the report synonym group does exactly that,
-        so the group stays topical.
+        ToolIndex tokenizes only the first docstring line, so a report name
+        buried in the Args: block never reaches the index.
         """
-        names = [r["name"] for r in self.index.search("run payroll", self.no_filter)]
-        assert "create_payroll" in names
-        if "download_report_run" in names:
-            assert names.index("create_payroll") < names.index("download_report_run")
+        names = {
+            r["name"] for r in self.index.search("payroll journal", self.no_filter)
+        }
+        assert "create_report_run" in names
+        assert "list_report_runs" in names
+
+    def test_report_search_excludes_document_downloads(self):
+        """Report queries stay on report tools.
+
+        Synonym expansion is symmetric, so adding "run"/"download" to the
+        {report, summary, journal, export} group makes every download_*_document
+        tool a match for "journal". The group stays topical instead.
+        """
+        names = [r["name"] for r in self.index.search("journal", self.no_filter)]
+        assert "create_report_run" in names
+        assert not [n for n in names if n.startswith("download_") and "document" in n]
 
 
 # --- ToolIndex.search with ToolFilter ---

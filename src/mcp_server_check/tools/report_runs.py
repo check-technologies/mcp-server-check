@@ -28,7 +28,7 @@ async def list_report_runs(
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
-    """List report runs, most recent first.
+    """List payroll journal and payroll summary report runs, most recent first.
 
     Args:
         company: Filter to report runs scoped to this company ID.
@@ -85,7 +85,7 @@ async def create_report_run(
     metadata: dict | None = None,
     idempotency_key: str | None = None,
 ) -> dict:
-    """Start an asynchronous report run.
+    """Start an asynchronous payroll journal or payroll summary report run.
 
     Reports are generated in the background: this returns a report run with a
     `run_` ID and a non-terminal status. Poll get_report_run until it reaches a
@@ -93,17 +93,14 @@ async def create_report_run(
 
     Args:
         report: The report to generate: "payroll_journal" or "payroll_summary".
-        parameters: Report parameters. Requires "payday_from" and "payday_to"
-            (YYYY-MM-DD), which bound the paydays the report covers. Optional
-            "additional_columns" is a list of extra columns: both reports
-            accept "employee.id" and "contractor.id", and "payroll_journal"
-            also accepts "payroll.id".
-        company: Company ID to scope the report to. Omit to report across every
-            company you have access to.
-        metadata: Arbitrary key-value object stored on the report run and
-            returned when you read it back.
-        idempotency_key: Sent as the X-Idempotency-Key header, so a retried
-            call returns the original report run instead of starting a second.
+        parameters: Report parameters; "payday_from" and "payday_to" are required.
+            Both are YYYY-MM-DD and bound the paydays the report covers. Optional
+            "additional_columns" is a list of extra columns: both reports accept
+            "employee.id" and "contractor.id", and "payroll_journal" also
+            accepts "payroll.id".
+        company: Company ID to scope the report to. Omit to cover all companies.
+        metadata: Arbitrary key-value object stored on the report run.
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     if report not in REPORT_RUN_TYPES:
         return {
