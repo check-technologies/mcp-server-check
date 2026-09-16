@@ -366,7 +366,7 @@ Pay schedules, benefits, post-tax deductions, company benefits, earning rates, e
 
 ### Report Runs (4 tools)
 
-Asynchronous reporting. `create_report_run` returns a `run_` ID, `get_report_run` polls it until the status is `completed` or `failed`, and `download_report_run` returns a link to a ZIP of CSVs. Unlike the company report tools above, a run is not scoped to one company unless you pass `company`.
+Asynchronous reporting. `create_report_run` returns a `run_` ID, `get_report_run` polls it until the status is `completed` or `failed`, and `download_report_run` returns a link to a ZIP of CSVs. Unlike `get_company_report`, a run is not scoped to one company unless you pass `company`.
 
 | Tool | Method | Description |
 |---|---|---|
