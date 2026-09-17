@@ -83,7 +83,7 @@ There are 21 resource groups, each with multiple commands:
 | `external-payrolls` | `list`, `get`, `create`, `approve` |
 | `webhooks` | `list-configs`, `create-config`, `ping-config`, `retry-events` |
 | `documents` | `list-company-tax-documents`, `download-employee-tax-document` |
-| `report-runs` | `create`, `get`, `list`, `download` |
+| `report-runs` | `list`, `get`, `create`, `download` |
 | `components` | `create-company-run-payroll-component`, `create-employee-profile-component` |
 | `forms` | `list`, `get`, `render`, `validate` |
 | `logs` | `list`, `get` |

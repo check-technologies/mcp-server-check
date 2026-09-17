@@ -206,10 +206,10 @@ class TestToolIndexSearch:
         } <= names
 
     def test_search_payroll_journal_finds_report_run_tools(self):
-        """The report names are searchable, so they belong on the first line.
+        """A report name reaches the index only from the first docstring line.
 
-        ToolIndex tokenizes only the first docstring line, so a report name
-        buried in the Args: block never reaches the index.
+        That is the only line ToolIndex tokenizes, so "payroll_journal" has to
+        stay on it rather than moving into the Args: block.
         """
         names = {
             r["name"] for r in self.index.search("payroll journal", self.no_filter)
@@ -218,11 +218,11 @@ class TestToolIndexSearch:
         assert "list_report_runs" in names
 
     def test_report_search_excludes_document_downloads(self):
-        """Report queries stay on report tools.
+        """A report query returns report tools, not document downloads.
 
-        Synonym expansion is symmetric, so adding "run"/"download" to the
-        {report, summary, journal, export} group makes every download_*_document
-        tool a match for "journal". The group stays topical instead.
+        Synonym expansion is symmetric, so putting "run" or "download" in the
+        {report, summary, journal, export} group would make every
+        download_*_document tool a match for "journal".
         """
         names = [r["name"] for r in self.index.search("journal", self.no_filter)]
         assert "create_report_run" in names
