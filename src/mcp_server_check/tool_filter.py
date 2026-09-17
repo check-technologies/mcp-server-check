@@ -82,6 +82,9 @@ _DESTRUCTIVE_EXACT = frozenset(
     {
         "start_implementation",
         "cancel_implementation",
+        # Posts journal entries into a partner's accounting system; Check
+        # cannot recall them.
+        "sync_accounting",
     }
 )
 

@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
 from mcp_server_check.tools.platform import (
     create_communication,
+    get_accounting_mappings,
     get_applied_for_ids_report,
+    list_accounting_accounts,
+    list_accounting_integrations,
+    list_accounting_sync_attempts,
     list_communications,
     list_integration_accesses,
     list_integration_permissions,
@@ -15,6 +21,8 @@ from mcp_server_check.tools.platform import (
     list_requirements,
     list_usage_records,
     list_usage_summaries,
+    refresh_accounting_accounts,
+    sync_accounting,
     validate_address,
 )
 
@@ -185,6 +193,127 @@ async def test_list_requirements_with_filters(mock_api, ctx):
     assert req.url.params["category"] == "tax"
     assert req.url.params["status"] == "pending"
     assert "requirement" not in req.url.params
+
+
+@pytest.mark.anyio
+async def test_list_accounting_integrations(mock_api, ctx):
+    mock_api.get("/integrations/accounting").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "next": None,
+                "previous": None,
+                "results": [{"id": "ai_x", "valid_token": True}],
+            },
+        )
+    )
+    result = await list_accounting_integrations(ctx, company="com_123")
+    assert result["results"] == [{"id": "ai_x", "valid_token": True}]
+    req = mock_api.get("/integrations/accounting").calls.last.request
+    assert req.url.params["company"] == "com_123"
+    assert "limit" not in req.url.params
+
+
+@pytest.mark.anyio
+async def test_sync_accounting(mock_api, ctx):
+    mock_api.post("/integrations/accounting/ai_x/sync").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "next": None,
+                "previous": None,
+                "results": [
+                    {"id": "ais_001", "payroll": "pay_1", "status": "pending"},
+                    {"id": "ais_002", "payroll": "pay_2", "status": "pending"},
+                ],
+            },
+        )
+    )
+    result = await sync_accounting(
+        ctx, "ai_x", payrolls=["pay_1", "pay_2"], resync=True
+    )
+    assert [r["payroll"] for r in result["results"]] == ["pay_1", "pay_2"]
+    req = mock_api.post("/integrations/accounting/ai_x/sync").calls.last.request
+    assert json.loads(req.content) == {"payrolls": ["pay_1", "pay_2"], "resync": True}
+
+
+@pytest.mark.anyio
+async def test_sync_accounting_omits_resync_when_not_passed(mock_api, ctx):
+    mock_api.post("/integrations/accounting/ai_x/sync").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "next": None,
+                "previous": None,
+                "results": [{"id": "ais_001", "payroll": "pay_1", "status": "pending"}],
+            },
+        )
+    )
+    await sync_accounting(ctx, "ai_x", payrolls=["pay_1"])
+    req = mock_api.post("/integrations/accounting/ai_x/sync").calls.last.request
+    assert json.loads(req.content) == {"payrolls": ["pay_1"]}
+
+
+@pytest.mark.anyio
+async def test_list_accounting_sync_attempts(mock_api, ctx):
+    mock_api.get("/integrations/accounting/ai_x/sync/attempts").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "next": None,
+                "previous": None,
+                "results": [
+                    {
+                        "id": "ais_001",
+                        "payroll": "pay_1",
+                        "status": "failure",
+                        "failure_reason": "Refresh Token is invalid.",
+                    }
+                ],
+            },
+        )
+    )
+    result = await list_accounting_sync_attempts(ctx, "ai_x", payroll="pay_1")
+    assert result["results"][0]["failure_reason"] == "Refresh Token is invalid."
+    req = mock_api.get("/integrations/accounting/ai_x/sync/attempts").calls.last.request
+    assert req.url.params["payroll"] == "pay_1"
+    assert "cursor" not in req.url.params
+
+
+@pytest.mark.anyio
+async def test_list_accounting_accounts(mock_api, ctx):
+    route = mock_api.get("/integrations/accounting/ai_x/accounts").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "aia_001"}]},
+        )
+    )
+    result = await list_accounting_accounts(ctx, "ai_x", limit=5)
+    assert result["results"] == [{"id": "aia_001"}]
+    assert route.calls.last.request.url.params["limit"] == "5"
+
+
+@pytest.mark.anyio
+async def test_refresh_accounting_accounts(mock_api, ctx):
+    route = mock_api.post("/integrations/accounting/ai_x/accounts/refresh").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "aia_001"}]},
+        )
+    )
+    result = await refresh_accounting_accounts(ctx, "ai_x")
+    assert result["results"] == [{"id": "aia_001"}]
+    assert route.called
+
+
+@pytest.mark.anyio
+async def test_get_accounting_mappings(mock_api, ctx):
+    route = mock_api.get("/integrations/accounting/ai_x/mappings").mock(
+        return_value=httpx.Response(200, json={"type": "basic", "active": True})
+    )
+    result = await get_accounting_mappings(ctx, "ai_x")
+    assert result["type"] == "basic"
+    assert route.called
 
 
 @pytest.mark.anyio

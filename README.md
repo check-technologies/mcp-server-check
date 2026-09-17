@@ -468,7 +468,7 @@ The counterparties Check files and remits to (IRS, state revenue departments). G
 | `get_webhook_delivery` | GET | Get a webhook delivery |
 | `retry_webhook_delivery` | POST | Re-enqueue a webhook delivery (sandbox only) |
 
-### Platform (27 tools)
+### Platform (28 tools)
 
 Notifications, communications, usage, integrations, accounting, company groups, addresses, setups, and requirements.
 
@@ -492,13 +492,14 @@ Notifications, communications, usage, integrations, accounting, company groups, 
 | `get_integration_permission` | GET | Get a specific permission |
 | `list_integration_accesses` | GET | List integration accesses |
 | **Accounting** | | |
-| `list_accounting_accounts` | GET | List accounting accounts for a company |
-| `refresh_accounting_accounts` | POST | Refresh accounting accounts |
-| `get_accounting_mappings` | GET | Get accounting mappings |
+| `list_accounting_integrations` | GET | List accounting integrations for a company |
+| `list_accounting_accounts` | GET | List the QuickBooks chart of accounts |
+| `refresh_accounting_accounts` | POST | Re-pull the chart of accounts from QuickBooks |
+| `get_accounting_mappings` | GET | Get category mappings |
 | `update_accounting_mappings` | PATCH | Update accounting mappings |
 | `toggle_accounting_mappings` | POST | Toggle accounting mappings |
-| `sync_accounting` | POST | Trigger an accounting sync |
-| `list_accounting_sync_attempts` | GET | List accounting sync attempts |
+| `sync_accounting` | POST | Queue payrolls to sync to QuickBooks |
+| `list_accounting_sync_attempts` | GET | List sync attempts with status and failure reason |
 | **Company Groups** | | |
 | `list_company_groups` | GET | List company groups |
 | **Addresses** | | |
