@@ -322,8 +322,7 @@ async def list_accounting_integrations(
     refresh token, and every sync fails until someone reconnects QuickBooks.
 
     Args:
-        company: Filter to the integration belonging to this Check company ID
-            (e.g. "com_xxxxx").
+        company: Filter to the integration for this Check company ("com_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
@@ -443,8 +442,7 @@ async def list_accounting_sync_attempts(
     Args:
         accounting_integration_id: The accounting integration ID
             (e.g. "ai_xxxxx"), from list_accounting_integrations.
-        payroll: Filter to attempts for this Check payroll ID
-            (e.g. "pay_xxxxx").
+        payroll: Filter to attempts for this Check payroll ("pay_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """

@@ -211,6 +211,7 @@ async def test_list_accounting_integrations(mock_api, ctx):
     assert result["results"] == [{"id": "ai_x", "valid_token": True}]
     req = mock_api.get("/integrations/accounting").calls.last.request
     assert req.url.params["company"] == "com_123"
+    assert "limit" not in req.url.params
 
 
 @pytest.mark.anyio
@@ -276,6 +277,7 @@ async def test_list_accounting_sync_attempts(mock_api, ctx):
     assert result["results"][0]["failure_reason"] == "Refresh Token is invalid."
     req = mock_api.get("/integrations/accounting/ai_x/sync/attempts").calls.last.request
     assert req.url.params["payroll"] == "pay_1"
+    assert "cursor" not in req.url.params
 
 
 @pytest.mark.anyio
@@ -286,9 +288,9 @@ async def test_list_accounting_accounts(mock_api, ctx):
             json={"next": None, "previous": None, "results": [{"id": "aia_001"}]},
         )
     )
-    result = await list_accounting_accounts(ctx, "ai_x")
+    result = await list_accounting_accounts(ctx, "ai_x", limit=5)
     assert result["results"] == [{"id": "aia_001"}]
-    assert route.called
+    assert route.calls.last.request.url.params["limit"] == "5"
 
 
 @pytest.mark.anyio
