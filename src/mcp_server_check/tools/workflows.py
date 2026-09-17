@@ -125,7 +125,7 @@ async def diagnose_payment(
         {
             "payment": check_api_get(ctx, f"/payments/{payment_id}"),
             "payment_attempts": check_api_list(
-                ctx, f"/payments/{payment_id}/payment_attempts"
+                ctx, "/payment_attempts", params={"payment": payment_id}
             ),
         }
     )

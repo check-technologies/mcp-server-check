@@ -109,7 +109,7 @@ async def test_diagnose_payment_with_payroll_item(mock_api, ctx):
             json={"id": "pmt_001", "status": "failed", "payroll_item": "pit_001"},
         )
     )
-    mock_api.get("/payments/pmt_001/payment_attempts").mock(
+    mock_api.get("/payment_attempts").mock(
         return_value=httpx.Response(
             200,
             json=_list_response([{"id": "att_001", "status": "failed"}]),
@@ -124,6 +124,8 @@ async def test_diagnose_payment_with_payroll_item(mock_api, ctx):
     assert result["payment"]["id"] == "pmt_001"
     assert result["payment_attempts"]["results"][0]["id"] == "att_001"
     assert result["payroll_item"]["id"] == "pit_001"
+    req = mock_api.get("/payment_attempts").calls.last.request
+    assert req.url.params["payment"] == "pmt_001"
 
 
 @pytest.mark.anyio
@@ -131,7 +133,7 @@ async def test_diagnose_payment_without_payroll_item(mock_api, ctx):
     mock_api.get("/payments/pmt_002").mock(
         return_value=httpx.Response(200, json={"id": "pmt_002", "status": "completed"})
     )
-    mock_api.get("/payments/pmt_002/payment_attempts").mock(
+    mock_api.get("/payment_attempts").mock(
         return_value=httpx.Response(
             200, json=_list_response([{"id": "att_002", "status": "completed"}])
         )
@@ -142,6 +144,8 @@ async def test_diagnose_payment_without_payroll_item(mock_api, ctx):
     assert result["payment"]["id"] == "pmt_002"
     assert result["payment_attempts"]["results"][0]["id"] == "att_002"
     assert "payroll_item" not in result
+    req = mock_api.get("/payment_attempts").calls.last.request
+    assert req.url.params["payment"] == "pmt_002"
 
 
 # --- New workflow tools ---
