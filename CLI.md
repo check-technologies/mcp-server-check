@@ -1,6 +1,6 @@
 # Check CLI
 
-A command-line interface for the [Check Payroll API](https://docs.checkhq.com/). The CLI exposes the same 236 tools as the MCP server, organized as resource-oriented commands similar to the [Stripe CLI](https://docs.stripe.com/cli).
+A command-line interface for the [Check Payroll API](https://docs.checkhq.com/). The CLI exposes the same 240 tools as the MCP server, organized as resource-oriented commands similar to the [Stripe CLI](https://docs.stripe.com/cli).
 
 ## Installation
 
@@ -65,7 +65,7 @@ Commands follow a `check <resource> <action>` pattern:
 check <group> <command> [ARGS] [OPTIONS]
 ```
 
-There are 20 resource groups, each with multiple commands:
+There are 21 resource groups, each with multiple commands:
 
 | Group | Examples |
 |---|---|
@@ -83,6 +83,7 @@ There are 20 resource groups, each with multiple commands:
 | `external-payrolls` | `list`, `get`, `create`, `approve` |
 | `webhooks` | `list-configs`, `create-config`, `ping-config`, `retry-events` |
 | `documents` | `list-company-tax-documents`, `download-employee-tax-document` |
+| `report-runs` | `list`, `get`, `create`, `download` |
 | `components` | `create-company-run-payroll-component`, `create-employee-profile-component` |
 | `forms` | `list`, `get`, `render`, `validate` |
 | `logs` | `list`, `get` |
@@ -277,17 +278,33 @@ check employees list-forms emp_xxxxx
 
 ### Reports
 
+Synchronous, one company at a time:
+
 ```bash
 # Payroll journal
-check companies get-payroll-journal-report com_xxxxx \
+check companies get-report com_xxxxx --report-type payroll_journal \
   --start-date 2026-01-01 --end-date 2026-03-31
 
 # Tax liabilities
-check companies get-tax-liabilities-report com_xxxxx \
+check companies get-report com_xxxxx --report-type tax_liabilities \
   --start-date 2026-01-01 --end-date 2026-03-31
 
 # W-2 preview
-check companies get-w2-preview-report com_xxxxx --year 2025
+check companies get-report com_xxxxx --report-type w2_preview --year 2025
+```
+
+Asynchronous, across companies, delivered as a ZIP of CSVs:
+
+```bash
+# Start the run
+check report-runs create --report payroll_journal \
+  --parameters '{"payday_from":"2026-01-01","payday_to":"2026-03-31"}'
+
+# Poll until status is "completed" or "failed"
+check report-runs get run_xxxxx
+
+# Fetch the download link (presigned, expires in about 60 seconds)
+check report-runs download run_xxxxx
 ```
 
 ### Webhooks

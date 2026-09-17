@@ -131,6 +131,18 @@ class TestMakeCommandName:
     def test_get_agency(self):
         assert _make_command_name("get_agency", "agencies") == "get"
 
+    def test_create_report_run(self):
+        assert _make_command_name("create_report_run", "report_runs") == "create"
+
+    def test_get_report_run(self):
+        assert _make_command_name("get_report_run", "report_runs") == "get"
+
+    def test_list_report_runs(self):
+        assert _make_command_name("list_report_runs", "report_runs") == "list"
+
+    def test_download_report_run(self):
+        assert _make_command_name("download_report_run", "report_runs") == "download"
+
 
 # ---------------------------------------------------------------------------
 # _unwrap_optional
@@ -331,7 +343,7 @@ class TestBuildCommand:
 class TestCollectTools:
     def test_returns_all_toolsets(self):
         tools = collect_tools()
-        assert len(tools) == 20
+        assert len(tools) == 21
         assert "companies" in tools
         assert "employees" in tools
         assert "payrolls" in tools

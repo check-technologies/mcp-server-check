@@ -194,6 +194,40 @@ class TestToolIndexSearch:
         employee_names = [n for n in names if "employee" in n]
         assert len(employee_names) > 0
 
+    def test_search_report_finds_every_report_run_tool(self):
+        """Report run tools are discoverable by their own name tokens."""
+        results = self.index.search("report", self.no_filter, limit=50)
+        names = {r["name"] for r in results}
+        assert {
+            "list_report_runs",
+            "get_report_run",
+            "download_report_run",
+            "create_report_run",
+        } <= names
+
+    def test_search_payroll_journal_finds_report_run_tools(self):
+        """A report name reaches the index only from the first docstring line.
+
+        That is the only line ToolIndex tokenizes, so "payroll_journal" has to
+        stay on it rather than moving into the Args: block.
+        """
+        names = {
+            r["name"] for r in self.index.search("payroll journal", self.no_filter)
+        }
+        assert "create_report_run" in names
+        assert "list_report_runs" in names
+
+    def test_report_search_excludes_document_downloads(self):
+        """A report query returns report tools, not document downloads.
+
+        Synonym expansion is symmetric, so putting "run" or "download" in the
+        {report, summary, journal, export} group would make every
+        download_*_document tool a match for "journal".
+        """
+        names = [r["name"] for r in self.index.search("journal", self.no_filter)]
+        assert "create_report_run" in names
+        assert not [n for n in names if n.startswith("download_") and "document" in n]
+
 
 # --- ToolIndex.search with ToolFilter ---
 

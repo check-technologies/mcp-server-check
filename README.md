@@ -4,7 +4,7 @@
 
 > **Terms of Service** — By using this MCP server to access the Check API, you agree to the [MCP Usage Terms](TERMS_OF_SERVICE.md), which are in addition to your existing agreement with Check.
 
-An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 261 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
+An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 265 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
 
@@ -53,7 +53,7 @@ The server supports fine-grained tool filtering, configurable via environment va
 
 #### Toolsets
 
-There are 20 toolsets, one per API module: `agencies`, `bank_accounts`, `companies`, `compensation`, `components`, `contractor_payments`, `contractors`, `documents`, `employees`, `external_payrolls`, `forms`, `logs`, `payments`, `payroll_items`, `payrolls`, `platform`, `tax`, `webhooks`, `workflows`, `workplaces`.
+There are 21 toolsets, one per API module: `agencies`, `bank_accounts`, `companies`, `compensation`, `components`, `contractor_payments`, `contractors`, `documents`, `employees`, `external_payrolls`, `forms`, `logs`, `payments`, `payroll_items`, `payrolls`, `platform`, `report_runs`, `tax`, `webhooks`, `workflows`, `workplaces`.
 
 Enable only specific toolsets:
 
@@ -141,7 +141,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 ## Available Tools
 
-261 tools organized across 17 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
+265 tools organized across 17 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
 
 ### Companies (26 tools)
 
@@ -363,6 +363,17 @@ Pay schedules, benefits, post-tax deductions, company benefits, earning rates, e
 | `get_company_provided_document` | GET | Get a company-provided document |
 | `create_company_provided_document` | POST | Create a company-provided document |
 | `upload_company_provided_document_file` | POST | Upload a file for a document |
+
+### Report Runs (4 tools)
+
+Asynchronous reporting. `create_report_run` returns a `run_` ID, `get_report_run` polls it until the status is `completed` or `failed`, and `download_report_run` returns a link to a ZIP of CSVs. Unlike `get_company_report`, a run is not scoped to one company unless you pass `company`.
+
+| Tool | Method | Description |
+|---|---|---|
+| `list_report_runs` | GET | List report runs; filter by company, `report_type`, and status |
+| `get_report_run` | GET | Get a report run and its current status |
+| `download_report_run` | GET | Get a presigned download link, valid for about 60 seconds |
+| `create_report_run` | POST | Start a `payroll_journal` or `payroll_summary` run over a payday range |
 
 ### Forms (4 tools)
 

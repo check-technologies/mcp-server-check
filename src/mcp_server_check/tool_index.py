@@ -100,6 +100,7 @@ _TOOLSET_DESCRIPTIONS: dict[str, str] = {
     "payroll_items": "Create, update, and delete individual payroll line items within a payroll.",
     "payrolls": "Create, preview, approve, and manage payroll runs. Includes sandbox simulation tools.",
     "platform": "Platform-level tools: notifications, communications, usage, integrations, accounting, setups, and requirements.",
+    "report_runs": "Asynchronous report generation — start a payroll journal or payroll summary run, poll its status, and download the result.",
     "tax": "Manage company and employee tax parameters, elections, filings, exemptions, and tax statements. Includes tax reference data (list_taxes/get_tax).",
     "webhooks": "Create, update, delete, and test webhook configurations; inspect and retry webhook deliveries.",
     "workflows": "Composite tools that combine multiple API calls: company overview, employee snapshot, contractor snapshot, payroll details, payment diagnostics, tax overview, onboarding status.",
