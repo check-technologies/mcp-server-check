@@ -86,7 +86,7 @@ There are 20 resource groups, each with multiple commands:
 | `components` | `create-company-run-payroll-component`, `create-employee-profile-component` |
 | `forms` | `list`, `get`, `render`, `validate` |
 | `logs` | `list`, `get` |
-| `platform` | `list-notifications`, `validate-address`, `sync-accounting` |
+| `platform` | `list-notifications`, `validate-address`, `list-accounting-integrations`, `sync-accounting` |
 | `workflows` | `get-company-overview`, `get-employee-snapshot`, `diagnose-payment` |
 | `workplaces` | `list`, `get`, `create`, `update` |
 

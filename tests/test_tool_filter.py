@@ -297,6 +297,7 @@ class TestIsDestructiveTool:
             "cancel_payment",
             "start_implementation",
             "cancel_implementation",
+            "sync_accounting",
         ],
     )
     def test_destructive_detected(self, name):

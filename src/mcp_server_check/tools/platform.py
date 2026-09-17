@@ -307,41 +307,76 @@ async def list_integration_accesses(
 # --- Accounting Integrations ---
 
 
-async def list_accounting_accounts(
-    ctx: Ctx, company_id: str, limit: int | None = None, cursor: str | None = None
+async def list_accounting_integrations(
+    ctx: Ctx,
+    company: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> dict:
-    """List accounting accounts for a company.
+    """List accounting integrations (QuickBooks Online connections).
+
+    Start here: every other accounting tool takes the integration ID
+    ("ai_xxxxx") this returns, so look it up from the company ID
+    ("com_xxxxx") first. Each result reports whether the connection still
+    works: "valid_token" is false once QuickBooks expires or revokes the
+    refresh token, and every sync fails until someone reconnects QuickBooks.
 
     Args:
-        company_id: The Check company ID.
+        company: Filter to the integration belonging to this Check company ID
+            (e.g. "com_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     return await check_api_list(
         ctx,
-        f"/companies/{company_id}/accounting_accounts",
+        "/integrations/accounting",
+        params=build_params(company=company, limit=limit, cursor=cursor),
+    )
+
+
+async def list_accounting_accounts(
+    ctx: Ctx,
+    accounting_integration_id: str,
+    limit: int | None = None,
+    cursor: str | None = None,
+) -> dict:
+    """List the QuickBooks chart of accounts for an accounting integration.
+
+    Args:
+        accounting_integration_id: The accounting integration ID
+            (e.g. "ai_xxxxx"), from list_accounting_integrations.
+        limit: Maximum number of results to return.
+        cursor: Pagination cursor.
+    """
+    return await check_api_list(
+        ctx,
+        f"/integrations/accounting/{accounting_integration_id}/accounts",
         params=build_params(limit=limit, cursor=cursor),
     )
 
 
-async def refresh_accounting_accounts(ctx: Ctx, company_id: str) -> dict:
-    """Refresh accounting accounts for a company.
+async def refresh_accounting_accounts(ctx: Ctx, accounting_integration_id: str) -> dict:
+    """Re-pull the chart of accounts from QuickBooks.
 
     Args:
-        company_id: The Check company ID.
+        accounting_integration_id: The accounting integration ID
+            (e.g. "ai_xxxxx"), from list_accounting_integrations.
     """
     return await check_api_post(
-        ctx, f"/companies/{company_id}/accounting_accounts/refresh"
+        ctx, f"/integrations/accounting/{accounting_integration_id}/accounts/refresh"
     )
 
 
-async def get_accounting_mappings(ctx: Ctx, company_id: str) -> dict:
-    """Get accounting mappings for a company.
+async def get_accounting_mappings(ctx: Ctx, accounting_integration_id: str) -> dict:
+    """Get the category mappings for an accounting integration.
 
     Args:
-        company_id: The Check company ID.
+        accounting_integration_id: The accounting integration ID
+            (e.g. "ai_xxxxx"), from list_accounting_integrations.
     """
-    return await check_api_get(ctx, f"/companies/{company_id}/accounting_mappings")
+    return await check_api_get(
+        ctx, f"/integrations/accounting/{accounting_integration_id}/mappings"
+    )
 
 
 async def update_accounting_mappings(ctx: Ctx, company_id: str, data: dict) -> dict:
@@ -372,32 +407,51 @@ async def toggle_accounting_mappings(ctx: Ctx, company_id: str, data: dict) -> d
     )
 
 
-async def sync_accounting(ctx: Ctx, company_id: str, data: dict | None = None) -> dict:
-    """Trigger an accounting sync for a company.
+async def sync_accounting(
+    ctx: Ctx,
+    accounting_integration_id: str,
+    payrolls: list[str],
+    resync: bool | None = None,
+) -> dict:
+    """Queue payrolls to sync to QuickBooks.
+
+    Returns one sync attempt per payroll, each "pending" because the sync runs
+    on a queue. Call list_accounting_sync_attempts afterwards for the outcome.
 
     Args:
-        company_id: The Check company ID.
-        data: Sync configuration.
+        accounting_integration_id: The accounting integration ID
+            (e.g. "ai_xxxxx"), from list_accounting_integrations.
+        payrolls: Check payroll IDs to sync (e.g. ["pay_xxxxx"]).
+        resync: Sync payrolls that already reached QuickBooks. Default: false.
     """
     return await check_api_post(
-        ctx, f"/companies/{company_id}/accounting_sync", data=data
+        ctx,
+        f"/integrations/accounting/{accounting_integration_id}/sync",
+        data=build_body({"payrolls": payrolls}, resync=resync),
     )
 
 
 async def list_accounting_sync_attempts(
-    ctx: Ctx, company_id: str, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx,
+    accounting_integration_id: str,
+    payroll: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> dict:
-    """List accounting sync attempts for a company.
+    """List sync attempts, with the status and failure reason of each.
 
     Args:
-        company_id: The Check company ID.
+        accounting_integration_id: The accounting integration ID
+            (e.g. "ai_xxxxx"), from list_accounting_integrations.
+        payroll: Filter to attempts for this Check payroll ID
+            (e.g. "pay_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     return await check_api_list(
         ctx,
-        f"/companies/{company_id}/accounting_sync_attempts",
-        params=build_params(limit=limit, cursor=cursor),
+        f"/integrations/accounting/{accounting_integration_id}/sync/attempts",
+        params=build_params(payroll=payroll, limit=limit, cursor=cursor),
     )
 
 
@@ -551,6 +605,7 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, get_integration_permission)
     add_annotated_tool(mcp, list_integration_accesses)
     # Accounting Integrations
+    add_annotated_tool(mcp, list_accounting_integrations)
     add_annotated_tool(mcp, list_accounting_accounts)
     add_annotated_tool(mcp, get_accounting_mappings)
     add_annotated_tool(mcp, list_accounting_sync_attempts)
