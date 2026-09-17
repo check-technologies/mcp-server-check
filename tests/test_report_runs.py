@@ -25,7 +25,7 @@ async def test_create_report_run(mock_api, ctx):
     route = mock_api.post("/report_runs").mock(
         return_value=httpx.Response(
             201,
-            json={"id": "run_001", "report": "payroll_journal", "status": "pending"},
+            json={"id": "run_001", "report": "payroll_journal", "status": "generating"},
         )
     )
     result = await create_report_run(
@@ -183,9 +183,11 @@ async def test_download_report_run(mock_api, ctx):
             200,
             json={
                 "download_url": "https://files.example.com/run_001.zip?sig=abc",
-                "expires_at": "2026-04-01T00:02:00Z",
+                "extension": "zip",
+                "content_type": "application/zip",
             },
         )
     )
     result = await download_report_run(ctx, report_run_id="run_001")
     assert result["download_url"].startswith("https://files.example.com/")
+    assert result["extension"] == "zip"
