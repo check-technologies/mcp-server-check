@@ -66,7 +66,7 @@ async def test_get_payment(mock_api, ctx):
 
 @pytest.mark.anyio
 async def test_list_payment_attempts(mock_api, ctx):
-    mock_api.get("/payments/pmt_001/payment_attempts").mock(
+    mock_api.get("/payment_attempts").mock(
         return_value=httpx.Response(
             200,
             json={"next": None, "previous": None, "results": [{"id": "pa_001"}]},
@@ -74,6 +74,8 @@ async def test_list_payment_attempts(mock_api, ctx):
     )
     result = await list_payment_attempts(ctx, payment_id="pmt_001")
     assert result["results"] == [{"id": "pa_001"}]
+    req = mock_api.get("/payment_attempts").calls.last.request
+    assert req.url.params["payment"] == "pmt_001"
 
 
 @pytest.mark.anyio

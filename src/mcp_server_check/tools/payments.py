@@ -89,8 +89,8 @@ async def list_payment_attempts(
     """
     return await check_api_list(
         ctx,
-        f"/payments/{payment_id}/payment_attempts",
-        params=build_params(limit=limit, cursor=cursor),
+        "/payment_attempts",
+        params=build_params(payment=payment_id, limit=limit, cursor=cursor),
     )
 
 
