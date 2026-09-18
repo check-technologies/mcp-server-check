@@ -91,6 +91,14 @@ _SUMMARY_FIELDS: dict[str, Sequence[str]] = {
         "name",
         "blocked_reasons",
     ),
+    "flc_": (
+        "id",
+        "name",
+        "form_type",
+        "jurisdiction",
+        "status",
+        "applicability_rules",
+    ),
 }
 
 
