@@ -155,14 +155,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 | `get_company_paydays` | GET | Get upcoming paydays for a company |
 | `list_company_tax_deposits` | GET | List tax deposits for a company |
 | `get_company_benefit_aggregations` | GET | Get benefit aggregations for a company |
-| `get_payroll_journal_report` | GET | Get payroll journal report; optional `include_contractor_id` for CSV |
-| `get_payroll_summary_report` | GET | Get payroll summary report; optional `include_contractor_id` for CSV |
-| `get_tax_liabilities_report` | GET | Get tax liabilities report |
-| `get_contractor_payments_report` | GET | Get contractor payments report |
-| `get_child_support_payments_report` | GET | Get child support payments report |
-| `get_w4_exemption_status_report` | GET | Get W-4 exemption status report |
-| `get_applied_for_ids_detailed_report` | GET | Get applied-for IDs detailed report |
-| `get_w2_preview_report` | GET | Get W-2 preview report |
+| `get_company_report` | GET | Get a company report by `report_type`. For `payroll_journal` and `payroll_summary` use `create_report_run` instead — see [Report Runs](#report-runs-4-tools) |
 | `list_federal_ein_verifications` | GET | List federal EIN verifications |
 | `get_federal_ein_verification` | GET | Get a specific EIN verification |
 | `list_signatories` | GET | List signatories for a company |

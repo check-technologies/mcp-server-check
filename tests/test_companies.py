@@ -7,6 +7,7 @@ import pytest
 from mcp_server_check.tools.companies import (
     COMPANY_REPORT_TYPES,
     create_company,
+    get_company_benefit_aggregations,
     get_company_paydays,
     get_company_report,
     list_companies,
@@ -82,28 +83,72 @@ async def test_get_company_paydays(mock_api, ctx):
         return_value=httpx.Response(200, json={"paydays": ["2026-01-15"]})
     )
     result = await get_company_paydays(
-        ctx, company_id="com_001", start_date="2026-01-01", end_date="2026-01-31"
+        ctx, company_id="com_001", start_date="2026-01-01"
     )
     assert result["paydays"] == ["2026-01-15"]
-    assert "start_date=2026-01-01" in str(route.calls[0].request.url)
+    params = route.calls[0].request.url.params
+    # The paydays endpoint reads `start` and has no end-date parameter.
+    assert params["start"] == "2026-01-01"
+    assert "start_date" not in params
+    assert "end_date" not in params
 
 
 @pytest.mark.anyio
-async def test_get_company_report_with_dates(mock_api, ctx):
-    route = mock_api.get("/companies/com_001/reports/payroll_journal").mock(
+async def test_get_company_benefit_aggregations_sends_start_end(mock_api, ctx):
+    """benefit_aggregations reads `start`/`end`; `start_date` silently defaults to YTD."""
+    route = mock_api.get("/companies/com_001/benefit_aggregations").mock(
+        return_value=httpx.Response(200, json={"aggregations": []})
+    )
+    await get_company_benefit_aggregations(
+        ctx, company_id="com_001", start_date="2026-01-01", end_date="2026-03-31"
+    )
+    params = route.calls[0].request.url.params
+    assert params["start"] == "2026-01-01"
+    assert params["end"] == "2026-03-31"
+    assert "start_date" not in params
+
+
+@pytest.mark.anyio
+async def test_get_company_report_sends_start_end_not_start_date(mock_api, ctx):
+    """The reports endpoints read `start`/`end`; `start_date` is silently ignored."""
+    route = mock_api.get("/companies/com_001/reports/tax_liabilities").mock(
         return_value=httpx.Response(200, json={"report": "data"})
     )
     result = await get_company_report(
         ctx,
         company_id="com_001",
-        report_type="payroll_journal",
+        report_type="tax_liabilities",
         start_date="2026-01-01",
         end_date="2026-01-31",
-        include_contractor_id=True,
     )
     assert result["report"] == "data"
-    assert "start_date=2026-01-01" in str(route.calls[0].request.url)
-    assert route.calls[0].request.url.params["include_contractor_id"] == "true"
+    params = route.calls[0].request.url.params
+    assert params["start"] == "2026-01-01"
+    assert params["end"] == "2026-01-31"
+    assert "start_date" not in params
+    assert "end_date" not in params
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("report_type", ["payroll_journal", "payroll_summary"])
+async def test_get_company_report_routes_async_reports_to_report_runs(
+    mock_api, ctx, report_type
+):
+    route = mock_api.get(f"/companies/com_001/reports/{report_type}").mock(
+        return_value=httpx.Response(200, json={"report": "data"})
+    )
+    result = await get_company_report(
+        ctx,
+        company_id="com_001",
+        report_type=report_type,
+        start_date="2026-01-01",
+        end_date="2026-01-31",
+    )
+    assert result["error"] is True
+    assert "create_report_run" in result["detail"]
+    assert "payday_from" in result["detail"]
+    # The synchronous endpoint must not be called at all.
+    assert not route.called
 
 
 @pytest.mark.anyio
@@ -126,6 +171,25 @@ async def test_get_company_report_no_params(mock_api, ctx):
         ctx, company_id="com_001", report_type="w4_exemption_status"
     )
     assert result["report"] == "w4"
+
+
+@pytest.mark.anyio
+async def test_get_company_report_omits_dates_for_non_range_reports(mock_api, ctx):
+    """w2_preview takes `year`; a stray start_date must not reach the wire."""
+    route = mock_api.get("/companies/com_001/reports/w2_preview").mock(
+        return_value=httpx.Response(200, json={"report": "w2"})
+    )
+    await get_company_report(
+        ctx,
+        company_id="com_001",
+        report_type="w2_preview",
+        year="2025",
+        start_date="2026-01-01",
+    )
+    params = route.calls[0].request.url.params
+    assert params["year"] == "2025"
+    assert "start" not in params
+    assert "start_date" not in params
 
 
 @pytest.mark.anyio
