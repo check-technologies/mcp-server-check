@@ -327,9 +327,10 @@ async def get_company_report(
             child_support_payments.
         end_date: Report end date (YYYY-MM-DD). Required for the same reports as start_date.
         year: Tax year (e.g. "2025"). Used by w2_preview and w4_exemption_status.
-        payroll: Restrict payroll_journal, contractor_payments, or
-            child_support_payments to these payroll IDs. Much faster than a date
-            range when you already know which payrolls you want.
+        payroll: Restrict payroll_journal, tax_liabilities, or
+            contractor_payments to these payroll IDs. Much faster than a date
+            range when you already know which payrolls you want. The other
+            report types ignore it.
         include_contractor_id: For payroll_journal and payroll_summary reports,
             include the Contractor ID column in CSV output.
     """
