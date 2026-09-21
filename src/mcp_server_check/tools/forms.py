@@ -21,6 +21,7 @@ async def list_forms(
     limit: int | None = None,
     cursor: str | None = None,
     state: str | None = None,
+    city: str | None = None,
     lang: str | None = None,
     type: str | None = None,
 ) -> dict:
@@ -31,6 +32,7 @@ async def list_forms(
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
         state: Filter by two-letter state abbreviation.
+        city: Filter by city name (e.g. "Cincinnati").
         lang: Filter by ISO 639-1 language code.
         type: Filter by form type (e.g. "contractor_setup").
     """
@@ -42,6 +44,7 @@ async def list_forms(
             limit=limit,
             cursor=cursor,
             state=state,
+            city=city,
             lang=lang,
             type=type,
         ),
