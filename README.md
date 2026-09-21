@@ -372,7 +372,7 @@ Asynchronous reporting. `create_report_run` returns a `run_` ID, `get_report_run
 
 | Tool | Method | Description |
 |---|---|---|
-| `list_forms` | GET | List forms across all companies |
+| `list_forms` | GET | List forms across all companies; filter by company, state, city, language, and form type |
 | `get_form` | GET | Get a specific form |
 | `render_form` | GET | Render a form for display |
 | `validate_form` | POST | Validate form data before submission |
