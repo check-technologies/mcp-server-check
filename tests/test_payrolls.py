@@ -74,6 +74,29 @@ async def test_create_payroll(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_create_payroll_with_correction(mock_api, ctx):
+    route = mock_api.post("/payrolls").mock(
+        return_value=httpx.Response(201, json={"id": "prl_new"})
+    )
+    result = await create_payroll(
+        ctx,
+        company="com_001",
+        period_start="2026-01-01",
+        period_end="2026-01-15",
+        payday="2026-01-17",
+        correction="cor_abc123",
+    )
+    assert result["id"] == "prl_new"
+    assert json.loads(route.calls.last.request.content) == {
+        "company": "com_001",
+        "period_start": "2026-01-01",
+        "period_end": "2026-01-15",
+        "payday": "2026-01-17",
+        "correction": "cor_abc123",
+    }
+
+
+@pytest.mark.anyio
 async def test_update_payroll(mock_api, ctx):
     mock_api.patch("/payrolls/prl_001").mock(
         return_value=httpx.Response(200, json={"id": "prl_001", "type": "regular"})
