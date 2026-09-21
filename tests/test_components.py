@@ -111,7 +111,7 @@ async def test_create_component_with_subtype(mock_api, ctx):
 
 
 @pytest.mark.anyio
-async def test_create_team_setup_personal_details_with_contractor(mock_api, ctx):
+async def test_create_team_setup_personal_details_with_employee(mock_api, ctx):
     route = mock_api.post(
         "/companies/com_001/components/team_setup/personal_details"
     ).mock(
@@ -123,10 +123,10 @@ async def test_create_team_setup_personal_details_with_contractor(mock_api, ctx)
         entity_id="com_001",
         component_type="team_setup",
         subtype="personal_details",
-        data={"contractor": "ctr_001"},
+        data={"employee": "emp_001"},
     )
     assert "url" in result
-    assert route.calls.last.request.content == b'{"contractor":"ctr_001"}'
+    assert route.calls.last.request.content == b'{"employee":"emp_001"}'
 
 
 @pytest.mark.anyio
