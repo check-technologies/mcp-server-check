@@ -230,6 +230,10 @@ async def _check_api_request(
             "status_code": e.response.status_code,
             "detail": error_body,
         }
+    except httpx.TimeoutException as e:
+        # Surfaced separately so callers can offer an asynchronous alternative
+        # instead of reporting an opaque transport error.
+        return {"error": True, "timeout": True, "detail": str(e)}
     except httpx.RequestError as e:
         return {"error": True, "detail": str(e)}
 

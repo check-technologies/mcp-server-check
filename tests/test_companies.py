@@ -131,9 +131,10 @@ async def test_get_company_report_sends_start_end_not_start_date(mock_api, ctx):
 
 @pytest.mark.anyio
 @pytest.mark.parametrize("report_type", ["payroll_journal", "payroll_summary"])
-async def test_get_company_report_routes_async_reports_to_report_runs(
+async def test_get_company_report_returns_directly_when_fast_enough(
     mock_api, ctx, report_type
 ):
+    """Most journal/summary requests finish in seconds and must not be deferred."""
     route = mock_api.get(f"/companies/com_001/reports/{report_type}").mock(
         return_value=httpx.Response(200, json={"report": "data"})
     )
@@ -142,13 +143,72 @@ async def test_get_company_report_routes_async_reports_to_report_runs(
         company_id="com_001",
         report_type=report_type,
         start_date="2026-01-01",
-        end_date="2026-01-31",
+        end_date="2026-12-31",
+    )
+    assert result["report"] == "data"
+    params = route.calls[0].request.url.params
+    assert params["start"] == "2026-01-01"
+    assert params["end"] == "2026-12-31"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("report_type", ["payroll_journal", "payroll_summary"])
+async def test_get_company_report_points_at_report_runs_on_timeout(
+    mock_api, ctx, report_type
+):
+    """Only a request that actually proves too slow is sent to the async path."""
+    mock_api.get(f"/companies/com_001/reports/{report_type}").mock(
+        side_effect=httpx.ReadTimeout("timed out")
+    )
+    result = await get_company_report(
+        ctx,
+        company_id="com_001",
+        report_type=report_type,
+        start_date="2020-01-01",
+        end_date="2026-12-31",
     )
     assert result["error"] is True
     assert "create_report_run" in result["detail"]
     assert "payday_from" in result["detail"]
-    # The synchronous endpoint must not be called at all.
-    assert not route.called
+
+
+@pytest.mark.anyio
+async def test_get_company_report_timeout_not_rewritten_for_other_reports(
+    mock_api, ctx
+):
+    """tax_liabilities has no report-run equivalent; leave its error alone."""
+    mock_api.get("/companies/com_001/reports/tax_liabilities").mock(
+        side_effect=httpx.ReadTimeout("timed out")
+    )
+    result = await get_company_report(
+        ctx,
+        company_id="com_001",
+        report_type="tax_liabilities",
+        start_date="2026-01-01",
+        end_date="2026-01-31",
+    )
+    assert result["error"] is True
+    assert result.get("timeout") is True
+    assert "create_report_run" not in result.get("detail", "")
+
+
+@pytest.mark.anyio
+async def test_get_company_report_passes_payroll_ids(mock_api, ctx):
+    """Explicit payroll IDs are the fast path and must reach the wire."""
+    route = mock_api.get("/companies/com_001/reports/payroll_journal").mock(
+        return_value=httpx.Response(200, json={"report": "data"})
+    )
+    await get_company_report(
+        ctx,
+        company_id="com_001",
+        report_type="payroll_journal",
+        payroll=["pay_001", "pay_002"],
+        include_contractor_id=True,
+    )
+    url = str(route.calls[0].request.url)
+    assert "payroll=pay_001" in url
+    assert "payroll=pay_002" in url
+    assert route.calls[0].request.url.params["include_contractor_id"] == "true"
 
 
 @pytest.mark.anyio

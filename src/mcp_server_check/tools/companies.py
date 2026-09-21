@@ -285,15 +285,20 @@ COMPANY_REPORT_TYPES = [
     "w2_preview",
 ]
 
-# These synchronous endpoints stream the whole report in the request/response
-# cycle and cannot finish inside the 60s gateway timeout for any realistic
-# payday range. The Report Run API generates them asynchronously instead.
-REPORT_TYPES_REQUIRING_REPORT_RUNS = ["payroll_journal", "payroll_summary"]
+# These reports can also be generated asynchronously by the Report Run API. Cost
+# is driven by how much payroll data falls in the range — company size far more
+# than range width — so we cannot tell up front which requests are too big: a
+# full-year journal returns in a few seconds for most companies and times out
+# for the largest. We therefore try synchronously and only point at report runs
+# when the request actually proves too slow.
+REPORT_TYPES_WITH_ASYNC_FALLBACK = ["payroll_journal", "payroll_summary"]
 
 # Report types whose date range is sent as `start`/`end` query params. The
 # remaining types take `year` (w2_preview, w4_exemption_status) or no dates at
 # all (applied_for_ids_detailed).
 REPORT_TYPES_WITH_DATE_RANGE = [
+    "payroll_journal",
+    "payroll_summary",
     "tax_liabilities",
     "contractor_payments",
     "child_support_payments",
@@ -307,21 +312,26 @@ async def get_company_report(
     start_date: str | None = None,
     end_date: str | None = None,
     year: str | None = None,
+    payroll: list[str] | None = None,
+    include_contractor_id: bool | None = None,
 ) -> dict:
     """Get a report for a company.
 
-    For "payroll_journal" and "payroll_summary", use create_report_run instead —
-    those reports are generated asynchronously and this endpoint times out.
-
     Args:
         company_id: The Check company ID.
-        report_type: One of: "tax_liabilities", "contractor_payments",
-            "child_support_payments", "w4_exemption_status",
-            "applied_for_ids_detailed", "w2_preview".
-        start_date: Report start date (YYYY-MM-DD). Required for tax_liabilities,
-            contractor_payments, and child_support_payments.
+        report_type: One of: "payroll_journal", "payroll_summary",
+            "tax_liabilities", "contractor_payments", "child_support_payments",
+            "w4_exemption_status", "applied_for_ids_detailed", "w2_preview".
+        start_date: Report start date (YYYY-MM-DD). Required for payroll_journal,
+            payroll_summary, tax_liabilities, contractor_payments, and
+            child_support_payments.
         end_date: Report end date (YYYY-MM-DD). Required for the same reports as start_date.
         year: Tax year (e.g. "2025"). Used by w2_preview and w4_exemption_status.
+        payroll: Restrict payroll_journal, contractor_payments, or
+            child_support_payments to these payroll IDs. Much faster than a date
+            range when you already know which payrolls you want.
+        include_contractor_id: For payroll_journal and payroll_summary reports,
+            include the Contractor ID column in CSV output.
     """
     if report_type not in COMPANY_REPORT_TYPES:
         return {
@@ -331,31 +341,36 @@ async def get_company_report(
                 f"Valid types: {', '.join(COMPANY_REPORT_TYPES)}."
             ),
         }
-    if report_type in REPORT_TYPES_REQUIRING_REPORT_RUNS:
-        return {
-            "error": True,
-            "detail": (
-                f"'{report_type}' is not available from this tool. It is generated "
-                "asynchronously via the Report Run API: call create_report_run with "
-                f"report='{report_type}' and parameters "
-                "{'payday_from': 'YYYY-MM-DD', 'payday_to': 'YYYY-MM-DD'}, then poll "
-                "get_report_run until status is 'completed' and fetch the file with "
-                "download_report_run. To include contractor or employee IDs, pass "
-                "additional_columns."
-            ),
-        }
     # The date range is `start`/`end` on these endpoints, not `start_date`/`end_date`.
     date_params: dict[str, str | None] = {}
     if report_type in REPORT_TYPES_WITH_DATE_RANGE:
         date_params = {"start": start_date, "end": end_date}
-    return await check_api_get(
+    result = await check_api_get(
         ctx,
         f"/companies/{company_id}/reports/{report_type}",
         params=build_params(
             **date_params,
             year=year,
+            payroll=payroll,
+            include_contractor_id=include_contractor_id,
         ),
     )
+    if result.get("timeout") and report_type in REPORT_TYPES_WITH_ASYNC_FALLBACK:
+        return {
+            "error": True,
+            "detail": (
+                f"This {report_type} request holds too much payroll data to return "
+                "synchronously and timed out. Generate it asynchronously instead: "
+                f"call create_report_run with report='{report_type}' and parameters "
+                "{'payday_from': 'YYYY-MM-DD', 'payday_to': 'YYYY-MM-DD'}, poll "
+                "get_report_run until status is 'completed', then fetch the file "
+                "with download_report_run. Passing additional_columns covers the "
+                "employee, contractor, and payroll ID columns. Narrowing the date "
+                "range, or passing specific payroll IDs via `payroll`, will also "
+                "let this tool return directly."
+            ),
+        }
+    return result
 
 
 # --- Federal EIN Verifications ---
