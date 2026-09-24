@@ -89,6 +89,31 @@ async def get_pay_schedule_paydays(
 # Benefits (employee-level)
 # ---------------------------------------------------------------------------
 
+BENEFIT_TYPES = [
+    "125_accident",
+    "125_cancer",
+    "125_critical_illness",
+    "125_dental",
+    "125_disability",
+    "125_hospital",
+    "125_life",
+    "125_medical",
+    "125_medical_other",
+    "125_vision",
+    "401k",
+    "403b",
+    "457",
+    "custom",
+    "fsa_dependent_care",
+    "fsa_medical",
+    "hsa",
+    "roth_401k",
+    "roth_403b",
+    "roth_457",
+    "roth_simple_ira",
+    "simple_ira",
+]
+
 _benefits = Resource(
     name="benefits",
     path="/benefits",
@@ -110,7 +135,11 @@ _benefits = Resource(
             bool,
             doc="Include external benefits. Defaults to false.",
         ),
-        Field("benefit", str, doc="Type of supported benefit."),
+        Field(
+            "benefit",
+            str,
+            doc="Type of supported benefit. Valid values: check://enums/benefit_type.",
+        ),
         Field(
             "period",
             str,
@@ -251,7 +280,12 @@ _company_benefits = Resource(
             doc="The Check company ID.",
             create_only=True,
         ),
-        Field("benefit", str, required_for="create", doc="Type of supported benefit."),
+        Field(
+            "benefit",
+            str,
+            required_for="create",
+            doc="Type of supported benefit. Valid values: check://enums/benefit_type.",
+        ),
         Field(
             "description",
             str,

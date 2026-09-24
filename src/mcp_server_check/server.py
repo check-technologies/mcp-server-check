@@ -287,6 +287,7 @@ def _register_resources(server: CheckMCP) -> None:
     """Register MCP resources for enum values and reference data."""
     from mcp_server_check.tool_index import _TOOLSET_DESCRIPTIONS
     from mcp_server_check.tools.companies import COMPANY_REPORT_TYPES
+    from mcp_server_check.tools.compensation import BENEFIT_TYPES
     from mcp_server_check.tools.components import (
         COMPANY_COMPONENTS,
         CONTRACTOR_COMPONENTS,
@@ -337,6 +338,10 @@ def _register_resources(server: CheckMCP) -> None:
         "bank_account_subtype": {
             "description": "Valid values for bank account subtype.",
             "values": ["checking", "savings"],
+        },
+        "benefit_type": {
+            "description": "Valid values for the benefit field on benefits and company benefits.",
+            "values": BENEFIT_TYPES,
         },
         "report_type": {
             "description": "Valid report_type values for get_company_report.",
