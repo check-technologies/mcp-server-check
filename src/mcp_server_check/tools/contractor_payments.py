@@ -65,6 +65,7 @@ async def create_contractor_payment(
     workplace: str | None = None,
     metadata: str | None = None,
     paper_check_number: str | None = None,
+    idempotency_key: str | None = None,
 ) -> dict:
     """Create a new contractor payment.
 
@@ -78,6 +79,7 @@ async def create_contractor_payment(
         workplace: Workplace ID associated with this payment.
         metadata: Additional JSON metadata string.
         paper_check_number: Check number for accounting on printed checks.
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     body: dict = {"contractor": contractor, "payroll": payroll}
     if payment_method is not None:
@@ -92,7 +94,12 @@ async def create_contractor_payment(
         body["metadata"] = metadata
     if paper_check_number is not None:
         body["paper_check_number"] = paper_check_number
-    return await check_api_post(ctx, "/contractor_payments", data=body)
+    return await check_api_post(
+        ctx,
+        "/contractor_payments",
+        data=body,
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
+    )
 
 
 async def update_contractor_payment(

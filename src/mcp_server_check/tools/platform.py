@@ -124,6 +124,7 @@ async def create_communication(
     company: str,
     type: str | None = None,
     email: EmailDetails | None = None,
+    idempotency_key: str | None = None,
 ) -> dict:
     """Create a new communication.
 
@@ -133,11 +134,13 @@ async def create_communication(
         email: Email details dict with keys: to (list of emails, required),
             from (sender email, required), cc (list of emails), subject (required),
             message (required).
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     return await check_api_post(
         ctx,
         "/communications",
         data=build_body({"company": company}, type=type, email=email),
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
 
 

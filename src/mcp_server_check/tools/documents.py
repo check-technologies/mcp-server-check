@@ -294,6 +294,7 @@ async def create_company_provided_document(
     ctx: Ctx,
     company: str,
     document_type: str | None = None,
+    idempotency_key: str | None = None,
 ) -> dict:
     """Create a company-provided document.
 
@@ -304,11 +305,13 @@ async def create_company_provided_document(
             "ss4", "bank_account_owner_id", "bank_letter", "profit_and_loss",
             "cash_flow_statement", "balance_sheet", "articles_of_incorporation",
             "articles_of_incorporation_signatory_amendment", "state_registration".
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     return await check_api_post(
         ctx,
         "/company_provided_documents",
         data=build_body({"company": company}, document_type=document_type),
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
 
 

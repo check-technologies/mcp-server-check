@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -33,7 +35,7 @@ async def test_list_pay_schedules(mock_api, ctx):
 
 @pytest.mark.anyio
 async def test_create_pay_schedule(mock_api, ctx):
-    mock_api.post("/pay_schedules").mock(
+    route = mock_api.post("/pay_schedules").mock(
         return_value=httpx.Response(201, json={"id": "psc_new"})
     )
     result = await create_pay_schedule(
@@ -44,6 +46,25 @@ async def test_create_pay_schedule(mock_api, ctx):
         first_period_end="2026-01-14",
     )
     assert result["id"] == "psc_new"
+    assert "X-Idempotency-Key" not in route.calls.last.request.headers
+
+
+@pytest.mark.anyio
+async def test_create_pay_schedule_sends_idempotency_key(mock_api, ctx):
+    route = mock_api.post("/pay_schedules").mock(
+        return_value=httpx.Response(201, json={"id": "psc_new"})
+    )
+    await create_pay_schedule(
+        ctx,
+        company="com_001",
+        pay_frequency="biweekly",
+        first_payday="2026-01-15",
+        first_period_end="2026-01-14",
+        idempotency_key="idem-1",
+    )
+    assert route.calls.last.request.headers["X-Idempotency-Key"] == "idem-1"
+    # The key rides in the header; the factory must not also send it as a field.
+    assert "idempotency_key" not in json.loads(route.calls.last.request.content)
 
 
 @pytest.mark.anyio
