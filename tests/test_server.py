@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
+from fastmcp import Client
 from mcp_server_check.helpers import (
     _extract_cursor,
     _format_list_response,
 )
-from mcp_server_check.server import CheckMCP, _setup_dynamic_mode, lifespan
+from mcp_server_check.server import (
+    CheckMCP,
+    _setup_dynamic_mode,
+    lifespan,
+    setup_tools,
+)
 from mcp_server_check.tool_filter import ToolFilter, is_write_tool
 from mcp_server_check.tools import register_all
 from mcp_server_check.tools.companies import get_company, list_companies
@@ -300,6 +308,41 @@ async def test_api_error_returns_error_dict(mock_api, ctx):
     result = await get_company(ctx, company_id="com_nonexistent")
     assert result["error"] is True
     assert result["status_code"] == 404
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("tool_mode", "tool_name", "arguments"),
+    [
+        ("all", "get_company", {"company_id": "com_bad"}),
+        (
+            "dynamic",
+            "run_tool",
+            {"tool_name": "get_company", "arguments": {"company_id": "com_bad"}},
+        ),
+    ],
+)
+async def test_api_error_is_mcp_tool_error(
+    mock_api, monkeypatch, tool_mode, tool_name, arguments
+):
+    """A failed Check API call reaches MCP clients with isError set."""
+    monkeypatch.setenv("CHECK_API_KEY", "test-key")
+    monkeypatch.delenv("CHECK_API_BASE_URL", raising=False)
+    mock_api.get("/companies/com_bad").mock(
+        return_value=httpx.Response(400, json={"error": {"message": "Bad company"}})
+    )
+    server = CheckMCP("Test", lifespan=lifespan)
+    setup_tools(server, tool_mode=tool_mode)
+
+    async with Client(server) as client:
+        result = await client.call_tool(tool_name, arguments, raise_on_error=False)
+
+    assert result.is_error is True
+    assert json.loads(result.content[0].text) == {
+        "error": True,
+        "status_code": 400,
+        "detail": {"error": {"message": "Bad company"}},
+    }
 
 
 # --- Tool registration and filtering tests (all-tools mode) ---
