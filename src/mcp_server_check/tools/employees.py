@@ -99,7 +99,7 @@ async def create_employee(
     ssn: str | None = None,
     payment_method_preference: str | None = None,
     default_net_pay_split: str | None = None,
-    metadata: str | None = None,
+    metadata: dict | None = None,
 ) -> dict:
     """Create a new employee.
 
@@ -119,7 +119,7 @@ async def create_employee(
         ssn: Employee's Social Security Number. Only last four digits available after set.
         payment_method_preference: "direct_deposit" or "manual".
         default_net_pay_split: ID of employee's default net pay split.
-        metadata: Additional JSON metadata string.
+        metadata: Arbitrary key-value object stored on the employee.
     """
     return await check_api_post(
         ctx,
@@ -158,7 +158,7 @@ async def update_employee(
     ssn: str | None = None,
     payment_method_preference: str | None = None,
     default_net_pay_split: str | None = None,
-    metadata: str | None = None,
+    metadata: dict | None = None,
 ) -> dict:
     """Update an existing employee.
 
@@ -178,7 +178,7 @@ async def update_employee(
         ssn: Employee's Social Security Number.
         payment_method_preference: "direct_deposit" or "manual".
         default_net_pay_split: ID of employee's default net pay split.
-        metadata: Additional JSON metadata string.
+        metadata: Arbitrary key-value object stored on the employee.
     """
     return await check_api_patch(
         ctx,

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -58,8 +60,15 @@ async def test_create_benefit(mock_api, ctx):
     mock_api.post("/benefits").mock(
         return_value=httpx.Response(201, json={"id": "ben_new"})
     )
-    result = await create_benefit(ctx, employee="emp_001", company_benefit="cb_001")
+    result = await create_benefit(
+        ctx,
+        employee="emp_001",
+        company_benefit="cb_001",
+        metadata={"plan_year": 2026},
+    )
     assert result["id"] == "ben_new"
+    body = json.loads(mock_api.post("/benefits").calls.last.request.content)
+    assert body["metadata"] == {"plan_year": 2026}
 
 
 @pytest.mark.anyio

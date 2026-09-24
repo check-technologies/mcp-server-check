@@ -63,7 +63,7 @@ async def create_contractor_payment(
     amount: str | None = None,
     reimbursement_amount: str | None = None,
     workplace: str | None = None,
-    metadata: str | None = None,
+    metadata: dict | None = None,
     paper_check_number: str | None = None,
 ) -> dict:
     """Create a new contractor payment.
@@ -76,7 +76,7 @@ async def create_contractor_payment(
         amount: The amount to pay the contractor (e.g. "1500.00"). Default: "0.00".
         reimbursement_amount: Reimbursement amount (e.g. "50.00"). Default: "0.00".
         workplace: Workplace ID associated with this payment.
-        metadata: Additional JSON metadata string.
+        metadata: Arbitrary key-value object stored on the contractor payment.
         paper_check_number: Check number for accounting on printed checks.
     """
     body: dict = {"contractor": contractor, "payroll": payroll}
@@ -103,7 +103,7 @@ async def update_contractor_payment(
     amount: str | None = None,
     reimbursement_amount: str | None = None,
     workplace: str | None = None,
-    metadata: str | None = None,
+    metadata: dict | None = None,
     paper_check_number: str | None = None,
 ) -> dict:
     """Update an existing contractor payment.
@@ -115,7 +115,7 @@ async def update_contractor_payment(
         amount: The amount to pay the contractor (e.g. "1500.00").
         reimbursement_amount: Reimbursement amount (e.g. "50.00").
         workplace: Workplace ID associated with this payment.
-        metadata: Additional JSON metadata string.
+        metadata: Arbitrary key-value object stored on the contractor payment.
         paper_check_number: Check number for accounting on printed checks.
     """
     body: dict = {}

@@ -52,7 +52,7 @@ async def create_workplace(
     address: Address,
     name: str | None = None,
     active: bool | None = None,
-    metadata: str | None = None,
+    metadata: dict | None = None,
 ) -> dict:
     """Create a new workplace.
 
@@ -62,7 +62,7 @@ async def create_workplace(
             (required), state (required), postal_code (required), country.
         name: Human-readable name for the workplace.
         active: Whether the workplace can be associated with employees. Default: true.
-        metadata: Additional JSON metadata string.
+        metadata: Arbitrary key-value object stored on the workplace.
     """
     return await check_api_post(
         ctx,
@@ -83,7 +83,7 @@ async def update_workplace(
     name: str | None = None,
     address: Address | None = None,
     active: bool | None = None,
-    metadata: str | None = None,
+    metadata: dict | None = None,
 ) -> dict:
     """Update an existing workplace.
 
@@ -93,7 +93,7 @@ async def update_workplace(
         name: Human-readable name for the workplace.
         address: Address with keys: line1, line2, city, state, postal_code, country.
         active: Whether the workplace can be associated with employees.
-        metadata: Additional JSON metadata string.
+        metadata: Arbitrary key-value object stored on the workplace.
     """
     return await check_api_patch(
         ctx,

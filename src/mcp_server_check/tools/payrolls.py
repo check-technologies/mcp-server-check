@@ -99,7 +99,7 @@ async def create_payroll(
     off_cycle_options: OffCycleOptions | None = None,
     items: list[dict] | None = None,
     contractor_payments: list[dict] | None = None,
-    metadata: str | None = None,
+    metadata: dict | None = None,
     bank_account: str | None = None,
 ) -> dict:
     """Create a new payroll.
@@ -124,7 +124,7 @@ async def create_payroll(
         contractor_payments: List of contractor payment dicts. Each requires "contractor"
             and may include "payment_method", "amount", "reimbursement_amount",
             "workplace", "paper_check_number".
-        metadata: Additional JSON metadata string.
+        metadata: Arbitrary key-value object stored on the payroll.
         bank_account: ID of the bank account to fund the payroll.
     """
     return await check_api_post(
@@ -165,7 +165,7 @@ async def update_payroll(
     off_cycle_options: OffCycleOptions | None = None,
     items: list[dict] | None = None,
     contractor_payments: list[dict] | None = None,
-    metadata: str | None = None,
+    metadata: dict | None = None,
     bank_account: str | None = None,
 ) -> dict:
     """Update an existing payroll.
@@ -185,7 +185,7 @@ async def update_payroll(
             (bool), apply_benefits (bool), apply_post_tax_deductions (bool).
         items: List of payroll item dicts (see create_payroll for shape).
         contractor_payments: List of contractor payment dicts (see create_payroll for shape).
-        metadata: Additional JSON metadata string.
+        metadata: Arbitrary key-value object stored on the payroll.
         bank_account: ID of the bank account to fund the payroll.
     """
     return await check_api_patch(

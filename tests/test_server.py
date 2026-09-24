@@ -328,6 +328,22 @@ async def test_tools_registered():
 
 
 @pytest.mark.anyio
+async def test_metadata_params_are_objects():
+    """Every tool's `metadata` parameter is a JSON object, never a string."""
+    server = _make_all_tools_server()
+    tools = await server.list_tools()
+    checked = []
+    for tool in tools:
+        prop = tool.parameters.get("properties", {}).get("metadata")
+        if prop is None:
+            continue
+        types = {s.get("type") for s in prop.get("anyOf", [prop])} - {"null"}
+        assert types == {"object"}, f"{tool.name}.metadata is typed {types}"
+        checked.append(tool.name)
+    assert {"create_employee", "create_benefit", "create_report_run"} <= set(checked)
+
+
+@pytest.mark.anyio
 async def test_registry_populated():
     """The registry maps every tool to its toolset."""
     server = _make_all_tools_server()
