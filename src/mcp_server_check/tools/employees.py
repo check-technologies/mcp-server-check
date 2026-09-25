@@ -158,6 +158,7 @@ async def update_employee(
     ssn: str | None = None,
     payment_method_preference: str | None = None,
     default_net_pay_split: str | None = None,
+    active: bool | None = None,
     metadata: str | None = None,
 ) -> dict:
     """Update an existing employee.
@@ -178,6 +179,7 @@ async def update_employee(
         ssn: Employee's Social Security Number.
         payment_method_preference: "direct_deposit" or "manual".
         default_net_pay_split: ID of employee's default net pay split.
+        active: Whether the employee is active. Pass false to deactivate.
         metadata: Additional JSON metadata string.
     """
     return await check_api_patch(
@@ -198,6 +200,7 @@ async def update_employee(
             ssn=ssn,
             payment_method_preference=payment_method_preference,
             default_net_pay_split=default_net_pay_split,
+            active=active,
             metadata=metadata,
         ),
     )
