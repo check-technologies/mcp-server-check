@@ -95,6 +95,7 @@ async def create_company(
     pay_frequency: str | None = None,
     start_date: str | None = None,
     metadata: str | None = None,
+    idempotency_key: str | None = None,
 ) -> dict:
     """Create a new company.
 
@@ -114,6 +115,7 @@ async def create_company(
             "monthly", "quarterly", or "annually".
         start_date: Date matching first payday using Check (YYYY-MM-DD).
         metadata: Additional JSON metadata string.
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     return await check_api_post(
         ctx,
@@ -132,6 +134,7 @@ async def create_company(
             start_date=start_date,
             metadata=metadata,
         ),
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
 
 
@@ -436,6 +439,7 @@ async def create_signatory(
     title: str,
     email: str,
     middle_name: str | None = None,
+    idempotency_key: str | None = None,
 ) -> dict:
     """Create a signatory for a company.
 
@@ -447,6 +451,7 @@ async def create_signatory(
             (e.g. "Officer", "Manager").
         email: Signatory's email address.
         middle_name: Signatory's middle name.
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     return await check_api_post(
         ctx,
@@ -460,6 +465,7 @@ async def create_signatory(
             },
             middle_name=middle_name,
         ),
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
 
 
