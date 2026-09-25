@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -55,11 +57,17 @@ async def test_delete_pay_schedule(mock_api, ctx):
 
 @pytest.mark.anyio
 async def test_create_benefit(mock_api, ctx):
-    mock_api.post("/benefits").mock(
+    route = mock_api.post("/benefits").mock(
         return_value=httpx.Response(201, json={"id": "ben_new"})
     )
     result = await create_benefit(ctx, employee="emp_001", company_benefit="cb_001")
     assert result["id"] == "ben_new"
+    body = json.loads(route.calls.last.request.content)
+    assert body == {"employee": "emp_001", "company_benefit": "cb_001"}
+
+    await create_benefit(ctx, employee="emp_001", benefit="125_medical")
+    body = json.loads(route.calls.last.request.content)
+    assert body == {"employee": "emp_001", "benefit": "125_medical"}
 
 
 @pytest.mark.anyio

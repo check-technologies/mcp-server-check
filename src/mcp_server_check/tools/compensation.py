@@ -101,8 +101,10 @@ _benefits = Resource(
         Field(
             "company_benefit",
             str,
-            required_for="create",
-            doc="The Check company benefit ID.",
+            doc=(
+                "Optional Check company benefit ID. Omit it to create a standalone "
+                "employee benefit."
+            ),
             create_only=True,
         ),
         Field(
