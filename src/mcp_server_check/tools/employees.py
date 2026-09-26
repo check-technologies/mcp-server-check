@@ -100,6 +100,7 @@ async def create_employee(
     payment_method_preference: str | None = None,
     default_net_pay_split: str | None = None,
     metadata: str | None = None,
+    idempotency_key: str | None = None,
 ) -> dict:
     """Create a new employee.
 
@@ -120,6 +121,7 @@ async def create_employee(
         payment_method_preference: "direct_deposit" or "manual".
         default_net_pay_split: ID of employee's default net pay split.
         metadata: Additional JSON metadata string.
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     return await check_api_post(
         ctx,
@@ -139,6 +141,7 @@ async def create_employee(
             default_net_pay_split=default_net_pay_split,
             metadata=metadata,
         ),
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
 
 
@@ -158,6 +161,7 @@ async def update_employee(
     ssn: str | None = None,
     payment_method_preference: str | None = None,
     default_net_pay_split: str | None = None,
+    active: bool | None = None,
     metadata: str | None = None,
 ) -> dict:
     """Update an existing employee.
@@ -178,6 +182,7 @@ async def update_employee(
         ssn: Employee's Social Security Number.
         payment_method_preference: "direct_deposit" or "manual".
         default_net_pay_split: ID of employee's default net pay split.
+        active: Whether the employee is active. Pass false to deactivate.
         metadata: Additional JSON metadata string.
     """
     return await check_api_patch(
@@ -198,6 +203,7 @@ async def update_employee(
             ssn=ssn,
             payment_method_preference=payment_method_preference,
             default_net_pay_split=default_net_pay_split,
+            active=active,
             metadata=metadata,
         ),
     )

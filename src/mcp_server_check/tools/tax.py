@@ -327,7 +327,9 @@ async def list_company_tax_elections(
     )
 
 
-async def create_company_tax_elections(ctx: Ctx, data: list[dict]) -> dict:
+async def create_company_tax_elections(
+    ctx: Ctx, data: list[dict], idempotency_key: str | None = None
+) -> dict:
     """Create tax elections for a company.
 
     The request body is a JSON array of tax elections. Each item requires
@@ -337,8 +339,14 @@ async def create_company_tax_elections(ctx: Ctx, data: list[dict]) -> dict:
 
     Args:
         data: List of tax elections to create.
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
-    return await check_api_post(ctx, "/company_tax_elections", data=data)
+    return await check_api_post(
+        ctx,
+        "/company_tax_elections",
+        data=data,
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
+    )
 
 
 async def update_company_tax_elections(ctx: Ctx, data: list[dict]) -> dict:

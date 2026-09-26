@@ -60,7 +60,7 @@ async def test_list_payrolls_with_filters(mock_api, ctx):
 
 @pytest.mark.anyio
 async def test_create_payroll(mock_api, ctx):
-    mock_api.post("/payrolls").mock(
+    route = mock_api.post("/payrolls").mock(
         return_value=httpx.Response(201, json={"id": "prl_new"})
     )
     result = await create_payroll(
@@ -71,6 +71,23 @@ async def test_create_payroll(mock_api, ctx):
         payday="2026-01-17",
     )
     assert result["id"] == "prl_new"
+    assert "X-Idempotency-Key" not in route.calls.last.request.headers
+
+
+@pytest.mark.anyio
+async def test_create_payroll_sends_idempotency_key(mock_api, ctx):
+    route = mock_api.post("/payrolls").mock(
+        return_value=httpx.Response(201, json={"id": "prl_new"})
+    )
+    await create_payroll(
+        ctx,
+        company="com_001",
+        period_start="2026-01-01",
+        period_end="2026-01-15",
+        payday="2026-01-17",
+        idempotency_key="idem-1",
+    )
+    assert route.calls.last.request.headers["X-Idempotency-Key"] == "idem-1"
 
 
 @pytest.mark.anyio
@@ -100,13 +117,25 @@ async def test_preview_payroll(mock_api, ctx):
 
 @pytest.mark.anyio
 async def test_approve_payroll(mock_api, ctx):
-    mock_api.post("/payrolls/prl_001/approve").mock(
+    route = mock_api.post("/payrolls/prl_001/approve").mock(
         return_value=httpx.Response(
             200, json={"id": "prl_001", "approval_status": "approved"}
         )
     )
     result = await approve_payroll(ctx, payroll_id="prl_001")
     assert result["approval_status"] == "approved"
+    assert "X-Idempotency-Key" not in route.calls.last.request.headers
+
+
+@pytest.mark.anyio
+async def test_approve_payroll_sends_idempotency_key(mock_api, ctx):
+    route = mock_api.post("/payrolls/prl_001/approve").mock(
+        return_value=httpx.Response(
+            200, json={"id": "prl_001", "approval_status": "approved"}
+        )
+    )
+    await approve_payroll(ctx, payroll_id="prl_001", idempotency_key="idem-1")
+    assert route.calls.last.request.headers["X-Idempotency-Key"] == "idem-1"
 
 
 @pytest.mark.anyio

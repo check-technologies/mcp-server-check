@@ -103,6 +103,7 @@ async def create_component(
     component_type: str,
     subtype: str | None = None,
     data: dict | None = None,
+    idempotency_key: str | None = None,
 ) -> dict:
     """Create an embedded UI component URL for a company, employee, or contractor.
 
@@ -121,6 +122,7 @@ async def create_component(
             single-employee subtypes "deductions" and "employment_details",
             include employee (e.g. "emp_xxxxx") in data. For "personal_details",
             include exactly one of employee or contractor (e.g. "ctr_xxxxx").
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     path_prefix = _ENTITY_PATH.get(entity_type)
     if path_prefix is None:
@@ -149,6 +151,7 @@ async def create_component(
         ctx,
         component_path,
         data=data,
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
 
 
