@@ -62,7 +62,7 @@ async def create_bank_account(
     employee: str | None = None,
     company: str | None = None,
     contractor: str | None = None,
-    metadata: str | None = None,
+    metadata: dict | None = None,
     idempotency_key: str | None = None,
 ) -> dict:
     """Create a new bank account.
@@ -78,7 +78,7 @@ async def create_bank_account(
         employee: ID of the employee who owns this account.
         company: ID of the company who owns this account.
         contractor: ID of the contractor who owns this account.
-        metadata: Additional JSON metadata string.
+        metadata: Arbitrary key-value object stored on the bank account.
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     body: dict = {}
@@ -106,7 +106,7 @@ async def update_bank_account(
     ctx: Ctx,
     bank_account_id: str,
     raw_bank_account: dict | None = None,
-    metadata: str | None = None,
+    metadata: dict | None = None,
 ) -> dict:
     """Update a bank account.
 
@@ -114,7 +114,7 @@ async def update_bank_account(
         bank_account_id: The Check bank account ID.
         raw_bank_account: Bank account details dict with keys: account_number,
             routing_number, subtype ("checking" or "savings"), institution_name.
-        metadata: Additional JSON metadata string.
+        metadata: Arbitrary key-value object stored on the bank account.
     """
     body: dict = {}
     if raw_bank_account is not None:

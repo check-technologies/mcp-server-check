@@ -49,7 +49,11 @@ _pay_schedules = Resource(
             doc="Second payday date (semimonthly only; must be between one day and one month after first_payday).",
         ),
         Field("name", str, doc="Human-readable name for the pay schedule."),
-        Field("metadata", str, doc="Additional JSON metadata string."),
+        Field(
+            "metadata",
+            dict,
+            doc="Arbitrary key-value object stored on the pay schedule.",
+        ),
     ],
 )
 _pay_schedule_tools = generate_tools(_pay_schedules)
@@ -179,7 +183,9 @@ _benefits = Resource(
         Field("effective_start", str, doc="Start date for the benefit (YYYY-MM-DD)."),
         Field("effective_end", str, doc="End date for the benefit (YYYY-MM-DD)."),
         Field("hsa_contribution_limit", str, doc="HSA contribution limit."),
-        Field("metadata", str, doc="Additional JSON metadata string."),
+        Field(
+            "metadata", dict, doc="Arbitrary key-value object stored on the benefit."
+        ),
     ],
 )
 _benefit_tools = generate_tools(_benefits)
@@ -239,7 +245,11 @@ _post_tax_deductions = Resource(
             dict,
             doc="Config dict for miscellaneous_garnishment type with keys: amount, percent, total_amount, annual_limit, priority, max_percent.",
         ),
-        Field("metadata", str, doc="Additional JSON metadata string."),
+        Field(
+            "metadata",
+            dict,
+            doc="Arbitrary key-value object stored on the post-tax deduction.",
+        ),
         Field(
             "managed",
             bool,
@@ -329,7 +339,11 @@ _company_benefits = Resource(
         ),
         Field("effective_start", str, doc="Start date for the benefit (YYYY-MM-DD)."),
         Field("effective_end", str, doc="End date for the benefit (YYYY-MM-DD)."),
-        Field("metadata", str, doc="Additional JSON metadata string."),
+        Field(
+            "metadata",
+            dict,
+            doc="Arbitrary key-value object stored on the company benefit.",
+        ),
     ],
 )
 _company_benefit_tools = generate_tools(_company_benefits)
@@ -387,7 +401,10 @@ _earning_rates = Resource(
             "active", bool, doc="Whether the earning rate is active.", update_only=True
         ),
         Field(
-            "metadata", str, doc="Additional JSON metadata string.", update_only=True
+            "metadata",
+            dict,
+            doc="Arbitrary key-value object stored on the earning rate.",
+            update_only=True,
         ),
     ],
 )
@@ -440,7 +457,11 @@ _earning_codes = Resource(
             doc='Tax calculation overrides dict. May include "wa_risk_class_code" (format "####-##" for WA L&I).',
             create_only=True,
         ),
-        Field("metadata", str, doc="Additional JSON metadata string."),
+        Field(
+            "metadata",
+            dict,
+            doc="Arbitrary key-value object stored on the earning code.",
+        ),
     ],
 )
 _earning_code_tools = generate_tools(_earning_codes)

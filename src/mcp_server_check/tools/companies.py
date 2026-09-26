@@ -94,7 +94,7 @@ async def create_company(
     address: Address | None = None,
     pay_frequency: str | None = None,
     start_date: str | None = None,
-    metadata: str | None = None,
+    metadata: dict | None = None,
     idempotency_key: str | None = None,
 ) -> dict:
     """Create a new company.
@@ -114,7 +114,7 @@ async def create_company(
         pay_frequency: Default pay frequency — "weekly", "biweekly", "semimonthly",
             "monthly", "quarterly", or "annually".
         start_date: Date matching first payday using Check (YYYY-MM-DD).
-        metadata: Additional JSON metadata string.
+        metadata: Arbitrary key-value object stored on the company.
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     return await check_api_post(
@@ -154,7 +154,7 @@ async def update_company(
     pay_frequency: str | None = None,
     processing_period: str | None = None,
     start_date: str | None = None,
-    metadata: str | None = None,
+    metadata: dict | None = None,
     default_bank_account: str | None = None,
 ) -> dict:
     """Update an existing company.
@@ -176,7 +176,7 @@ async def update_company(
             "monthly", "quarterly", or "annually".
         processing_period: Processing period — "three_day", "two_day", or "one_day".
         start_date: Date the company will start using Check (YYYY-MM-DD).
-        metadata: Additional JSON metadata string.
+        metadata: Arbitrary key-value object stored on the company.
         default_bank_account: ID of the company's default bank account.
     """
     return await check_api_patch(
