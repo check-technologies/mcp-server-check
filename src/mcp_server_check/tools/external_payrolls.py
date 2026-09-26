@@ -69,6 +69,7 @@ async def create_external_payroll(
     pay_frequency: str | None = None,
     items: list[dict] | None = None,
     contractor_payments: list[dict] | None = None,
+    idempotency_key: str | None = None,
 ) -> dict:
     """Create a new external payroll.
 
@@ -83,6 +84,7 @@ async def create_external_payroll(
             "benefits" (list), "post_tax_deductions" (list).
         contractor_payments: List of contractor payment dicts. Each may include
             "contractor", "amount", "reimbursement_amount".
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     body: dict = {
         "company": company,
@@ -96,7 +98,12 @@ async def create_external_payroll(
         body["items"] = items
     if contractor_payments is not None:
         body["contractor_payments"] = contractor_payments
-    return await check_api_post(ctx, "/external_payrolls", data=body)
+    return await check_api_post(
+        ctx,
+        "/external_payrolls",
+        data=body,
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
+    )
 
 
 async def update_external_payroll(
@@ -145,13 +152,20 @@ async def delete_external_payroll(ctx: Ctx, payroll_id: str) -> dict:
     return await check_api_delete(ctx, f"/external_payrolls/{payroll_id}")
 
 
-async def approve_external_payroll(ctx: Ctx, payroll_id: str) -> dict:
+async def approve_external_payroll(
+    ctx: Ctx, payroll_id: str, idempotency_key: str | None = None
+) -> dict:
     """Approve an external payroll.
 
     Args:
         payroll_id: The Check external payroll ID.
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
-    return await check_api_post(ctx, f"/external_payrolls/{payroll_id}/approve")
+    return await check_api_post(
+        ctx,
+        f"/external_payrolls/{payroll_id}/approve",
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
+    )
 
 
 async def reopen_external_payroll(ctx: Ctx, payroll_id: str) -> dict:

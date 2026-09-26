@@ -63,6 +63,7 @@ async def create_bank_account(
     company: str | None = None,
     contractor: str | None = None,
     metadata: dict | None = None,
+    idempotency_key: str | None = None,
 ) -> dict:
     """Create a new bank account.
 
@@ -78,6 +79,7 @@ async def create_bank_account(
         company: ID of the company who owns this account.
         contractor: ID of the contractor who owns this account.
         metadata: Arbitrary key-value object stored on the bank account.
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     body: dict = {}
     if raw_bank_account is not None:
@@ -92,7 +94,12 @@ async def create_bank_account(
         body["contractor"] = contractor
     if metadata is not None:
         body["metadata"] = metadata
-    return await check_api_post(ctx, "/bank_accounts", data=body)
+    return await check_api_post(
+        ctx,
+        "/bank_accounts",
+        data=body,
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
+    )
 
 
 async def update_bank_account(

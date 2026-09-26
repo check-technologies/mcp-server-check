@@ -52,6 +52,7 @@ async def create_webhook_config(
     ctx: Ctx,
     url: str,
     api_version: str | None = None,
+    idempotency_key: str | None = None,
 ) -> dict:
     """Create a new webhook configuration.
 
@@ -61,11 +62,13 @@ async def create_webhook_config(
             independent of your account default. Accepts the same values as the
             Check-Version header (e.g. "2025-01-01", "2021-09-02"). Omit to
             follow your account's default API version.
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     return await check_api_post(
         ctx,
         "/webhook_configs",
         data=build_body({"url": url}, api_version=api_version),
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
 
 

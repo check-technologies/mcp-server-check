@@ -101,6 +101,7 @@ async def create_payroll(
     contractor_payments: list[dict] | None = None,
     metadata: dict | None = None,
     bank_account: str | None = None,
+    idempotency_key: str | None = None,
 ) -> dict:
     """Create a new payroll.
 
@@ -126,6 +127,7 @@ async def create_payroll(
             "workplace", "paper_check_number".
         metadata: Arbitrary key-value object stored on the payroll.
         bank_account: ID of the bank account to fund the payroll.
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     return await check_api_post(
         ctx,
@@ -148,6 +150,7 @@ async def create_payroll(
             metadata=metadata,
             bank_account=bank_account,
         ),
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
 
 
@@ -232,6 +235,7 @@ async def approve_payroll(
     ctx: Ctx,
     payroll_id: str,
     preview_started_at: str | None = None,
+    idempotency_key: str | None = None,
 ) -> dict:
     """Approve a payroll for processing.
 
@@ -241,11 +245,13 @@ async def approve_payroll(
             (e.g. "2019-06-29T18:26:56.848920Z"). When provided, approval
             fails with a ``preview_superseded`` error if the payroll was
             re-previewed after this timestamp.
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     return await check_api_post(
         ctx,
         f"/payrolls/{payroll_id}/approve",
         data=build_body({}, preview_started_at=preview_started_at),
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
 
 

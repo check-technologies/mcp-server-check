@@ -65,6 +65,7 @@ async def create_payroll_item(
     payment_method: str | None = None,
     earnings: list[dict] | None = None,
     reimbursements: list[dict] | None = None,
+    idempotency_key: str | None = None,
 ) -> dict:
     """Create a new payroll item.
 
@@ -77,6 +78,7 @@ async def create_payroll_item(
             "piece_units", "metadata".
         reimbursements: List of reimbursement dicts. Each requires "amount" and may
             include "description", "code", "metadata".
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     body: dict = {"payroll": payroll, "employee": employee}
     if payment_method is not None:
@@ -85,7 +87,12 @@ async def create_payroll_item(
         body["earnings"] = earnings
     if reimbursements is not None:
         body["reimbursements"] = reimbursements
-    return await check_api_post(ctx, "/payroll_items", data=body)
+    return await check_api_post(
+        ctx,
+        "/payroll_items",
+        data=body,
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
+    )
 
 
 async def update_payroll_item(

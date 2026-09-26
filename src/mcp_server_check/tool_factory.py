@@ -405,14 +405,23 @@ def _create_create_function(res: Resource, fields: list[Field]):
     path = res.path
     field_list = fields  # Capture for closure
 
-    async def create_fn(ctx: Ctx, **kwargs: Any) -> dict:
+    async def create_fn(
+        ctx: Ctx, *, idempotency_key: str | None = None, **kwargs: Any
+    ) -> dict:
         body = _build_body(field_list, kwargs, is_create=True)
-        return await check_api_post(ctx, path, data=body)
+        return await check_api_post(
+            ctx,
+            path,
+            data=body,
+            headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
+        )
 
     create_fn.__doc__ = _make_create_docstring(res)
     args_doc = _build_args_doc(fields)
     if args_doc:
-        create_fn.__doc__ += f"\n\nArgs:\n{args_doc}"
+        args_doc += "\n"
+    args_doc += "    idempotency_key: Sent as the X-Idempotency-Key header to make retries safe."
+    create_fn.__doc__ += f"\n\nArgs:\n{args_doc}"
 
     params_list = [
         inspect.Parameter(
@@ -440,6 +449,15 @@ def _create_create_function(res: Resource, fields: list[Field]):
                 )
             )
             ann[f.name] = f.type | None
+    params_list.append(
+        inspect.Parameter(
+            "idempotency_key",
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            default=None,
+            annotation=str | None,
+        )
+    )
+    ann["idempotency_key"] = str | None
     create_fn.__signature__ = inspect.Signature(params_list, return_annotation=dict)
     create_fn.__annotations__ = ann
     return create_fn

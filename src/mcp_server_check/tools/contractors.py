@@ -92,6 +92,7 @@ async def create_contractor(
     payment_method_preference: str | None = None,
     address: Address | None = None,
     metadata: dict | None = None,
+    idempotency_key: str | None = None,
 ) -> dict:
     """Create a new contractor.
 
@@ -114,6 +115,7 @@ async def create_contractor(
         payment_method_preference: "direct_deposit" or "manual".
         address: Address with keys: line1, line2, city, state, postal_code, country.
         metadata: Arbitrary key-value object stored on the contractor.
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     return await check_api_post(
         ctx,
@@ -138,6 +140,7 @@ async def create_contractor(
             address=address,
             metadata=metadata,
         ),
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
 
 

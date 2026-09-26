@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
+from fastmcp import Client
 from mcp_server_check.helpers import (
     _extract_cursor,
     _format_list_response,
 )
-from mcp_server_check.server import CheckMCP, _setup_dynamic_mode, lifespan
+from mcp_server_check.server import CheckMCP, _setup_dynamic_mode, lifespan, mcp
 from mcp_server_check.tool_filter import ToolFilter, is_write_tool
 from mcp_server_check.tools import register_all
 from mcp_server_check.tools.companies import get_company, list_companies
+from mcp_server_check.tools.compensation import BENEFIT_TYPES
 from mcp_server_check.tools.employees import get_employee, list_employees
 from mcp_server_check.tools.payrolls import get_payroll, list_payrolls
 from mcp_server_check.tools.workplaces import get_workplace, list_workplaces
@@ -300,6 +304,23 @@ async def test_api_error_returns_error_dict(mock_api, ctx):
     result = await get_company(ctx, company_id="com_nonexistent")
     assert result["error"] is True
     assert result["status_code"] == 404
+
+
+# --- Resources ---
+
+
+@pytest.mark.anyio
+async def test_benefit_type_enum_resource(monkeypatch):
+    monkeypatch.setenv("CHECK_API_KEY", "test-key")
+    async with Client(mcp) as client:
+        enums = json.loads((await client.read_resource("check://enums"))[0].text)
+        benefit_type = json.loads(
+            (await client.read_resource("check://enums/benefit_type"))[0].text
+        )
+
+    assert "benefit_type" in enums
+    assert benefit_type["values"] == BENEFIT_TYPES
+    assert len(BENEFIT_TYPES) == 22
 
 
 # --- Tool registration and filtering tests (all-tools mode) ---

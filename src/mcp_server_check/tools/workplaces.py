@@ -53,6 +53,7 @@ async def create_workplace(
     name: str | None = None,
     active: bool | None = None,
     metadata: dict | None = None,
+    idempotency_key: str | None = None,
 ) -> dict:
     """Create a new workplace.
 
@@ -63,6 +64,7 @@ async def create_workplace(
         name: Human-readable name for the workplace.
         active: Whether the workplace can be associated with employees. Default: true.
         metadata: Arbitrary key-value object stored on the workplace.
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     return await check_api_post(
         ctx,
@@ -73,6 +75,7 @@ async def create_workplace(
             active=active,
             metadata=metadata,
         ),
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
 
 
