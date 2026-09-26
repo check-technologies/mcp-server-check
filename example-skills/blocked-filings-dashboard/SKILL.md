@@ -212,9 +212,9 @@ Remind the user this is sourced from the filings API and therefore omits operato
 
 ## Error Handling
 
-- **API error envelopes**: list/get tools may return `{"error": true, "status_code": ...,
-  "detail": ...}`. Surface the `detail`, skip the affected record, and continue; note any
-  companies whose details could not be fetched.
+- **API error envelopes**: a failed list/get call comes back as a tool error whose message
+  is `{"error": true, "status_code": ..., "detail": ...}`. Surface the `detail`, skip the
+  affected record, and continue; note any companies whose details could not be fetched.
 - **Pagination**: always follow `next_cursor` until null on both list sweeps.
 - **No blocked filings**: report that the quarter is clean and stop before building HTML.
 - **Missing company fields**: if `start_date` is absent for a company, treat it as Not

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from fastmcp.exceptions import ToolError
 from mcp_server_check.tool_filter import ToolFilter
 from mcp_server_check.tool_index import (
     _TOOLSET_DESCRIPTIONS,
@@ -413,10 +414,20 @@ class TestDynamicModeServer:
     @pytest.mark.anyio
     async def test_run_tool_unknown(self):
         server = self._make_dynamic_server()
-        result = await server.call_tool("run_tool", {"tool_name": "nonexistent"})
-        text = self._extract_text(result)
-        parsed = json.loads(text)
-        assert "error" in parsed
+        with pytest.raises(ToolError) as exc_info:
+            await server.call_tool("run_tool", {"tool_name": "nonexistent"})
+        parsed = json.loads(str(exc_info.value))
+        assert parsed["error"].startswith("Unknown tool: 'nonexistent'")
+
+    @pytest.mark.anyio
+    async def test_run_tool_invalid_json_arguments(self):
+        server = self._make_dynamic_server()
+        with pytest.raises(ToolError) as exc_info:
+            await server.call_tool(
+                "run_tool", {"tool_name": "get_company", "arguments": "{not json"}
+            )
+        parsed = json.loads(str(exc_info.value))
+        assert parsed["error"].startswith("Invalid JSON arguments")
 
     @pytest.mark.anyio
     async def test_run_tool_accepts_dict_arguments(self):
@@ -436,9 +447,7 @@ class TestDynamicModeServer:
     async def test_run_tool_no_arguments(self):
         """run_tool works with no arguments parameter."""
         server = self._make_dynamic_server()
-        # list_companies with no args should attempt the API call
-        # (will fail since no mock, but that's fine - we're testing the dispatch)
-        result = await server.call_tool("run_tool", {"tool_name": "nonexistent_tool"})
-        text = self._extract_text(result)
-        parsed = json.loads(text)
+        with pytest.raises(ToolError) as exc_info:
+            await server.call_tool("run_tool", {"tool_name": "nonexistent_tool"})
+        parsed = json.loads(str(exc_info.value))
         assert "error" in parsed
