@@ -79,10 +79,19 @@ async def test_create_benefit(mock_api, ctx):
     route = mock_api.post("/benefits").mock(
         return_value=httpx.Response(201, json={"id": "ben_new"})
     )
-    result = await create_benefit(ctx, employee="emp_001", company_benefit="cb_001")
+    result = await create_benefit(
+        ctx,
+        employee="emp_001",
+        company_benefit="cb_001",
+        metadata={"plan_year": 2026},
+    )
     assert result["id"] == "ben_new"
     body = json.loads(route.calls.last.request.content)
-    assert body == {"employee": "emp_001", "company_benefit": "cb_001"}
+    assert body == {
+        "employee": "emp_001",
+        "company_benefit": "cb_001",
+        "metadata": {"plan_year": 2026},
+    }
 
     await create_benefit(ctx, employee="emp_001", benefit="125_medical")
     body = json.loads(route.calls.last.request.content)

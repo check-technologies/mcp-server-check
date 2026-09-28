@@ -107,7 +107,7 @@ async def update_payroll_item(
     sick_balance_hours: float | None = None,
     supplemental_tax_calc_method: str | None = None,
     paper_check_number: str | None = None,
-    metadata: str | None = None,
+    metadata: dict | None = None,
 ) -> dict:
     """Update an existing payroll item.
 
@@ -124,7 +124,7 @@ async def update_payroll_item(
         sick_balance_hours: Employee's remaining sick hour balance for paystub display.
         supplemental_tax_calc_method: Tax calculation method — "flat" or "aggregate".
         paper_check_number: Check number for printed checks.
-        metadata: Additional JSON metadata string.
+        metadata: Arbitrary key-value object stored on the payroll item.
     """
     body: dict = {}
     if payment_method is not None:

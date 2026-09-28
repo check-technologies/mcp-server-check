@@ -74,9 +74,15 @@ async def test_create_employee(mock_api, ctx):
         )
     )
     result = await create_employee(
-        ctx, company="com_001", first_name="Jane", last_name="Doe"
+        ctx,
+        company="com_001",
+        first_name="Jane",
+        last_name="Doe",
+        metadata={"external_id": "hr-42"},
     )
     assert result["id"] == "emp_new"
+    body = json.loads(mock_api.post("/employees").calls.last.request.content)
+    assert body["metadata"] == {"external_id": "hr-42"}
 
 
 @pytest.mark.anyio
