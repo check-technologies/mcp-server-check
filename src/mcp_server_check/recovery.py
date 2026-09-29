@@ -10,7 +10,7 @@ the alternatives for its surface.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any, TypeVar
 
@@ -71,13 +71,21 @@ class Recovery:
         arguments: dict[str, Any],
         is_available: Callable[[str], bool],
     ) -> dict[str, Any]:
-        """Return payload with the available alternatives, or payload unchanged."""
+        """Return payload with the available alternatives, or payload unchanged.
+
+        An alternative that calls the failed tool again only names the
+        arguments it changes, so they are merged into the failed call's.
+        """
         failure = Failure.from_payload(payload)
         provider = self._providers.get(tool)
         if failure is None or provider is None:
             return payload
         alternatives = [
-            alternative.to_dict()
+            (
+                replace(alternative, arguments={**arguments, **alternative.arguments})
+                if alternative.tool == tool
+                else alternative
+            ).to_dict()
             for alternative in provider(arguments, failure)
             if is_available(alternative.tool)
         ]

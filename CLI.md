@@ -228,6 +228,8 @@ export CHECK_EXCLUDE_TOOLS=delete_company,delete_employee
 
 Error details are printed to stderr, data to stdout, so pipes work correctly even on errors.
 
+When a command times out and there is another way to get the data, the error includes an `alternatives` list of ready-to-run commands. For example, a large `companies get-report` suggests `check report-runs create ...` or a narrower call. Commands hidden by `--read-only` or the toolset filters are left out.
+
 ## Examples
 
 ### Payroll Workflow

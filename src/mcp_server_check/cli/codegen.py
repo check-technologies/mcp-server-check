@@ -19,6 +19,7 @@ from mcp_server_check.tools import collect_all_tools
 
 from .context import CLIContext
 from .output import output_result
+from .recovery import CommandLines
 
 
 # ---------------------------------------------------------------------------
@@ -289,6 +290,7 @@ def _make_callback(func: Callable) -> Callable:
             return
 
         if isinstance(result, dict) and result.get("error"):
+            result = CommandLines(ctx).recover(result, func.__name__, call_kwargs)
             output_result(result, fmt, file=sys.stderr)
             ctx.exit(1)
         else:

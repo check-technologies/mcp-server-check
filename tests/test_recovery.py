@@ -56,6 +56,23 @@ class TestRecovery:
         }
         assert payload == {"error": True, "timeout": True}
 
+    def test_enrich_merges_arguments_for_the_same_tool(self):
+        registry = Recovery()
+        csv = Alternative(tool="report", description="CSV.", arguments={"fmt": "csv"})
+
+        @registry.recoverable(lambda arguments, failure: [csv, RETRY])
+        async def report():
+            pass
+
+        enriched = registry.enrich(
+            {"timeout": True}, "report", {"id": "a", "fmt": "json"}, lambda tool: True
+        )
+
+        assert [a["arguments"] for a in enriched["alternatives"]] == [
+            {"id": "a", "fmt": "csv"},
+            {"x": 1},
+        ]
+
     def test_enrich_passes_arguments_and_failure_to_provider(self):
         registry = Recovery()
         calls = []
