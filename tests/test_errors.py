@@ -9,13 +9,15 @@ import pytest
 from mcp_server_check.errors import (
     CheckAPIError,
     CheckToolError,
-    ExpectedToolErrorFilter,
     ResponseTooLargeError,
 )
 from mcp_server_check.recovery import Failure, Hint, Remedies
 
 
 class TestCheckToolError:
+    def test_logged_as_warning(self):
+        assert CheckToolError({"error": "bad"}).log_level == logging.WARNING
+
     def test_message_is_the_json_payload(self):
         error = CheckToolError({"error": "bad"})
 
@@ -36,9 +38,17 @@ class TestCheckToolError:
         error = ResponseTooLargeError("get_company", 10, 5)
         base = dict(error.payload)
 
-        error.remedies = Remedies(hints=(Hint("Ask for less."),))
+        error.remedies = Remedies(
+            hints=(Hint(tool="get_company", description="Ask for less."),)
+        )
 
-        assert error.payload == {**base, "alternatives": [], "hints": ["Ask for less."]}
+        assert error.payload == {
+            **base,
+            "alternatives": [],
+            "hints": [
+                {"tool": "get_company", "description": "Ask for less.", "arguments": []}
+            ],
+        }
         assert json.loads(str(error)) == error.payload
         assert error.failure is Failure.TOO_LARGE
 
@@ -54,42 +64,3 @@ class TestCheckAPIError:
         error = CheckAPIError.from_result({"error": True, "status_code": 404})
 
         assert error.payload == {"error": True, "status_code": 404}
-
-
-class TestExpectedToolErrorFilter:
-    @staticmethod
-    def record(error: Exception) -> logging.LogRecord:
-        return logging.LogRecord(
-            "fastmcp.server.server",
-            logging.ERROR,
-            __file__,
-            1,
-            "Error calling tool %r",
-            ("get_company",),
-            (type(error), error, None),
-        )
-
-    def test_check_tool_error_becomes_one_warning_line(self):
-        record = self.record(CheckToolError({"error": "bad"}))
-
-        assert ExpectedToolErrorFilter().filter(record) is True
-        assert record.levelno == logging.WARNING
-        assert record.exc_info is None
-        assert record.getMessage() == (
-            "Error calling tool 'get_company': " + json.dumps({"error": "bad"})
-        )
-
-    def test_other_errors_keep_their_traceback(self):
-        record = self.record(RuntimeError("boom"))
-
-        assert ExpectedToolErrorFilter().filter(record) is True
-        assert record.levelno == logging.ERROR
-        assert record.exc_info is not None
-
-    def test_install_is_idempotent(self):
-        logger = logging.getLogger("test_install_is_idempotent")
-
-        ExpectedToolErrorFilter.install(logger)
-        ExpectedToolErrorFilter.install(logger)
-
-        assert len(logger.filters) == 1

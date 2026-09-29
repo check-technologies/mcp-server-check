@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, TypeVar
+from typing import Any, ClassVar, TypeVar
 
 from mcp_server_check.helpers import build_params
 from mcp_server_check.recovery import Alternative, Failure, Hint, Remedy
@@ -78,6 +78,8 @@ class ReportFormat(Choice):
 
 @dataclass(frozen=True)
 class ReportRequest:
+    TOOL: ClassVar[str] = "get_company_report"
+
     company_id: str
     report_type: ReportType
     response_format: ReportFormat = ReportFormat.JSON
@@ -159,35 +161,61 @@ class ReportRequest:
         if failure is Failure.TOO_LARGE and self.response_format is ReportFormat.JSON:
             remedies.append(
                 Alternative(
-                    tool="get_company_report",
+                    tool=self.TOOL,
                     description="Return the smaller CSV rendering of the report.",
                     arguments={"response_format": ReportFormat.CSV.value},
                 )
             )
-        if self.report_type.takes_payroll_filter:
-            remedies.append(Hint("Pass the IDs of the payrolls you need as payroll."))
-        if self.report_type.takes_date_range:
-            remedies.append(Hint("Request a shorter start_date to end_date range."))
+        if self.report_type.takes_payroll_filter and not self.payroll:
+            remedies.append(
+                Hint(
+                    tool=self.TOOL,
+                    description="Restrict the report to the payrolls you need.",
+                    arguments=("payroll",),
+                )
+            )
+        if self.report_type.takes_date_range and self.start_date and self.end_date:
+            remedies.append(
+                Hint(
+                    tool=self.TOOL,
+                    description="Request a shorter date range.",
+                    arguments=("start_date", "end_date"),
+                )
+            )
         return remedies
 
     def _report_run_remedy(self) -> Remedy:
         description = (
-            "Generate the report asynchronously with create_report_run, poll "
-            "get_report_run until its status is completed, then call "
-            "download_report_run. additional_columns adds the employee, "
-            "contractor, and payroll ID columns."
+            "Generate the report asynchronously as a report run, poll it until "
+            "it completes, then download it."
         )
-        if self.start_date is None or self.end_date is None:
-            return Hint(f"{description} It needs payday_from and payday_to dates.")
+        if not (self.start_date and self.end_date):
+            return Hint(
+                tool="create_report_run",
+                description=f"{description} It needs a payday range.",
+                arguments=("parameters",),
+            )
+        # A report run takes at most one payroll ID.
+        if self.payroll and len(self.payroll) > 1:
+            return Hint(
+                tool="create_report_run",
+                description=f"{description} Create one per payroll ID.",
+                arguments=("parameters",),
+            )
+        parameters: dict[str, Any] = {
+            "payday_from": self.start_date,
+            "payday_to": self.end_date,
+        }
+        if self.payroll:
+            parameters["payroll"] = self.payroll[0]
+        if self.include_contractor_id:
+            parameters["additional_columns"] = ["contractor.id"]
         return Alternative(
             tool="create_report_run",
             description=description,
             arguments={
                 "company": self.company_id,
                 "report": self.report_type.value,
-                "parameters": {
-                    "payday_from": self.start_date,
-                    "payday_to": self.end_date,
-                },
+                "parameters": parameters,
             },
         )

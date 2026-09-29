@@ -47,7 +47,14 @@ class CommandLines:
                 }
                 for alternative in remedies.alternatives
             ],
-            "hints": [hint.description for hint in remedies.hints],
+            "hints": [
+                {
+                    "command": self.command_line(hint.tool, {}),
+                    "description": hint.description,
+                    "options": self.options(hint.tool, hint.arguments),
+                }
+                for hint in remedies.hints
+            ],
         }
 
     def is_available(self, tool: str) -> bool:
@@ -68,6 +75,19 @@ class CommandLines:
             elif isinstance(param, click.Option):
                 options.extend(self._option_words(param, value))
         return shlex.join(["check", group_name, command_name, *positional, *options])
+
+    def options(self, tool: str, arguments: tuple[str, ...]) -> list[str]:
+        """Return the command line names of the tool's arguments."""
+        found = self._find(tool)
+        assert found is not None, f"CommandLines.options: {tool} is unavailable"
+        params = {param.name: param for param in found[2].params}
+        return [
+            params[name].opts[0]
+            if isinstance(params[name], click.Option)
+            else params[name].human_readable_name
+            for name in arguments
+            if name in params
+        ]
 
     def _find(self, tool: str) -> tuple[str, str, click.Command] | None:
         for group_name, group in self._groups:

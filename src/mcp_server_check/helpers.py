@@ -258,8 +258,18 @@ async def check_api_get_csv(ctx: Ctx, path: str, params: dict | None = None) -> 
         path,
         params=params,
         extra_headers={"Accept": "text/csv"},
-        parse=lambda response: {"csv": response.text},
+        parse=_csv_body,
     )
+
+
+def _csv_body(response: httpx.Response) -> dict:
+    content_type = response.headers.get("content-type", "")
+    if not content_type.startswith("text/csv"):
+        return {
+            "error": True,
+            "detail": f"Expected a CSV response, got {content_type or 'no content type'}.",
+        }
+    return {"csv": response.text}
 
 
 async def check_api_post(

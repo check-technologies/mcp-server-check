@@ -2,9 +2,9 @@
 
 A tool registers a provider with the recoverable decorator. When a call fails
 in a way the caller can work around, Recovery.remedies collects the provider's
-alternatives (complete calls to run instead) and hints (advice with no call
-attached), keeping only the alternatives the caller can use. The MCP server
-and the CLI each render the result for their surface.
+alternatives (complete calls to run instead) and hints (arguments to change
+when only the caller knows the values), keeping those whose tool the caller
+can use. The MCP server and the CLI each render them for their surface.
 """
 
 from __future__ import annotations
@@ -50,9 +50,22 @@ class Alternative:
 
 @dataclass(frozen=True)
 class Hint:
-    """Advice that needs input only the caller has, so it names no call."""
+    """Advice about a tool that needs input only the caller has.
 
+    It names the tool's arguments to change rather than a complete call, and is
+    offered only when the caller can use the tool.
+    """
+
+    tool: str
     description: str
+    arguments: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "tool": self.tool,
+            "description": self.description,
+            "arguments": list(self.arguments),
+        }
 
 
 Remedy = Union[Alternative, Hint]
@@ -72,7 +85,7 @@ class Remedies:
             "alternatives": [
                 alternative.to_dict() for alternative in self.alternatives
             ],
-            "hints": [hint.description for hint in self.hints],
+            "hints": [hint.to_dict() for hint in self.hints],
         }
 
 
@@ -104,9 +117,11 @@ class Recovery:
         alternatives = []
         hints = []
         for remedy in provider(arguments, failure):
+            if not is_available(remedy.tool):
+                continue
             if isinstance(remedy, Hint):
                 hints.append(remedy)
-            elif is_available(remedy.tool):
+            else:
                 alternatives.append(
                     replace(remedy, arguments={**arguments, **remedy.arguments})
                     if remedy.tool == tool

@@ -13,7 +13,7 @@ from mcp_server_check.recovery import (
 
 RETRY = Alternative(tool="retry_tool", description="Try again.", arguments={"x": 1})
 FALLBACK = Alternative(tool="fallback_tool", description="Use the fallback.")
-NARROW = Hint("Ask for less.")
+NARROW = Hint(tool="slow_tool", description="Ask for less.", arguments=("limit",))
 
 
 def always(tool: str) -> bool:
@@ -60,7 +60,13 @@ class TestRemedies:
                     "arguments": {"x": 1},
                 }
             ],
-            "hints": ["Ask for less."],
+            "hints": [
+                {
+                    "tool": "slow_tool",
+                    "description": "Ask for less.",
+                    "arguments": ["limit"],
+                }
+            ],
         }
 
 
@@ -73,12 +79,23 @@ class TestRecovery:
 
         assert registry.recoverable(lambda arguments, failure: [])(tool) is tool
 
-    def test_keeps_available_alternatives_and_every_hint(self, registry):
+    @pytest.mark.parametrize(
+        ("available", "expected"),
+        [
+            pytest.param(
+                {"retry_tool", "slow_tool"}, Remedies((RETRY,), (NARROW,)), id="some"
+            ),
+            pytest.param({"fallback_tool"}, Remedies((FALLBACK,)), id="hint hidden"),
+        ],
+    )
+    def test_keeps_remedies_whose_tool_is_available(
+        self, registry, available, expected
+    ):
         remedies = registry.remedies(
-            "slow_tool", {}, Failure.TIMED_OUT, lambda tool: tool == "retry_tool"
+            "slow_tool", {}, Failure.TIMED_OUT, lambda tool: tool in available
         )
 
-        assert remedies == Remedies((RETRY,), (NARROW,))
+        assert remedies == expected
 
     def test_merges_arguments_for_the_same_tool(self):
         registry = Recovery()

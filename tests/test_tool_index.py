@@ -317,7 +317,7 @@ class TestToolIndexRun:
             )
         )
         result = await self.index.run("list_companies", {}, self.no_filter)
-        assert result.structured_content["results"] == [{"id": "com_001"}]
+        assert json.loads(result.content[0].text)["results"] == [{"id": "com_001"}]
 
     @pytest.mark.anyio
     async def test_run_with_arguments(self, mock_api, ctx):
@@ -332,7 +332,10 @@ class TestToolIndexRun:
         result = await self.index.run(
             "get_company", {"company_id": "com_001"}, self.no_filter
         )
-        assert result.structured_content == {"id": "com_001", "legal_name": "Acme Corp"}
+        assert json.loads(result.content[0].text) == {
+            "id": "com_001",
+            "legal_name": "Acme Corp",
+        }
 
     @pytest.mark.anyio
     async def test_run_raises_check_api_error(self, mock_api, ctx):

@@ -67,29 +67,21 @@ class TestReportRequest:
             ReportRequest.parse(company_id="com_001", report_type="nonexistent")
 
 
-def kinds(remedies):
-    return [
-        remedy.tool if isinstance(remedy, Alternative) else "hint"
-        for remedy in remedies
-    ]
-
-
 class TestReportRequestRemedies:
-    def test_oversized_journal_offers_every_way_out(self):
-        request = ReportRequest(
-            company_id="com_001",
-            report_type=ReportType.PAYROLL_JOURNAL,
-            start_date="2026-09-13",
-            end_date="2026-09-19",
+    @staticmethod
+    def journal(**overrides) -> ReportRequest:
+        fields = {"start_date": "2026-09-13", "end_date": "2026-09-19", **overrides}
+        return ReportRequest(
+            company_id="com_001", report_type=ReportType.PAYROLL_JOURNAL, **fields
         )
 
-        remedies = request.remedies(Failure.TOO_LARGE)
+    def test_oversized_journal_offers_every_way_out(self):
+        remedies = self.journal().remedies(Failure.TOO_LARGE)
 
-        assert remedies[:2] == [
-            Alternative(
-                tool="create_report_run",
-                description=remedies[0].description,
-                arguments={
+        assert [(r.tool, r.arguments) for r in remedies] == [
+            (
+                "create_report_run",
+                {
                     "company": "com_001",
                     "report": "payroll_journal",
                     "parameters": {
@@ -98,26 +90,65 @@ class TestReportRequestRemedies:
                     },
                 },
             ),
-            Alternative(
-                tool="get_company_report",
-                description="Return the smaller CSV rendering of the report.",
-                arguments={"response_format": "csv"},
-            ),
+            ("get_company_report", {"response_format": "csv"}),
+            ("get_company_report", ("payroll",)),
+            ("get_company_report", ("start_date", "end_date")),
         ]
-        assert remedies[2:] == [
-            Hint("Pass the IDs of the payrolls you need as payroll."),
-            Hint("Request a shorter start_date to end_date range."),
-        ]
+        assert [type(r) for r in remedies] == [Alternative, Alternative, Hint, Hint]
 
-    def test_report_run_without_dates_is_a_hint(self):
+    @pytest.mark.parametrize(
+        ("overrides", "parameters"),
+        [
+            pytest.param(
+                {"payroll": ["prl_1"]}, {"payroll": "prl_1"}, id="one payroll"
+            ),
+            pytest.param(
+                {"include_contractor_id": True},
+                {"additional_columns": ["contractor.id"]},
+                id="contractor column",
+            ),
+        ],
+    )
+    def test_report_run_keeps_the_request_scope(self, overrides, parameters):
+        report_run = self.journal(**overrides).remedies(Failure.TIMED_OUT)[0]
+
+        assert report_run.arguments["parameters"] == {
+            "payday_from": "2026-09-13",
+            "payday_to": "2026-09-19",
+            **parameters,
+        }
+
+    @pytest.mark.parametrize(
+        ("overrides", "needs"),
+        [
+            pytest.param(
+                {"start_date": None, "end_date": None}, "payday range", id="no dates"
+            ),
+            pytest.param(
+                {"payroll": ["prl_1", "prl_2"]}, "one per payroll", id="many payrolls"
+            ),
+        ],
+    )
+    def test_report_run_that_cannot_be_built_is_a_hint(self, overrides, needs):
+        report_run = self.journal(**overrides).remedies(Failure.TIMED_OUT)[0]
+
+        assert report_run == Hint(
+            tool="create_report_run",
+            description=report_run.description,
+            arguments=("parameters",),
+        )
+        assert needs in report_run.description
+
+    def test_no_hint_to_narrow_what_the_request_did_not_set(self):
         request = ReportRequest(
-            company_id="com_001", report_type=ReportType.PAYROLL_SUMMARY
+            company_id="com_001",
+            report_type=ReportType.PAYROLL_JOURNAL,
+            payroll=["prl_1"],
         )
 
-        report_run = request.remedies(Failure.TIMED_OUT)[0]
-
-        assert isinstance(report_run, Hint)
-        assert "payday_from and payday_to" in report_run.description
+        assert request.remedies(Failure.TIMED_OUT) == [
+            request.remedies(Failure.TIMED_OUT)[0]
+        ]
 
     @pytest.mark.parametrize(
         ("report_type", "response_format", "failure", "expected"),
@@ -126,21 +157,21 @@ class TestReportRequestRemedies:
                 ReportType.PAYROLL_SUMMARY,
                 ReportFormat.JSON,
                 Failure.TIMED_OUT,
-                ["create_report_run", "hint"],
+                [Alternative, Hint],
                 id="csv not offered for a timeout",
             ),
             pytest.param(
                 ReportType.TAX_LIABILITIES,
                 ReportFormat.JSON,
                 Failure.TOO_LARGE,
-                ["get_company_report", "hint", "hint"],
+                [Alternative, Hint, Hint],
                 id="no report run for tax liabilities",
             ),
             pytest.param(
                 ReportType.TAX_LIABILITIES,
                 ReportFormat.CSV,
                 Failure.TOO_LARGE,
-                ["hint", "hint"],
+                [Hint, Hint],
                 id="csv request not told to use csv",
             ),
             pytest.param(
@@ -163,7 +194,7 @@ class TestReportRequestRemedies:
             end_date="2026-03-31",
         )
 
-        assert kinds(request.remedies(failure)) == expected
+        assert [type(r) for r in request.remedies(failure)] == expected
 
     @pytest.mark.parametrize(
         "arguments",

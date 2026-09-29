@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import os
 import sys
 from collections.abc import AsyncIterator, Sequence
@@ -12,10 +11,10 @@ from typing import Any
 
 import httpx
 from fastmcp import Context, FastMCP
-from fastmcp.exceptions import ToolError
+from fastmcp.exceptions import ToolError, ValidationError
 from fastmcp.tools import FunctionTool, ToolResult
 
-from mcp_server_check.errors import CheckToolError, ExpectedToolErrorFilter
+from mcp_server_check.errors import CheckToolError
 from mcp_server_check.helpers import CheckContext
 from mcp_server_check.middleware import (
     RecoveryMiddleware,
@@ -115,7 +114,6 @@ class CheckMCP(FastMCP):
         self._registry: dict[str, str] = {}
         self._static_filter: ToolFilter = ToolFilter.from_env()
         self._tool_index: ToolIndex | None = None
-        ExpectedToolErrorFilter.install(logging.getLogger("fastmcp.server.server"))
         self.add_middleware(RecoveryMiddleware(self.is_tool_available))
         response_size_limit = ResponseSizeLimitMiddleware.from_env()
         if response_size_limit is not None:
@@ -297,7 +295,7 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
                 arguments=call.arguments,
                 tool_filter=tf,
             )
-        except ValueError as e:
+        except (ValueError, ValidationError) as e:
             raise CheckToolError({"error": str(e)}) from e
 
         return ToolResult(content=result.content)

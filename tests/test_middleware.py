@@ -9,7 +9,7 @@ import httpx
 import pytest
 from fastmcp import Client
 from fastmcp.tools import ToolResult
-from mcp.types import CallToolRequestParams
+from mcp.types import CallToolRequestParams, CallToolResult
 from mcp_server_check.errors import CheckToolError
 from mcp_server_check.middleware import (
     ResponseSize,
@@ -134,12 +134,18 @@ class TestToolCall:
 
 
 class TestResponseSize:
-    def test_lambda_proxy_escapes_the_json_rpc_body_again(self):
-        result = ToolResult(content='say "hi"')
-        body = '{"content":[{"type":"text","text":"say \\"hi\\""}],"isError":false}'
+    @pytest.mark.parametrize(
+        "content", ['say "hi"', "back\\slash", "new\nline", "é", '{"a": [1]}']
+    )
+    def test_lambda_proxy_matches_escaping_the_body_again(self, content):
+        result = ToolResult(content=content)
+        body = CallToolResult(content=result.content).model_dump_json(
+            by_alias=True, exclude_none=True
+        )
 
-        assert ResponseSize.json_rpc_body(result) == len(body)
-        assert ResponseSize.lambda_proxy(result) == len(json.dumps(body))
+        assert ResponseSize.lambda_proxy(result) == len(
+            json.dumps(body, ensure_ascii=False).encode()
+        )
 
     def test_non_ascii_counts_as_utf8(self):
         ascii_size = ResponseSize.lambda_proxy(ToolResult(content="e"))
@@ -329,15 +335,47 @@ class TestIsToolAvailable:
         assert server.is_tool_available(tool) is expected
 
 
-class TestRunToolResult:
+class TestToolResultShape:
     @pytest.mark.anyio
-    async def test_result_is_sent_once(self, journal_route, make_server):
+    @pytest.mark.parametrize("tool_mode", ["all", "dynamic"])
+    async def test_result_is_sent_once(self, journal_route, make_server, tool_mode):
         journal_route.mock(return_value=httpx.Response(200, json=journal(10)))
 
         result = await call(
-            make_server("dynamic"), "dynamic", "get_company_report", JOURNAL_ARGUMENTS
+            make_server(tool_mode), tool_mode, "get_company_report", JOURNAL_ARGUMENTS
         )
 
         assert result.structured_content is None
         assert len(result.content) == 1
         assert len(json.loads(result.content[0].text)["results"]) == 10
+
+    @pytest.mark.anyio
+    async def test_run_tool_invalid_arguments_are_a_json_error(self, make_server):
+        result = await call(make_server("dynamic"), "dynamic", "get_company", {})
+
+        assert "validation error" in error_of(result)["error"]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("tool_mode", ["all", "dynamic"])
+    async def test_api_error_logged_as_warning(
+        self, mock_api, make_server, caplog, tool_mode
+    ):
+        mock_api.get("/companies/com_404").mock(
+            return_value=httpx.Response(404, json={"error": "Not found"})
+        )
+
+        # fastmcp's logger does not propagate to the root logger caplog watches.
+        fastmcp_logger = logging.getLogger("fastmcp.server.server")
+        fastmcp_logger.addHandler(caplog.handler)
+        try:
+            await call(
+                make_server(tool_mode),
+                tool_mode,
+                "get_company",
+                {"company_id": "com_404"},
+            )
+        finally:
+            fastmcp_logger.removeHandler(caplog.handler)
+
+        tool_logs = [r for r in caplog.records if "Error calling tool" in r.message]
+        assert [r.levelno for r in tool_logs] == [logging.WARNING]

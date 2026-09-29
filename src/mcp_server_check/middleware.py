@@ -7,7 +7,7 @@ import logging
 import os
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 from fastmcp.tools import ToolResult
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class ToolCall:
     """The Check tool a request runs, seen through the run_tool meta-tool."""
 
-    RUN_TOOL = "run_tool"
+    RUN_TOOL: ClassVar[str] = "run_tool"
 
     name: str
     arguments: dict[str, Any]
@@ -61,23 +61,20 @@ class ResponseSize:
     """Ways to measure the bytes a tool result takes on the wire."""
 
     @staticmethod
-    def json_rpc_body(result: ToolResult) -> int:
-        return len(ResponseSize._body(result).encode())
-
-    @staticmethod
     def lambda_proxy(result: ToolResult) -> int:
         """Measure the JSON-RPC body as an AWS Lambda proxy response carries it.
 
-        The proxy wraps the body in a JSON string, escaping it again. Non-ASCII
-        text is counted as UTF-8, which assumes the proxy does not escape it.
+        The proxy wraps the body in a JSON string. The body has no raw control
+        characters, so that adds a byte per quote and backslash plus the two
+        enclosing quotes. The body is serialized once, as UTF-8 bytes.
         """
-        return len(json.dumps(ResponseSize._body(result), ensure_ascii=False).encode())
-
-    @staticmethod
-    def _body(result: ToolResult) -> str:
-        return CallToolResult(
+        message = CallToolResult(
             content=result.content, structuredContent=result.structured_content
-        ).model_dump_json(by_alias=True, exclude_none=True)
+        )
+        body = message.__pydantic_serializer__.to_json(
+            message, by_alias=True, exclude_none=True
+        )
+        return len(body) + body.count(b'"') + body.count(b"\\") + 2
 
 
 class ResponseSizeLimitMiddleware(Middleware):

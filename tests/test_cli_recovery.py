@@ -62,8 +62,16 @@ class TestCLIRecovery:
             "--company com_001"
         ]
         assert error["hints"] == [
-            "Pass the IDs of the payrolls you need as payroll.",
-            "Request a shorter start_date to end_date range.",
+            {
+                "command": "check companies get-report",
+                "description": "Restrict the report to the payrolls you need.",
+                "options": ["--payroll"],
+            },
+            {
+                "command": "check companies get-report",
+                "description": "Request a shorter date range.",
+                "options": ["--start-date", "--end-date"],
+            },
         ]
 
     def test_read_only_keeps_only_hints(self, invoke):

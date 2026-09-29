@@ -189,6 +189,23 @@ async def test_get_company_report_csv_requests_csv_rendering(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_get_company_report_csv_rejects_a_non_csv_response(mock_api, ctx):
+    mock_api.get("/companies/com_001/reports/tax_liabilities").mock(
+        return_value=httpx.Response(200, json={"results": []})
+    )
+    result = await get_company_report(
+        ctx,
+        company_id="com_001",
+        report_type="tax_liabilities",
+        response_format="csv",
+    )
+    assert result == {
+        "error": True,
+        "detail": "Expected a CSV response, got application/json.",
+    }
+
+
+@pytest.mark.anyio
 async def test_get_company_report_json_is_the_default_format(mock_api, ctx):
     route = mock_api.get("/companies/com_001/reports/payroll_summary").mock(
         return_value=httpx.Response(200, json={"report": "data"})

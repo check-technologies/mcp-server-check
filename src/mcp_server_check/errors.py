@@ -15,7 +15,8 @@ class CheckToolError(ToolError):
     """A tool failure whose message is its JSON payload, remedies included."""
 
     def __init__(self, payload: dict[str, Any]) -> None:
-        super().__init__(payload)
+        # An expected outcome the client is told about, such as a Check API 4xx.
+        super().__init__(payload, log_level=logging.WARNING)
         self._payload = payload
         self.remedies = Remedies()
 
@@ -60,29 +61,3 @@ class ResponseTooLargeError(CheckToolError):
                 "limit": limit,
             }
         )
-
-
-class ExpectedToolErrorFilter(logging.Filter):
-    """Log a CheckToolError as one warning line instead of an error traceback.
-
-    fastmcp logs every exception a tool raises with its traceback. A
-    CheckToolError is an expected outcome the client is told about, such as a
-    Check API 4xx, so the traceback is noise.
-    """
-
-    @classmethod
-    def install(cls, logger: logging.Logger) -> None:
-        if not any(isinstance(existing, cls) for existing in logger.filters):
-            logger.addFilter(cls())
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        if record.exc_info and isinstance(record.exc_info[1], CheckToolError):
-            record.msg, record.args = (
-                "%s: %s",
-                (record.getMessage(), record.exc_info[1]),
-            )
-            record.exc_info = None
-            record.exc_text = None
-            record.levelno = logging.WARNING
-            record.levelname = logging.getLevelName(logging.WARNING)
-        return True
