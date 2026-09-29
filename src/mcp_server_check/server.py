@@ -14,6 +14,7 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.tools import FunctionTool
 
+from mcp_server_check.errors import CheckToolError
 from mcp_server_check.helpers import CheckContext
 from mcp_server_check.tool_filter import ToolFilter
 from mcp_server_check.tool_index import ToolIndex
@@ -99,16 +100,6 @@ async def lifespan(server: FastMCP) -> AsyncIterator[CheckContext]:
         yield CheckContext(client=client, base_url=base_url)
 
 
-def _raise_on_api_error(result: Any) -> None:
-    """Raise a ``ToolError`` carrying the JSON of a failed Check API result.
-
-    Tools return ``{"error": True, ...}`` dicts so composites and the CLI can
-    read them; MCP clients only see a failure when the tool call raises.
-    """
-    if isinstance(result, dict) and result.get("error") is True:
-        raise ToolError(json.dumps(result))
-
-
 class CheckMCP(FastMCP):
     """FastMCP subclass that applies toolset-based filtering at request time."""
 
@@ -159,11 +150,7 @@ class CheckMCP(FastMCP):
     async def call_tool(
         self, name: str, arguments: dict[str, Any] | None = None, **kwargs: Any
     ) -> Any:
-        """Call a tool, blocking if it's filtered out.
-
-        A Check API failure returned by the tool is raised as a ``ToolError``
-        so the MCP result has ``isError: true``.
-        """
+        """Call a tool, blocking if it's filtered out."""
         if self._tool_index is not None:
             return await super().call_tool(name, arguments, **kwargs)
         tf = self._get_active_filter()
@@ -172,9 +159,7 @@ class CheckMCP(FastMCP):
             raise ToolError(
                 f"Tool '{name}' is not available in the current configuration"
             )
-        result = await super().call_tool(name, arguments, **kwargs)
-        _raise_on_api_error(getattr(result, "structured_content", None))
-        return result
+        return await super().call_tool(name, arguments, **kwargs)
 
 
 def _setup_dynamic_mode(server: CheckMCP) -> None:
@@ -265,18 +250,16 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
                 try:
                     parsed_args = json.loads(arguments)
                 except json.JSONDecodeError as e:
-                    raise ToolError(
-                        json.dumps({"error": f"Invalid JSON arguments: {e}"})
+                    raise CheckToolError(
+                        {"error": f"Invalid JSON arguments: {e}"}
                     ) from e
                 if not isinstance(parsed_args, dict):
-                    raise ToolError(
-                        json.dumps({"error": "Arguments must be a JSON object"})
-                    )
+                    raise CheckToolError({"error": "Arguments must be a JSON object"})
             elif isinstance(arguments, dict):
                 parsed_args = arguments
             else:
-                raise ToolError(
-                    json.dumps({"error": "Arguments must be a JSON string or object"})
+                raise CheckToolError(
+                    {"error": "Arguments must be a JSON string or object"}
                 )
 
         if tf.requires_confirmation(tool_name) and not confirm:
@@ -300,9 +283,8 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
                 tool_filter=tf,
             )
         except ValueError as e:
-            raise ToolError(json.dumps({"error": str(e)})) from e
+            raise CheckToolError({"error": str(e)}) from e
 
-        _raise_on_api_error(result)
         return json.dumps(result) if isinstance(result, dict) else str(result)
 
 
