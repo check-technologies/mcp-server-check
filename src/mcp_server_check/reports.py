@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, TypeVar
 
 from mcp_server_check.helpers import build_params
+from mcp_server_check.recovery import Alternative, Failure
 
 _ChoiceT = TypeVar("_ChoiceT", bound="Choice")
 
@@ -76,22 +77,6 @@ class ReportFormat(Choice):
 
 
 @dataclass(frozen=True)
-class Alternative:
-    """Another call that gets the data a failed report request asked for."""
-
-    tool: str
-    description: str
-    arguments: dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "tool": self.tool,
-            "description": self.description,
-            "arguments": self.arguments,
-        }
-
-
-@dataclass(frozen=True)
 class ReportRequest:
     company_id: str
     report_type: ReportType
@@ -138,16 +123,30 @@ class ReportRequest:
             include_contractor_id=self.include_contractor_id,
         )
 
-    def alternatives(
-        self, *, report_runs_available: bool, timed_out: bool
-    ) -> list[Alternative]:
-        """Return calls that can succeed where this one timed out or was too large.
+    @classmethod
+    def recover(cls, arguments: dict[str, Any], failure: Failure) -> list[Alternative]:
+        """Alternatives provider for get_company_report.
+
+        A report's cost depends on how much payroll data falls in its range,
+        mostly company size, so a request that is too big cannot be spotted up
+        front: a full-year journal returns in seconds for most companies and
+        times out for the largest. Reports are tried synchronously, and these
+        alternatives are offered once one fails.
+        """
+        try:
+            request = cls.from_arguments(arguments)
+        except ValueError:
+            return []
+        return request.alternatives(failure)
+
+    def alternatives(self, failure: Failure) -> list[Alternative]:
+        """Return calls that can succeed where this one failed.
 
         A CSV rendering is smaller but takes as long to generate, so it is only
         offered for a result that was too large.
         """
         alternatives = []
-        if self.report_type.has_report_run and report_runs_available:
+        if self.report_type.has_report_run:
             alternatives.append(
                 Alternative(
                     tool="create_report_run",
@@ -167,7 +166,7 @@ class ReportRequest:
                     },
                 )
             )
-        if not timed_out and self.response_format is ReportFormat.JSON:
+        if failure is Failure.TOO_LARGE and self.response_format is ReportFormat.JSON:
             alternatives.append(
                 Alternative(
                     tool="get_company_report",

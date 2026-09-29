@@ -236,6 +236,32 @@ class TestReportAlternativesMiddleware:
         }
 
 
+class TestIsToolAvailable:
+    @pytest.mark.parametrize("tool_mode", ["all", "dynamic"])
+    @pytest.mark.parametrize(
+        ("tool_filter", "tool", "expected"),
+        [
+            pytest.param(ToolFilter(), "create_report_run", True, id="allowed"),
+            pytest.param(
+                ToolFilter(read_only=True), "create_report_run", False, id="read-only"
+            ),
+            pytest.param(
+                ToolFilter(toolsets=frozenset({"companies"})),
+                "create_report_run",
+                False,
+                id="other toolset",
+            ),
+            pytest.param(ToolFilter(), "no_such_tool", False, id="unknown"),
+        ],
+    )
+    def test_follows_the_active_filter(
+        self, make_server, tool_mode, tool_filter, tool, expected
+    ):
+        server = make_server(tool_mode, tool_filter)
+
+        assert server.is_tool_available(tool) is expected
+
+
 class TestRunToolResult:
     @pytest.mark.anyio
     async def test_result_is_sent_once(self, mock_api, make_server):

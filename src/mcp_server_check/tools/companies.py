@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
+from mcp_server_check.recovery import recoverable
 from mcp_server_check.reports import ReportFormat, ReportRequest, ReportType
 from mcp_server_check.types import Address
 from mcp_server_check.helpers import (
@@ -280,6 +281,7 @@ async def get_company_benefit_aggregations(
 # --- Reports ---
 
 
+@recoverable(ReportRequest.recover)
 async def get_company_report(
     ctx: Ctx,
     company_id: str,

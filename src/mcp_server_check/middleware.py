@@ -14,8 +14,7 @@ from fastmcp.tools import ToolResult
 from mcp.types import CallToolRequestParams, CallToolResult
 
 from mcp_server_check.errors import CheckToolError, ResponseTooLargeError
-from mcp_server_check.reports import ReportRequest
-from mcp_server_check.tool_filter import ToolFilter
+from mcp_server_check.recovery import recovery
 
 logger = logging.getLogger(__name__)
 
@@ -97,20 +96,15 @@ class ResponseSizeLimitMiddleware(Middleware):
         return len(json.dumps(body, ensure_ascii=False).encode())
 
 
-class ReportAlternativesMiddleware(Middleware):
-    """Add the calls that can still get a report to a timeout or size failure.
+class RecoveryMiddleware(Middleware):
+    """Add the registered alternatives to a failed call's tool error.
 
-    A report's cost depends on how much payroll data falls in its range, mostly
-    company size, so which requests are too big cannot be told up front: a
-    full-year journal returns in seconds for most companies and times out for
-    the largest. Reports are therefore tried synchronously, and the report run
-    and narrower alternatives are offered only once a request fails. They name
-    MCP tools and depend on which ones the active filter allows, so they are
-    added here rather than by the tool function.
+    Only alternatives whose tool the caller can use in this configuration are
+    kept. Add it before ResponseSizeLimitMiddleware so it sees that error too.
     """
 
-    def __init__(self, active_tool_filter: Callable[[], ToolFilter]) -> None:
-        self._active_tool_filter = active_tool_filter
+    def __init__(self, is_tool_available: Callable[[str], bool]) -> None:
+        self._is_tool_available = is_tool_available
 
     async def on_call_tool(
         self,
@@ -120,27 +114,10 @@ class ReportAlternativesMiddleware(Middleware):
         try:
             return await call_next(context)
         except CheckToolError as error:
-            timed_out = error.payload.get("timeout") is True
-            if not (timed_out or error.payload.get("response_too_large")):
-                raise
             call = ToolCall.from_request(context.message)
-            if call.name != "get_company_report":
+            payload = recovery.enrich(
+                error.payload, call.name, call.arguments, self._is_tool_available
+            )
+            if payload is error.payload:
                 raise
-            try:
-                request = ReportRequest.from_arguments(call.arguments)
-            except ValueError:
-                raise error from None
-            report_runs_available = self._active_tool_filter().is_tool_allowed(
-                "create_report_run", "report_runs"
-            )
-            alternatives = request.alternatives(
-                report_runs_available=report_runs_available, timed_out=timed_out
-            )
-            raise CheckToolError(
-                {
-                    **error.payload,
-                    "alternatives": [
-                        alternative.to_dict() for alternative in alternatives
-                    ],
-                }
-            ) from error
+            raise CheckToolError(payload) from error

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from mcp_server_check.recovery import Failure
 from mcp_server_check.reports import (
     ReportFormat,
     ReportRequest,
@@ -67,13 +68,6 @@ class TestReportRequest:
 
 
 class TestReportRequestAlternatives:
-    @staticmethod
-    def tools_and_arguments(request, **kwargs):
-        return [
-            (alternative.tool, alternative.arguments)
-            for alternative in request.alternatives(**kwargs)
-        ]
-
     def test_oversized_journal_offers_every_way_out(self):
         request = ReportRequest(
             company_id="com_001",
@@ -82,9 +76,9 @@ class TestReportRequestAlternatives:
             end_date="2026-09-19",
         )
 
-        assert self.tools_and_arguments(
-            request, report_runs_available=True, timed_out=False
-        ) == [
+        alternatives = request.alternatives(Failure.TOO_LARGE)
+
+        assert [(a.tool, a.arguments) for a in alternatives] == [
             (
                 "create_report_run",
                 {
@@ -102,58 +96,50 @@ class TestReportRequestAlternatives:
         ]
 
     @pytest.mark.parametrize(
-        ("report_type", "report_runs_available", "timed_out", "expected_tools"),
+        ("report_type", "response_format", "failure", "expected_tools"),
         [
             pytest.param(
                 ReportType.PAYROLL_SUMMARY,
-                False,
-                False,
-                ["get_company_report", "get_company_report"],
-                id="report runs hidden in read-only mode",
-            ),
-            pytest.param(
-                ReportType.PAYROLL_SUMMARY,
-                True,
-                True,
+                ReportFormat.JSON,
+                Failure.TIMED_OUT,
                 ["create_report_run", "get_company_report"],
                 id="csv not offered for a timeout",
             ),
             pytest.param(
                 ReportType.TAX_LIABILITIES,
-                True,
-                False,
+                ReportFormat.JSON,
+                Failure.TOO_LARGE,
                 ["get_company_report"] * 3,
                 id="no report run for tax liabilities",
             ),
             pytest.param(
+                ReportType.TAX_LIABILITIES,
+                ReportFormat.CSV,
+                Failure.TOO_LARGE,
+                ["get_company_report"] * 2,
+                id="csv request not told to use csv",
+            ),
+            pytest.param(
                 ReportType.APPLIED_FOR_IDS_DETAILED,
-                True,
-                True,
+                ReportFormat.JSON,
+                Failure.TIMED_OUT,
                 [],
                 id="nothing to narrow",
             ),
         ],
     )
-    def test_alternatives_follow_report_and_availability(
-        self, report_type, report_runs_available, timed_out, expected_tools
+    def test_alternatives_follow_report_and_failure(
+        self, report_type, response_format, failure, expected_tools
     ):
-        request = ReportRequest(company_id="com_001", report_type=report_type)
-
-        alternatives = request.alternatives(
-            report_runs_available=report_runs_available, timed_out=timed_out
+        request = ReportRequest(
+            company_id="com_001",
+            report_type=report_type,
+            response_format=response_format,
         )
+
+        alternatives = request.alternatives(failure)
 
         assert [alternative.tool for alternative in alternatives] == expected_tools
 
-    def test_csv_request_is_not_told_to_use_csv(self):
-        request = ReportRequest(
-            company_id="com_001",
-            report_type=ReportType.TAX_LIABILITIES,
-            response_format=ReportFormat.CSV,
-        )
-
-        alternatives = self.tools_and_arguments(
-            request, report_runs_available=True, timed_out=False
-        )
-
-        assert ("get_company_report", {"response_format": "csv"}) not in alternatives
+    def test_recover_ignores_invalid_arguments(self):
+        assert ReportRequest.recover({"report_type": "nope"}, Failure.TIMED_OUT) == []

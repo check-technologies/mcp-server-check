@@ -17,7 +17,7 @@ from fastmcp.tools import FunctionTool, ToolResult
 from mcp_server_check.errors import CheckToolError
 from mcp_server_check.helpers import CheckContext
 from mcp_server_check.middleware import (
-    ReportAlternativesMiddleware,
+    RecoveryMiddleware,
     ResponseSizeLimitMiddleware,
 )
 from mcp_server_check.tool_filter import ToolFilter
@@ -113,7 +113,7 @@ class CheckMCP(FastMCP):
         self._registry: dict[str, str] = {}
         self._static_filter: ToolFilter = ToolFilter.from_env()
         self._tool_index: ToolIndex | None = None
-        self.add_middleware(ReportAlternativesMiddleware(self.active_tool_filter))
+        self.add_middleware(RecoveryMiddleware(self.is_tool_available))
         response_size_limit = ResponseSizeLimitMiddleware.from_env()
         if response_size_limit is not None:
             self.add_middleware(response_size_limit)
@@ -143,6 +143,17 @@ class CheckMCP(FastMCP):
         except Exception:
             pass
         return self._static_filter
+
+    def is_tool_available(self, name: str) -> bool:
+        """Return whether the current request can call the Check tool name."""
+        if self._tool_index is not None:
+            entry = self._tool_index.get_entry(name)
+            toolset = entry.toolset if entry is not None else None
+        else:
+            toolset = self._registry.get(name)
+        return toolset is not None and self.active_tool_filter().is_tool_allowed(
+            name, toolset
+        )
 
     async def list_tools(self, **kwargs: Any) -> Sequence[FunctionTool]:
         """List tools, filtered by the active configuration."""
