@@ -32,19 +32,15 @@ class TestCheckToolError:
     def test_failure(self, error, failure):
         assert error.failure is failure
 
-    def test_with_remedies_keeps_type_and_adds_remedies(self):
+    def test_remedies_are_part_of_payload_and_message(self):
         error = ResponseTooLargeError("get_company", 10, 5)
+        base = dict(error.payload)
 
-        remedied = error.with_remedies(Remedies(hints=(Hint("Ask for less."),)))
+        error.remedies = Remedies(hints=(Hint("Ask for less."),))
 
-        assert type(remedied) is ResponseTooLargeError
-        assert remedied.payload == {
-            **error.payload,
-            "alternatives": [],
-            "hints": ["Ask for less."],
-        }
-        assert json.loads(str(remedied)) == remedied.payload
-        assert "hints" not in error.payload
+        assert error.payload == {**base, "alternatives": [], "hints": ["Ask for less."]}
+        assert json.loads(str(error)) == error.payload
+        assert error.failure is Failure.TOO_LARGE
 
 
 class TestCheckAPIError:

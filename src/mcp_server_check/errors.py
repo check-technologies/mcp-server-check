@@ -4,32 +4,33 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, TypeVar
+from typing import Any
 
 from fastmcp.exceptions import ToolError
 
 from mcp_server_check.recovery import Failure, Remedies
 
-_ErrorT = TypeVar("_ErrorT", bound="CheckToolError")
-
 
 class CheckToolError(ToolError):
-    """A tool failure whose message is its JSON payload."""
+    """A tool failure whose message is its JSON payload, remedies included."""
 
     def __init__(self, payload: dict[str, Any]) -> None:
-        super().__init__(json.dumps(payload))
-        self.payload = payload
+        super().__init__(payload)
+        self._payload = payload
+        self.remedies = Remedies()
+
+    def __str__(self) -> str:
+        return json.dumps(self.payload)
+
+    @property
+    def payload(self) -> dict[str, Any]:
+        if not self.remedies:
+            return self._payload
+        return {**self._payload, **self.remedies.to_dict()}
 
     @property
     def failure(self) -> Failure | None:
-        return Failure.from_payload(self.payload)
-
-    def with_remedies(self: _ErrorT, remedies: Remedies) -> _ErrorT:
-        """Return a copy of this error, of the same type, listing the remedies."""
-        # Subclass constructors take other arguments, so build the copy by hand.
-        error = type(self).__new__(type(self))
-        CheckToolError.__init__(error, {**self.payload, **remedies.to_dict()})
-        return error
+        return Failure.from_payload(self._payload)
 
 
 class CheckAPIError(CheckToolError):

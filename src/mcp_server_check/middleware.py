@@ -159,9 +159,7 @@ class RecoveryMiddleware(Middleware):
             return await call_next(context)
         except CheckToolError as error:
             call = ToolCall.from_request(context.message)
-            remedies = self._registry.remedies(
+            error.remedies = self._registry.remedies(
                 call.name, call.arguments, error.failure, self._is_tool_available
             )
-            if not remedies:
-                raise
-            raise error.with_remedies(remedies) from error
+            raise
