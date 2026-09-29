@@ -20,6 +20,7 @@ from mcp_server_check.middleware import (
     RecoveryMiddleware,
     ResponseSizeLimitMiddleware,
     ToolCall,
+    ToolErrorLogMiddleware,
 )
 from mcp_server_check.tool_filter import ToolFilter
 from mcp_server_check.tool_index import ToolIndex
@@ -115,6 +116,7 @@ class CheckMCP(FastMCP):
         self._static_filter: ToolFilter = ToolFilter.from_env()
         self._tool_index: ToolIndex | None = None
         self.add_middleware(RecoveryMiddleware(self.is_tool_available))
+        self.add_middleware(ToolErrorLogMiddleware())
         response_size_limit = ResponseSizeLimitMiddleware.from_env()
         if response_size_limit is not None:
             self.add_middleware(response_size_limit)

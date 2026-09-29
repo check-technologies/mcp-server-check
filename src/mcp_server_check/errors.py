@@ -15,8 +15,8 @@ class CheckToolError(ToolError):
     """A tool failure whose message is its JSON payload, remedies included."""
 
     def __init__(self, payload: dict[str, Any]) -> None:
-        # An expected outcome the client is told about, such as a Check API 4xx.
-        super().__init__(payload, log_level=logging.WARNING)
+        # ToolErrorLogMiddleware logs it with the Check tool and payload.
+        super().__init__(payload, log_level=logging.DEBUG)
         self._payload = payload
         self.remedies = Remedies()
 

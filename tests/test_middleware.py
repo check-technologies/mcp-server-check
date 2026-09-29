@@ -26,6 +26,7 @@ JOURNAL_ARGUMENTS = {
     "end_date": "2026-09-19",
 }
 SMALL_LIMIT = "2000"
+REMEDIES = ("alternatives", "hints")
 
 
 def journal(rows: int) -> dict:
@@ -171,9 +172,9 @@ class TestResponseSizeLimitMiddleware:
             )
 
         error = error_of(result)
+        logged = {key: value for key, value in error.items() if key not in REMEDIES}
         assert caplog.messages == [
-            "Tool result exceeds the response size limit: "
-            f"tool=get_company_report size={error['size']} limit={SMALL_LIMIT}"
+            f"Tool call failed: tool=get_company_report error={json.dumps(logged)}"
         ]
         assert error["response_too_large"] is True
         assert error["size"] > error["limit"] == int(SMALL_LIMIT)
@@ -357,13 +358,12 @@ class TestToolResultShape:
 
     @pytest.mark.anyio
     @pytest.mark.parametrize("tool_mode", ["all", "dynamic"])
-    async def test_api_error_logged_as_warning(
+    async def test_api_error_logged_once_with_the_check_tool(
         self, mock_api, make_server, caplog, tool_mode
     ):
         mock_api.get("/companies/com_404").mock(
             return_value=httpx.Response(404, json={"error": "Not found"})
         )
-
         # fastmcp's logger does not propagate to the root logger caplog watches.
         fastmcp_logger = logging.getLogger("fastmcp.server.server")
         fastmcp_logger.addHandler(caplog.handler)
@@ -377,5 +377,10 @@ class TestToolResultShape:
         finally:
             fastmcp_logger.removeHandler(caplog.handler)
 
-        tool_logs = [r for r in caplog.records if "Error calling tool" in r.message]
-        assert [r.levelno for r in tool_logs] == [logging.WARNING]
+        warnings = [
+            r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING
+        ]
+        payload = {"error": True, "status_code": 404, "detail": {"error": "Not found"}}
+        assert warnings == [
+            f"Tool call failed: tool=get_company error={json.dumps(payload)}"
+        ]

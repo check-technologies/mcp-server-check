@@ -124,21 +124,42 @@ class ResponseSizeLimitMiddleware(Middleware):
         if size <= self.max_bytes:
             return result
         tool = ToolCall.from_request(context.message).name
-        logger.warning(
-            "Tool result exceeds the response size limit: tool=%s size=%d limit=%d",
-            tool,
-            size,
-            self.max_bytes,
-            extra={"tool": tool, "size": size, "limit": self.max_bytes},
-        )
         raise ResponseTooLargeError(tool, size, self.max_bytes)
+
+
+class ToolErrorLogMiddleware(Middleware):
+    """Log each CheckToolError once, with the Check tool it came from.
+
+    fastmcp's own line names only the called tool, which is run_tool in dynamic
+    mode, and carries no detail, so CheckToolError logs there at DEBUG.
+    """
+
+    async def on_call_tool(
+        self,
+        context: MiddlewareContext[CallToolRequestParams],
+        call_next: CallNext[CallToolRequestParams, ToolResult],
+    ) -> ToolResult:
+        try:
+            return await call_next(context)
+        except CheckToolError as error:
+            tool = ToolCall.from_request(context.message).name
+            # Formatted now: RecoveryMiddleware adds remedies to the error later.
+            payload = json.dumps(error.payload)
+            logger.warning(
+                "Tool call failed: tool=%s error=%s",
+                tool,
+                payload,
+                extra={"tool": tool, "error": error.payload},
+            )
+            raise
 
 
 class RecoveryMiddleware(Middleware):
     """List the registered remedies on a failed call's tool error.
 
     Only alternatives whose tool the caller can use in this configuration are
-    kept. Add it before ResponseSizeLimitMiddleware so it sees that error too.
+    kept. Add it first, so it sees every other middleware's errors and they
+    are logged without the remedies.
     """
 
     def __init__(

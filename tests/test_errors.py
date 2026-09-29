@@ -15,8 +15,8 @@ from mcp_server_check.recovery import Failure, Hint, Remedies
 
 
 class TestCheckToolError:
-    def test_logged_as_warning(self):
-        assert CheckToolError({"error": "bad"}).log_level == logging.WARNING
+    def test_fastmcp_logs_it_at_debug(self):
+        assert CheckToolError({"error": "bad"}).log_level == logging.DEBUG
 
     def test_message_is_the_json_payload(self):
         error = CheckToolError({"error": "bad"})
