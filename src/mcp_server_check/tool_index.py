@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from fastmcp.tools import FunctionTool as Tool
+from fastmcp.tools import ToolResult
 
 from mcp_server_check.annotations import build_tool
 from mcp_server_check.tool_filter import ToolFilter, is_write_tool
@@ -253,7 +254,7 @@ class ToolIndex:
         name: str,
         arguments: dict[str, Any],
         tool_filter: ToolFilter,
-    ) -> Any:
+    ) -> ToolResult:
         """Look up and execute a tool by name.
 
         Context is injected automatically by fastmcp's dependency system.
@@ -280,15 +281,7 @@ class ToolIndex:
             raise ValueError(
                 f"Tool '{name}' is not available in the current configuration"
             )
-        result = await entry.tool.run(arguments)
-        if (
-            hasattr(result, "structured_content")
-            and result.structured_content is not None
-        ):
-            return result.structured_content
-        if hasattr(result, "content") and result.content:
-            return result.content[0].text
-        return result
+        return await entry.tool.run(arguments)
 
     def _suggest_tool(self, name: str) -> str | None:
         """Find the closest matching tool name for error messages."""

@@ -27,6 +27,7 @@ CHECK_API_KEY=your-key uv run mcp-server-check
 | `CHECK_EXCLUDE_TOOLS` | No | — | Comma-separated list of tool names to hide |
 | `CHECK_READ_ONLY` | No | — | Set to `1`, `true`, or `yes` to disable all write/mutating tools |
 | `CHECK_TRANSPORT` | No | `stdio` | Transport protocol: `stdio`, `sse`, or `streamable-http` |
+| `CHECK_MAX_RESPONSE_BYTES` | No | `6000000` | Largest tool result to return; a bigger one becomes a tool error listing ways to narrow it. `0` disables the check |
 
 ### Sandbox vs Production
 

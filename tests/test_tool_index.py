@@ -317,7 +317,7 @@ class TestToolIndexRun:
             )
         )
         result = await self.index.run("list_companies", {}, self.no_filter)
-        assert result["results"] == [{"id": "com_001"}]
+        assert result.structured_content["results"] == [{"id": "com_001"}]
 
     @pytest.mark.anyio
     async def test_run_with_arguments(self, mock_api, ctx):
@@ -332,7 +332,7 @@ class TestToolIndexRun:
         result = await self.index.run(
             "get_company", {"company_id": "com_001"}, self.no_filter
         )
-        assert result == {"id": "com_001", "legal_name": "Acme Corp"}
+        assert result.structured_content == {"id": "com_001", "legal_name": "Acme Corp"}
 
 
 # --- ToolIndex.get_toolset_names ---

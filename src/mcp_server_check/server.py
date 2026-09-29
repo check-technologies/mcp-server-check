@@ -12,10 +12,14 @@ from typing import Any
 import httpx
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
-from fastmcp.tools import FunctionTool
+from fastmcp.tools import FunctionTool, ToolResult
 
 from mcp_server_check.errors import CheckToolError
 from mcp_server_check.helpers import CheckContext
+from mcp_server_check.middleware import (
+    ReportAlternativesMiddleware,
+    ResponseSizeLimitMiddleware,
+)
 from mcp_server_check.tool_filter import ToolFilter
 from mcp_server_check.tool_index import ToolIndex
 from mcp_server_check.tools import register_all
@@ -85,6 +89,7 @@ Prefer the workflow tools when they fit — they combine multiple API calls in o
 - Employee SSNs are write-once; after setting, only last 4 digits are readable
 - Tax parameter updates require the `spa_*` setting ID, not the parameter name
 - Report runs (`run_`) are asynchronous: create one, poll it until "completed" or "failed", then download — the download link expires in about a minute
+- A report that times out or is too large to return fails with an "alternatives" list of calls that can still get it, such as response_format="csv" (smaller) or a report run
 """
 
 
@@ -108,8 +113,12 @@ class CheckMCP(FastMCP):
         self._registry: dict[str, str] = {}
         self._static_filter: ToolFilter = ToolFilter.from_env()
         self._tool_index: ToolIndex | None = None
+        self.add_middleware(ReportAlternativesMiddleware(self.active_tool_filter))
+        response_size_limit = ResponseSizeLimitMiddleware.from_env()
+        if response_size_limit is not None:
+            self.add_middleware(response_size_limit)
 
-    def _get_active_filter(self) -> ToolFilter:
+    def active_tool_filter(self) -> ToolFilter:
         """Return the filter for the current request.
 
         For HTTP transports, merges request-header and query-parameter
@@ -140,7 +149,7 @@ class CheckMCP(FastMCP):
         all_tools = await super().list_tools(**kwargs)
         if self._tool_index is not None:
             return all_tools
-        tf = self._get_active_filter()
+        tf = self.active_tool_filter()
         return [
             t
             for t in all_tools
@@ -153,7 +162,7 @@ class CheckMCP(FastMCP):
         """Call a tool, blocking if it's filtered out."""
         if self._tool_index is not None:
             return await super().call_tool(name, arguments, **kwargs)
-        tf = self._get_active_filter()
+        tf = self.active_tool_filter()
         toolset = self._registry.get(name, "")
         if not tf.is_tool_allowed(name, toolset):
             raise ToolError(
@@ -192,7 +201,7 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         toolset: Optional toolset name to restrict search (e.g. "companies", "employees").
         limit: Maximum number of results (default 20).
         """
-        tf = server._get_active_filter()
+        tf = server.active_tool_filter()
         results = index.search(query, tool_filter=tf, toolset=toolset, limit=limit)
         return json.dumps(results, indent=2)
 
@@ -212,12 +221,15 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         tool count, and example tools. Use this to understand what's available
         before searching for specific tools.
         """
-        tf = server._get_active_filter()
+        tf = server.active_tool_filter()
         results = index.search("", tool_filter=tf)
         return json.dumps(results, indent=2)
 
+    # With no output schema the result goes out once, as text; an inferred one
+    # would repeat the whole result as structuredContent.
     @server.tool(
         title="Run Tool",
+        output_schema=None,
         annotations={
             "readOnlyHint": False,
             "destructiveHint": True,
@@ -229,12 +241,13 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         tool_name: str,
         arguments: str | dict | None = None,
         confirm: bool = False,
-    ) -> str:
+    ) -> ToolResult:
         """Execute an API tool by name with the given arguments.
 
         Use search_tools first to find the tool name and its parameter schema.
         A failed call returns a tool error whose message is a JSON object with
-        "error" and, for Check API failures, "status_code" and "detail".
+        "error" and, for Check API failures, "status_code" and "detail". A report
+        that times out or is too large also lists "alternatives" to call instead.
 
         tool_name: The exact tool name (e.g. "list_companies", "get_employee").
         arguments: Tool arguments as a JSON string or dict (e.g. '{"company_id": "com_xxx"}'
@@ -243,7 +256,7 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
             delete, simulate, refund, cancel). Required when CHECK_CONFIRM_DESTRUCTIVE
             is enabled and the tool is destructive.
         """
-        tf = server._get_active_filter()
+        tf = server.active_tool_filter()
         parsed_args: dict = {}
         if arguments is not None:
             if isinstance(arguments, str):
@@ -263,17 +276,19 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
                 )
 
         if tf.requires_confirmation(tool_name) and not confirm:
-            return json.dumps(
-                {
-                    "confirmation_required": True,
-                    "tool_name": tool_name,
-                    "arguments": parsed_args,
-                    "message": (
-                        f"⚠️  '{tool_name}' is a destructive operation that may "
-                        f"trigger irreversible effects (money movement, data deletion, "
-                        f"etc.). Call run_tool again with confirm=true to proceed."
-                    ),
-                }
+            return ToolResult(
+                content=json.dumps(
+                    {
+                        "confirmation_required": True,
+                        "tool_name": tool_name,
+                        "arguments": parsed_args,
+                        "message": (
+                            f"⚠️  '{tool_name}' is a destructive operation that may "
+                            f"trigger irreversible effects (money movement, data deletion, "
+                            f"etc.). Call run_tool again with confirm=true to proceed."
+                        ),
+                    }
+                )
             )
 
         try:
@@ -285,13 +300,13 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         except ValueError as e:
             raise CheckToolError({"error": str(e)}) from e
 
-        return json.dumps(result) if isinstance(result, dict) else str(result)
+        return ToolResult(content=result.content)
 
 
 def _register_resources(server: CheckMCP) -> None:
     """Register MCP resources for enum values and reference data."""
     from mcp_server_check.tool_index import _TOOLSET_DESCRIPTIONS
-    from mcp_server_check.tools.companies import COMPANY_REPORT_TYPES
+    from mcp_server_check.reports import ReportType
     from mcp_server_check.tools.compensation import BENEFIT_TYPES
     from mcp_server_check.tools.components import (
         COMPANY_COMPONENTS,
@@ -350,7 +365,7 @@ def _register_resources(server: CheckMCP) -> None:
         },
         "report_type": {
             "description": "Valid report_type values for get_company_report.",
-            "values": COMPANY_REPORT_TYPES,
+            "values": [report_type.value for report_type in ReportType],
         },
         "report_run_type": {
             "description": (

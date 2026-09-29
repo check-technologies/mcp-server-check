@@ -24,3 +24,22 @@ class CheckAPIError(CheckToolError):
         if isinstance(result, dict) and result.get("error") is True:
             return cls(result)
         return None
+
+
+class ResponseTooLargeError(CheckToolError):
+    """Raised when a tool result is too large to deliver to the client."""
+
+    def __init__(self, tool: str, size: int, limit: int) -> None:
+        super().__init__(
+            {
+                "error": True,
+                "response_too_large": True,
+                "detail": (
+                    f"The {tool} result is {size} bytes, over the {limit}-byte "
+                    "response limit. Narrow the request with filters, a lower "
+                    "limit, or specific IDs."
+                ),
+                "size": size,
+                "limit": limit,
+            }
+        )
