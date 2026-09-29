@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 
 import httpx
 import pytest
@@ -150,16 +151,24 @@ class TestResponseSizeLimitMiddleware:
     @pytest.mark.anyio
     @pytest.mark.parametrize("tool_mode", ["all", "dynamic"])
     async def test_oversized_report_is_explained_tool_error(
-        self, journal_route, make_server, monkeypatch, tool_mode
+        self, journal_route, make_server, monkeypatch, caplog, tool_mode
     ):
         journal_route.mock(return_value=httpx.Response(200, json=journal(100)))
         monkeypatch.setenv(ResponseSizeLimitMiddleware.ENV_VAR, SMALL_LIMIT)
 
-        result = await call(
-            make_server(tool_mode), tool_mode, "get_company_report", JOURNAL_ARGUMENTS
-        )
+        with caplog.at_level(logging.WARNING, logger="mcp_server_check.middleware"):
+            result = await call(
+                make_server(tool_mode),
+                tool_mode,
+                "get_company_report",
+                JOURNAL_ARGUMENTS,
+            )
 
         error = error_of(result)
+        assert caplog.messages == [
+            "Tool result exceeds the response size limit: "
+            f"tool=get_company_report size={error['size']} limit={SMALL_LIMIT}"
+        ]
         assert error["response_too_large"] is True
         assert error["size"] > error["limit"] == int(SMALL_LIMIT)
         assert [a["tool"] for a in error["alternatives"]] == [

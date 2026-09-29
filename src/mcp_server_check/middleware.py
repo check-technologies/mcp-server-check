@@ -128,7 +128,10 @@ class ResponseSizeLimitMiddleware(Middleware):
             return result
         tool = ToolCall.from_request(context.message).name
         logger.warning(
-            "Tool result exceeds the response size limit",
+            "Tool result exceeds the response size limit: tool=%s size=%d limit=%d",
+            tool,
+            size,
+            self.max_bytes,
             extra={"tool": tool, "size": size, "limit": self.max_bytes},
         )
         raise ResponseTooLargeError(tool, size, self.max_bytes)
