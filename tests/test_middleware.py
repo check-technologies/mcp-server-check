@@ -7,8 +7,14 @@ import json
 import httpx
 import pytest
 from fastmcp import Client
+from fastmcp.tools import ToolResult
 from mcp.types import CallToolRequestParams
-from mcp_server_check.middleware import ResponseSizeLimitMiddleware, ToolCall
+from mcp_server_check.errors import CheckToolError
+from mcp_server_check.middleware import (
+    ResponseSize,
+    ResponseSizeLimitMiddleware,
+    ToolCall,
+)
 from mcp_server_check.server import CheckMCP, lifespan, setup_tools
 from mcp_server_check.tool_filter import ToolFilter
 
@@ -18,26 +24,21 @@ JOURNAL_ARGUMENTS = {
     "start_date": "2026-09-13",
     "end_date": "2026-09-19",
 }
+SMALL_LIMIT = "2000"
 
 
 def journal(rows: int) -> dict:
     return {
         "results": [
-            {
-                "employee": f"emp_{row:06d}",
-                "name": 'Jane "JD" Doe',
-                "gross_pay": "1000.00",
-                "taxes": [{"name": "FICA", "amount": "62.00"}],
-            }
+            {"employee": f"emp_{row:06d}", "name": 'Jane "JD" Doe', "gross": "1000.00"}
             for row in range(rows)
         ]
     }
 
 
-def tool_call(tool_mode: str, name: str, arguments: dict) -> tuple[str, dict]:
-    if tool_mode == "all":
-        return name, arguments
-    return "run_tool", {"tool_name": name, "arguments": arguments}
+@pytest.fixture
+def journal_route(mock_api):
+    return mock_api.get("/companies/com_001/reports/payroll_journal")
 
 
 @pytest.fixture
@@ -57,10 +58,15 @@ def make_server(monkeypatch):
 
 
 async def call(server: CheckMCP, tool_mode: str, name: str, arguments: dict):
+    if tool_mode == "dynamic":
+        name, arguments = ToolCall.RUN_TOOL, {"tool_name": name, "arguments": arguments}
     async with Client(server) as client:
-        return await client.call_tool(
-            *tool_call(tool_mode, name, arguments), raise_on_error=False
-        )
+        return await client.call_tool(name, arguments, raise_on_error=False)
+
+
+def error_of(result) -> dict:
+    assert result.is_error is True, "error_of: Expected a tool error"
+    return json.loads(result.content[0].text)
 
 
 class TestToolCall:
@@ -72,10 +78,7 @@ class TestToolCall:
     def test_unwraps_run_tool(self, inner_arguments):
         params = CallToolRequestParams(
             name="run_tool",
-            arguments={
-                "tool_name": "get_company_report",
-                "arguments": inner_arguments,
-            },
+            arguments={"tool_name": "get_company_report", "arguments": inner_arguments},
         )
 
         assert ToolCall.from_request(params) == ToolCall(
@@ -91,51 +94,90 @@ class TestToolCall:
             "get_company", {"company_id": "com_001"}
         )
 
-    def test_ignores_malformed_run_tool_arguments(self):
-        params = CallToolRequestParams(
-            name="run_tool", arguments={"tool_name": "get_company", "arguments": "{"}
-        )
+    @pytest.mark.parametrize(
+        ("arguments", "expected"),
+        [
+            pytest.param(
+                {"tool_name": "get_company", "arguments": "{"},
+                ToolCall("get_company", {}),
+                id="malformed json",
+            ),
+            pytest.param(
+                {"tool_name": "get_company", "arguments": "[1]"},
+                ToolCall("get_company", {}),
+                id="json array",
+            ),
+            pytest.param({}, ToolCall("run_tool", {}), id="no tool name"),
+        ],
+    )
+    def test_request_with_bad_run_tool_arguments_reads_as_none(
+        self, arguments, expected
+    ):
+        params = CallToolRequestParams(name="run_tool", arguments=arguments)
 
-        assert ToolCall.from_request(params) == ToolCall("get_company", {})
+        assert ToolCall.from_request(params) == expected
+
+    @pytest.mark.parametrize(
+        ("arguments", "message"),
+        [
+            ("{", "Invalid JSON arguments"),
+            ("[1]", "Arguments must be a JSON object"),
+            (7, "Arguments must be a JSON string or object"),
+        ],
+    )
+    def test_from_run_tool_rejects_bad_arguments(self, arguments, message):
+        with pytest.raises(CheckToolError) as excinfo:
+            ToolCall.from_run_tool("get_company", arguments)
+
+        assert excinfo.value.payload["error"].startswith(message)
+
+
+class TestResponseSize:
+    def test_lambda_proxy_escapes_the_json_rpc_body_again(self):
+        result = ToolResult(content='say "hi"')
+        body = '{"content":[{"type":"text","text":"say \\"hi\\""}],"isError":false}'
+
+        assert ResponseSize.json_rpc_body(result) == len(body)
+        assert ResponseSize.lambda_proxy(result) == len(json.dumps(body))
+
+    def test_non_ascii_counts_as_utf8(self):
+        ascii_size = ResponseSize.lambda_proxy(ToolResult(content="e"))
+
+        assert ResponseSize.lambda_proxy(ToolResult(content="é")) == ascii_size + 1
 
 
 class TestResponseSizeLimitMiddleware:
     @pytest.mark.anyio
     @pytest.mark.parametrize("tool_mode", ["all", "dynamic"])
     async def test_oversized_report_is_explained_tool_error(
-        self, mock_api, make_server, tool_mode
+        self, journal_route, make_server, monkeypatch, tool_mode
     ):
-        mock_api.get("/companies/com_001/reports/payroll_journal").mock(
-            return_value=httpx.Response(200, json=journal(50_000))
-        )
+        journal_route.mock(return_value=httpx.Response(200, json=journal(100)))
+        monkeypatch.setenv(ResponseSizeLimitMiddleware.ENV_VAR, SMALL_LIMIT)
 
         result = await call(
             make_server(tool_mode), tool_mode, "get_company_report", JOURNAL_ARGUMENTS
         )
 
-        error = json.loads(result.content[0].text)
-        assert result.is_error is True
+        error = error_of(result)
         assert error["response_too_large"] is True
-        assert (
-            error["size"]
-            > error["limit"]
-            == (ResponseSizeLimitMiddleware.DEFAULT_MAX_BYTES)
-        )
-        assert [alternative["tool"] for alternative in error["alternatives"]] == [
+        assert error["size"] > error["limit"] == int(SMALL_LIMIT)
+        assert [a["tool"] for a in error["alternatives"]] == [
             "create_report_run",
             "get_company_report",
-            "get_company_report",
-            "get_company_report",
         ]
+        assert error["alternatives"][1]["arguments"] == {
+            **JOURNAL_ARGUMENTS,
+            "response_format": "csv",
+        }
+        assert len(error["hints"]) == 2
 
     @pytest.mark.anyio
     @pytest.mark.parametrize("tool_mode", ["all", "dynamic"])
     async def test_result_under_limit_is_returned(
-        self, mock_api, make_server, tool_mode
+        self, journal_route, make_server, tool_mode
     ):
-        mock_api.get("/companies/com_001/reports/payroll_journal").mock(
-            return_value=httpx.Response(200, json=journal(10))
-        )
+        journal_route.mock(return_value=httpx.Response(200, json=journal(10)))
 
         result = await call(
             make_server(tool_mode), tool_mode, "get_company_report", JOURNAL_ARGUMENTS
@@ -145,7 +187,7 @@ class TestResponseSizeLimitMiddleware:
         assert len(json.loads(result.content[0].text)["results"]) == 10
 
     @pytest.mark.anyio
-    async def test_oversized_result_of_other_tool_has_no_alternatives(
+    async def test_oversized_result_of_other_tool_has_no_remedies(
         self, mock_api, make_server, monkeypatch
     ):
         monkeypatch.setenv(ResponseSizeLimitMiddleware.ENV_VAR, "200")
@@ -157,71 +199,87 @@ class TestResponseSizeLimitMiddleware:
             make_server("all"), "all", "get_company", {"company_id": "com_001"}
         )
 
-        error = json.loads(result.content[0].text)
-        assert result.is_error is True
+        error = error_of(result)
         assert error["detail"].startswith("The get_company result is")
         assert "alternatives" not in error
+        assert "hints" not in error
 
-    @pytest.mark.anyio
-    async def test_zero_disables_the_limit(self, mock_api, make_server, monkeypatch):
+    def test_default_limit(self, make_server):
+        limits = [
+            middleware.max_bytes
+            for middleware in make_server("all").middleware
+            if isinstance(middleware, ResponseSizeLimitMiddleware)
+        ]
+
+        assert limits == [ResponseSizeLimitMiddleware.DEFAULT_MAX_BYTES]
+
+    def test_zero_disables_the_limit(self, monkeypatch):
         monkeypatch.setenv(ResponseSizeLimitMiddleware.ENV_VAR, "0")
-        mock_api.get("/companies/com_001/reports/payroll_journal").mock(
-            return_value=httpx.Response(200, json=journal(100))
-        )
-        server = make_server("all")
 
-        result = await call(server, "all", "get_company_report", JOURNAL_ARGUMENTS)
+        assert ResponseSizeLimitMiddleware.from_env() is None
 
-        assert result.is_error is False
-        assert not any(
-            isinstance(middleware, ResponseSizeLimitMiddleware)
-            for middleware in server.middleware
-        )
+    def test_non_integer_limit_names_the_variable(self, monkeypatch):
+        monkeypatch.setenv(ResponseSizeLimitMiddleware.ENV_VAR, "6MB")
+
+        with pytest.raises(ValueError, match="CHECK_MAX_RESPONSE_BYTES must be"):
+            ResponseSizeLimitMiddleware.from_env()
 
     def test_rejects_non_positive_limit(self):
         with pytest.raises(ValueError, match="max_bytes must be positive"):
             ResponseSizeLimitMiddleware(max_bytes=0)
 
 
-class TestReportAlternativesMiddleware:
+class TestRecoveryMiddleware:
     @pytest.mark.anyio
     @pytest.mark.parametrize("tool_mode", ["all", "dynamic"])
-    async def test_timeout_offers_report_run(self, mock_api, make_server, tool_mode):
-        mock_api.get("/companies/com_001/reports/payroll_journal").mock(
-            side_effect=httpx.ReadTimeout("timed out")
-        )
+    async def test_timeout_offers_report_run(
+        self, journal_route, make_server, tool_mode
+    ):
+        journal_route.mock(side_effect=httpx.ReadTimeout("timed out"))
 
         result = await call(
             make_server(tool_mode), tool_mode, "get_company_report", JOURNAL_ARGUMENTS
         )
 
-        error = json.loads(result.content[0].text)
-        assert result.is_error is True
+        error = error_of(result)
         assert error["timeout"] is True
         assert error["detail"] == "timed out"
-        assert [alternative["tool"] for alternative in error["alternatives"]] == [
-            "create_report_run",
-            "get_company_report",
-            "get_company_report",
-        ]
+        assert [a["tool"] for a in error["alternatives"]] == ["create_report_run"]
+        assert len(error["hints"]) == 2
 
     @pytest.mark.anyio
-    async def test_read_only_timeout_skips_report_run(self, mock_api, make_server):
-        mock_api.get("/companies/com_001/reports/payroll_journal").mock(
-            side_effect=httpx.ReadTimeout("timed out")
-        )
+    async def test_read_only_keeps_only_hints(self, journal_route, make_server):
+        journal_route.mock(side_effect=httpx.ReadTimeout("timed out"))
         server = make_server("dynamic", ToolFilter(read_only=True))
 
         result = await call(server, "dynamic", "get_company_report", JOURNAL_ARGUMENTS)
 
-        error = json.loads(result.content[0].text)
-        assert "create_report_run" not in {
-            alternative["tool"] for alternative in error["alternatives"]
+        error = error_of(result)
+        assert error["alternatives"] == []
+        assert len(error["hints"]) == 2
+
+    @pytest.mark.anyio
+    async def test_timeout_without_remedies_is_unchanged(self, mock_api, make_server):
+        mock_api.get("/companies/com_001/reports/applied_for_ids_detailed").mock(
+            side_effect=httpx.ReadTimeout("timed out")
+        )
+
+        result = await call(
+            make_server("all"),
+            "all",
+            "get_company_report",
+            {"company_id": "com_001", "report_type": "applied_for_ids_detailed"},
+        )
+
+        assert error_of(result) == {
+            "error": True,
+            "timeout": True,
+            "detail": "timed out",
         }
 
     @pytest.mark.anyio
-    async def test_other_api_errors_pass_through(self, mock_api, make_server):
-        mock_api.get("/companies/com_001/reports/payroll_journal").mock(
+    async def test_other_api_errors_pass_through(self, journal_route, make_server):
+        journal_route.mock(
             return_value=httpx.Response(400, json={"error": "Bad range"})
         )
 
@@ -229,7 +287,7 @@ class TestReportAlternativesMiddleware:
             make_server("all"), "all", "get_company_report", JOURNAL_ARGUMENTS
         )
 
-        assert json.loads(result.content[0].text) == {
+        assert error_of(result) == {
             "error": True,
             "status_code": 400,
             "detail": {"error": "Bad range"},
@@ -264,10 +322,8 @@ class TestIsToolAvailable:
 
 class TestRunToolResult:
     @pytest.mark.anyio
-    async def test_result_is_sent_once(self, mock_api, make_server):
-        mock_api.get("/companies/com_001/reports/payroll_journal").mock(
-            return_value=httpx.Response(200, json=journal(10))
-        )
+    async def test_result_is_sent_once(self, journal_route, make_server):
+        journal_route.mock(return_value=httpx.Response(200, json=journal(10)))
 
         result = await call(
             make_server("dynamic"), "dynamic", "get_company_report", JOURNAL_ARGUMENTS

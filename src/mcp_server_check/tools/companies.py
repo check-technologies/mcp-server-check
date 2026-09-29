@@ -6,7 +6,7 @@ from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.recovery import recoverable
-from mcp_server_check.reports import ReportFormat, ReportRequest, ReportType
+from mcp_server_check.reports import ReportFormat, ReportRequest
 from mcp_server_check.types import Address
 from mcp_server_check.helpers import (
     Ctx,
@@ -315,10 +315,10 @@ async def get_company_report(
             "csv" returns the smaller CSV rendering as a string under the csv key.
     """
     try:
-        request = ReportRequest(
+        request = ReportRequest.parse(
             company_id=company_id,
-            report_type=ReportType.parse("report_type", report_type),
-            response_format=ReportFormat.parse("response_format", response_format),
+            report_type=report_type,
+            response_format=response_format,
             start_date=start_date,
             end_date=end_date,
             year=year,

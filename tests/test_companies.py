@@ -152,7 +152,7 @@ async def test_get_company_report_returns_directly_when_fast_enough(
 
 @pytest.mark.anyio
 async def test_get_company_report_returns_the_timeout_error(mock_api, ctx):
-    """Alternatives are added by ReportAlternativesMiddleware, which knows the filter."""
+    """Remedies are added by RecoveryMiddleware or the CLI, which know the filter."""
     mock_api.get("/companies/com_001/reports/payroll_journal").mock(
         side_effect=httpx.ReadTimeout("timed out")
     )

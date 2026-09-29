@@ -10,6 +10,8 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 from fastmcp import Context
 
+from mcp_server_check.recovery import Failure
+
 try:
     _VERSION = version("mcp-server-check")
 except PackageNotFoundError:
@@ -238,7 +240,7 @@ async def _check_api_request(
     except httpx.TimeoutException as e:
         # Surfaced separately so callers can offer an asynchronous alternative
         # instead of reporting an opaque transport error.
-        return {"error": True, "timeout": True, "detail": str(e)}
+        return {"error": True, Failure.TIMED_OUT.value: True, "detail": str(e)}
     except httpx.RequestError as e:
         return {"error": True, "detail": str(e)}
 

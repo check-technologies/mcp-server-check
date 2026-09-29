@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 from collections.abc import AsyncIterator, Sequence
@@ -14,11 +15,12 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.tools import FunctionTool, ToolResult
 
-from mcp_server_check.errors import CheckToolError
+from mcp_server_check.errors import CheckToolError, ExpectedToolErrorFilter
 from mcp_server_check.helpers import CheckContext
 from mcp_server_check.middleware import (
     RecoveryMiddleware,
     ResponseSizeLimitMiddleware,
+    ToolCall,
 )
 from mcp_server_check.tool_filter import ToolFilter
 from mcp_server_check.tool_index import ToolIndex
@@ -89,7 +91,7 @@ Prefer the workflow tools when they fit — they combine multiple API calls in o
 - Employee SSNs are write-once; after setting, only last 4 digits are readable
 - Tax parameter updates require the `spa_*` setting ID, not the parameter name
 - Report runs (`run_`) are asynchronous: create one, poll it until "completed" or "failed", then download — the download link expires in about a minute
-- A report that times out or is too large to return fails with an "alternatives" list of calls that can still get it, such as response_format="csv" (smaller) or a report run
+- A report that times out or is too large to return fails with "alternatives" (complete calls that can still get it, such as response_format="csv" or a report run) and "hints" (advice that needs input only you have)
 """
 
 
@@ -113,6 +115,7 @@ class CheckMCP(FastMCP):
         self._registry: dict[str, str] = {}
         self._static_filter: ToolFilter = ToolFilter.from_env()
         self._tool_index: ToolIndex | None = None
+        ExpectedToolErrorFilter.install(logging.getLogger("fastmcp.server.server"))
         self.add_middleware(RecoveryMiddleware(self.is_tool_available))
         response_size_limit = ResponseSizeLimitMiddleware.from_env()
         if response_size_limit is not None:
@@ -236,10 +239,11 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         results = index.search("", tool_filter=tf)
         return json.dumps(results, indent=2)
 
-    # With no output schema the result goes out once, as text; an inferred one
-    # would repeat the whole result as structuredContent.
     @server.tool(
+        name=ToolCall.RUN_TOOL,
         title="Run Tool",
+        # Without a schema the result goes out once, as text, not also as
+        # structuredContent.
         output_schema=None,
         annotations={
             "readOnlyHint": False,
@@ -258,7 +262,8 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         Use search_tools first to find the tool name and its parameter schema.
         A failed call returns a tool error whose message is a JSON object with
         "error" and, for Check API failures, "status_code" and "detail". A report
-        that times out or is too large also lists "alternatives" to call instead.
+        that times out or is too large also lists "alternatives" to call instead
+        and "hints".
 
         tool_name: The exact tool name (e.g. "list_companies", "get_employee").
         arguments: Tool arguments as a JSON string or dict (e.g. '{"company_id": "com_xxx"}'
@@ -268,23 +273,7 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
             is enabled and the tool is destructive.
         """
         tf = server.active_tool_filter()
-        parsed_args: dict = {}
-        if arguments is not None:
-            if isinstance(arguments, str):
-                try:
-                    parsed_args = json.loads(arguments)
-                except json.JSONDecodeError as e:
-                    raise CheckToolError(
-                        {"error": f"Invalid JSON arguments: {e}"}
-                    ) from e
-                if not isinstance(parsed_args, dict):
-                    raise CheckToolError({"error": "Arguments must be a JSON object"})
-            elif isinstance(arguments, dict):
-                parsed_args = arguments
-            else:
-                raise CheckToolError(
-                    {"error": "Arguments must be a JSON string or object"}
-                )
+        call = ToolCall.from_run_tool(tool_name, arguments)
 
         if tf.requires_confirmation(tool_name) and not confirm:
             return ToolResult(
@@ -292,7 +281,7 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
                     {
                         "confirmation_required": True,
                         "tool_name": tool_name,
-                        "arguments": parsed_args,
+                        "arguments": call.arguments,
                         "message": (
                             f"⚠️  '{tool_name}' is a destructive operation that may "
                             f"trigger irreversible effects (money movement, data deletion, "
@@ -305,7 +294,7 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         try:
             result = await index.run(
                 name=tool_name,
-                arguments=parsed_args,
+                arguments=call.arguments,
                 tool_filter=tf,
             )
         except ValueError as e:

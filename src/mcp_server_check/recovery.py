@@ -1,10 +1,10 @@
-"""Alternatives a failed tool call can point to, declared per tool.
+"""Remedies a failed tool call can point to, declared per tool.
 
 A tool registers a provider with the recoverable decorator. When a call fails
-in a way the caller can work around, recovery.enrich adds the provider's
-alternatives to the error payload. The MCP server and the CLI both call it,
-each with its own test of which tools the caller can use, and each renders
-the alternatives for its surface.
+in a way the caller can work around, Recovery.remedies collects the provider's
+alternatives (complete calls to run instead) and hints (advice with no call
+attached), keeping only the alternatives the caller can use. The MCP server
+and the CLI each render the result for their surface.
 """
 
 from __future__ import annotations
@@ -12,27 +12,29 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from typing import Any, TypeVar
+from typing import Any, TypeVar, Union
 
 _ToolFunction = TypeVar("_ToolFunction", bound=Callable[..., Any])
 
 
 class Failure(str, Enum):
-    TIMED_OUT = "timed_out"
-    TOO_LARGE = "too_large"
+    """A failure a caller can work around; each value is its payload flag."""
+
+    TIMED_OUT = "timeout"
+    TOO_LARGE = "response_too_large"
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> Failure | None:
-        if payload.get("timeout") is True:
-            return cls.TIMED_OUT
-        if payload.get("response_too_large") is True:
-            return cls.TOO_LARGE
-        return None
+        return next((failure for failure in cls if payload.get(failure.value)), None)
 
 
 @dataclass(frozen=True)
 class Alternative:
-    """Another tool call that can get what a failed call asked for."""
+    """A complete tool call that can get what a failed call asked for.
+
+    An alternative for the failed tool itself names only the arguments it
+    changes; Recovery.remedies merges them into the failed call's.
+    """
 
     tool: str
     description: str
@@ -46,17 +48,42 @@ class Alternative:
         }
 
 
-AlternativesProvider = Callable[[dict[str, Any], Failure], list[Alternative]]
+@dataclass(frozen=True)
+class Hint:
+    """Advice that needs input only the caller has, so it names no call."""
+
+    description: str
+
+
+Remedy = Union[Alternative, Hint]
+RemedyProvider = Callable[[dict[str, Any], Failure], list[Remedy]]
+
+
+@dataclass(frozen=True)
+class Remedies:
+    alternatives: tuple[Alternative, ...] = ()
+    hints: tuple[Hint, ...] = ()
+
+    def __bool__(self) -> bool:
+        return bool(self.alternatives or self.hints)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "alternatives": [
+                alternative.to_dict() for alternative in self.alternatives
+            ],
+            "hints": [hint.description for hint in self.hints],
+        }
 
 
 class Recovery:
-    """Registry of alternatives providers, keyed by tool function name."""
+    """Registry of remedy providers, keyed by tool function name."""
 
     def __init__(self) -> None:
-        self._providers: dict[str, AlternativesProvider] = {}
+        self._providers: dict[str, RemedyProvider] = {}
 
     def recoverable(
-        self, provider: AlternativesProvider
+        self, provider: RemedyProvider
     ) -> Callable[[_ToolFunction], _ToolFunction]:
         def register(tool: _ToolFunction) -> _ToolFunction:
             self._providers[tool.__name__] = provider
@@ -64,32 +91,28 @@ class Recovery:
 
         return register
 
-    def enrich(
+    def remedies(
         self,
-        payload: dict[str, Any],
         tool: str,
         arguments: dict[str, Any],
+        failure: Failure | None,
         is_available: Callable[[str], bool],
-    ) -> dict[str, Any]:
-        """Return payload with the available alternatives, or payload unchanged.
-
-        An alternative that calls the failed tool again only names the
-        arguments it changes, so they are merged into the failed call's.
-        """
-        failure = Failure.from_payload(payload)
+    ) -> Remedies:
         provider = self._providers.get(tool)
         if failure is None or provider is None:
-            return payload
-        alternatives = [
-            (
-                replace(alternative, arguments={**arguments, **alternative.arguments})
-                if alternative.tool == tool
-                else alternative
-            ).to_dict()
-            for alternative in provider(arguments, failure)
-            if is_available(alternative.tool)
-        ]
-        return {**payload, "alternatives": alternatives}
+            return Remedies()
+        alternatives = []
+        hints = []
+        for remedy in provider(arguments, failure):
+            if isinstance(remedy, Hint):
+                hints.append(remedy)
+            elif is_available(remedy.tool):
+                alternatives.append(
+                    replace(remedy, arguments={**arguments, **remedy.arguments})
+                    if remedy.tool == tool
+                    else remedy
+                )
+        return Remedies(tuple(alternatives), tuple(hints))
 
 
 recovery = Recovery()

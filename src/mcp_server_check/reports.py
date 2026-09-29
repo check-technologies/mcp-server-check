@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Any, TypeVar
 
 from mcp_server_check.helpers import build_params
-from mcp_server_check.recovery import Alternative, Failure
+from mcp_server_check.recovery import Alternative, Failure, Hint, Remedy
 
 _ChoiceT = TypeVar("_ChoiceT", bound="Choice")
 
@@ -88,20 +88,28 @@ class ReportRequest:
     include_contractor_id: bool | None = None
 
     @classmethod
-    def from_arguments(cls, arguments: dict[str, Any]) -> ReportRequest:
+    def parse(
+        cls,
+        *,
+        company_id: str,
+        report_type: str,
+        response_format: str = ReportFormat.JSON.value,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        year: str | None = None,
+        payroll: list[str] | None = None,
+        include_contractor_id: bool | None = None,
+    ) -> ReportRequest:
         """Build a request from get_company_report arguments; raises ValueError."""
         return cls(
-            company_id=arguments.get("company_id", ""),
-            report_type=ReportType.parse("report_type", arguments.get("report_type")),
-            response_format=ReportFormat.parse(
-                "response_format",
-                arguments.get("response_format", ReportFormat.JSON.value),
-            ),
-            start_date=arguments.get("start_date"),
-            end_date=arguments.get("end_date"),
-            year=arguments.get("year"),
-            payroll=arguments.get("payroll"),
-            include_contractor_id=arguments.get("include_contractor_id"),
+            company_id=company_id,
+            report_type=ReportType.parse("report_type", report_type),
+            response_format=ReportFormat.parse("response_format", response_format),
+            start_date=start_date,
+            end_date=end_date,
+            year=year,
+            payroll=payroll,
+            include_contractor_id=include_contractor_id,
         )
 
     @property
@@ -124,50 +132,32 @@ class ReportRequest:
         )
 
     @classmethod
-    def recover(cls, arguments: dict[str, Any], failure: Failure) -> list[Alternative]:
-        """Alternatives provider for get_company_report.
+    def recover(cls, arguments: dict[str, Any], failure: Failure) -> list[Remedy]:
+        """Remedy provider for get_company_report.
 
         A report's cost depends on how much payroll data falls in its range,
         mostly company size, so a request that is too big cannot be spotted up
         front: a full-year journal returns in seconds for most companies and
         times out for the largest. Reports are tried synchronously, and these
-        alternatives are offered once one fails.
+        remedies are offered once one fails.
         """
         try:
-            request = cls.from_arguments(arguments)
-        except ValueError:
+            request = cls.parse(**arguments)
+        except (TypeError, ValueError):
             return []
-        return request.alternatives(failure)
+        return request.remedies(failure)
 
-    def alternatives(self, failure: Failure) -> list[Alternative]:
-        """Return calls that can succeed where this one failed.
+    def remedies(self, failure: Failure) -> list[Remedy]:
+        """Return what can succeed where this request failed.
 
         A CSV rendering is smaller but takes as long to generate, so it is only
         offered for a result that was too large.
         """
-        alternatives = []
+        remedies: list[Remedy] = []
         if self.report_type.has_report_run:
-            alternatives.append(
-                Alternative(
-                    tool="create_report_run",
-                    description=(
-                        "Generate the report asynchronously, poll get_report_run "
-                        "until its status is completed, then call "
-                        "download_report_run. additional_columns adds the "
-                        "employee, contractor, and payroll ID columns."
-                    ),
-                    arguments={
-                        "company": self.company_id,
-                        "report": self.report_type.value,
-                        "parameters": {
-                            "payday_from": self.start_date,
-                            "payday_to": self.end_date,
-                        },
-                    },
-                )
-            )
+            remedies.append(self._report_run_remedy())
         if failure is Failure.TOO_LARGE and self.response_format is ReportFormat.JSON:
-            alternatives.append(
+            remedies.append(
                 Alternative(
                     tool="get_company_report",
                     description="Return the smaller CSV rendering of the report.",
@@ -175,18 +165,29 @@ class ReportRequest:
                 )
             )
         if self.report_type.takes_payroll_filter:
-            alternatives.append(
-                Alternative(
-                    tool="get_company_report",
-                    description="Restrict the report to specific payroll IDs.",
-                    arguments={"payroll": ["<payroll ID>"]},
-                )
-            )
+            remedies.append(Hint("Pass the IDs of the payrolls you need as payroll."))
         if self.report_type.takes_date_range:
-            alternatives.append(
-                Alternative(
-                    tool="get_company_report",
-                    description="Request a shorter start_date to end_date range.",
-                )
-            )
-        return alternatives
+            remedies.append(Hint("Request a shorter start_date to end_date range."))
+        return remedies
+
+    def _report_run_remedy(self) -> Remedy:
+        description = (
+            "Generate the report asynchronously with create_report_run, poll "
+            "get_report_run until its status is completed, then call "
+            "download_report_run. additional_columns adds the employee, "
+            "contractor, and payroll ID columns."
+        )
+        if self.start_date is None or self.end_date is None:
+            return Hint(f"{description} It needs payday_from and payday_to dates.")
+        return Alternative(
+            tool="create_report_run",
+            description=description,
+            arguments={
+                "company": self.company_id,
+                "report": self.report_type.value,
+                "parameters": {
+                    "payday_from": self.start_date,
+                    "payday_to": self.end_date,
+                },
+            },
+        )

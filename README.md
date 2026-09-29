@@ -156,7 +156,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 | `get_company_paydays` | GET | Get upcoming paydays for a company |
 | `list_company_tax_deposits` | GET | List tax deposits for a company |
 | `get_company_benefit_aggregations` | GET | Get benefit aggregations for a company |
-| `get_company_report` | GET | Get a company report by `report_type`. Returns directly; if a `payroll_journal`/`payroll_summary` request holds too much data to finish in time, it points at [Report Runs](#report-runs-4-tools) |
+| `get_company_report` | GET | Get a company report by `report_type`, as JSON rows or, with `response_format="csv"`, the smaller CSV rendering. A request that times out or is too large to return fails with `alternatives` (such as a [Report Run](#report-runs-4-tools) or the CSV rendering) and `hints` |
 | `list_federal_ein_verifications` | GET | List federal EIN verifications |
 | `get_federal_ein_verification` | GET | Get a specific EIN verification |
 | `list_signatories` | GET | List signatories for a company |

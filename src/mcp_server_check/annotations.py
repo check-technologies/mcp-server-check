@@ -140,12 +140,11 @@ class CheckTool(FunctionTool):
     failures the same way.
     """
 
-    async def run(self, arguments: dict[str, Any]) -> ToolResult:
-        result = await super().run(arguments)
-        error = CheckAPIError.from_result(result.structured_content)
+    def convert_result(self, raw_value: Any) -> ToolResult:
+        error = CheckAPIError.from_result(raw_value)
         if error is not None:
             raise error
-        return result
+        return super().convert_result(raw_value)
 
 
 def build_tool(fn: Callable[..., Any]) -> CheckTool:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from mcp_server_check.recovery import Failure
+from mcp_server_check.recovery import Alternative, Failure, Hint
 from mcp_server_check.reports import (
     ReportFormat,
     ReportRequest,
@@ -53,21 +53,28 @@ class TestReportRequest:
 
         assert request.query_params == {"year": "2025"}
 
-    def test_from_arguments_defaults_to_json(self):
-        request = ReportRequest.from_arguments(
-            {"company_id": "com_001", "report_type": "payroll_summary"}
+    def test_parse_defaults_to_json(self):
+        request = ReportRequest.parse(
+            company_id="com_001", report_type="payroll_summary"
         )
 
         assert request == ReportRequest(
             company_id="com_001", report_type=ReportType.PAYROLL_SUMMARY
         )
 
-    def test_from_arguments_rejects_unknown_report(self):
+    def test_parse_rejects_unknown_report(self):
         with pytest.raises(ValueError, match="Unknown report_type"):
-            ReportRequest.from_arguments({"report_type": "nonexistent"})
+            ReportRequest.parse(company_id="com_001", report_type="nonexistent")
 
 
-class TestReportRequestAlternatives:
+def kinds(remedies):
+    return [
+        remedy.tool if isinstance(remedy, Alternative) else "hint"
+        for remedy in remedies
+    ]
+
+
+class TestReportRequestRemedies:
     def test_oversized_journal_offers_every_way_out(self):
         request = ReportRequest(
             company_id="com_001",
@@ -76,12 +83,13 @@ class TestReportRequestAlternatives:
             end_date="2026-09-19",
         )
 
-        alternatives = request.alternatives(Failure.TOO_LARGE)
+        remedies = request.remedies(Failure.TOO_LARGE)
 
-        assert [(a.tool, a.arguments) for a in alternatives] == [
-            (
-                "create_report_run",
-                {
+        assert remedies[:2] == [
+            Alternative(
+                tool="create_report_run",
+                description=remedies[0].description,
+                arguments={
                     "company": "com_001",
                     "report": "payroll_journal",
                     "parameters": {
@@ -90,33 +98,49 @@ class TestReportRequestAlternatives:
                     },
                 },
             ),
-            ("get_company_report", {"response_format": "csv"}),
-            ("get_company_report", {"payroll": ["<payroll ID>"]}),
-            ("get_company_report", {}),
+            Alternative(
+                tool="get_company_report",
+                description="Return the smaller CSV rendering of the report.",
+                arguments={"response_format": "csv"},
+            ),
+        ]
+        assert remedies[2:] == [
+            Hint("Pass the IDs of the payrolls you need as payroll."),
+            Hint("Request a shorter start_date to end_date range."),
         ]
 
+    def test_report_run_without_dates_is_a_hint(self):
+        request = ReportRequest(
+            company_id="com_001", report_type=ReportType.PAYROLL_SUMMARY
+        )
+
+        report_run = request.remedies(Failure.TIMED_OUT)[0]
+
+        assert isinstance(report_run, Hint)
+        assert "payday_from and payday_to" in report_run.description
+
     @pytest.mark.parametrize(
-        ("report_type", "response_format", "failure", "expected_tools"),
+        ("report_type", "response_format", "failure", "expected"),
         [
             pytest.param(
                 ReportType.PAYROLL_SUMMARY,
                 ReportFormat.JSON,
                 Failure.TIMED_OUT,
-                ["create_report_run", "get_company_report"],
+                ["create_report_run", "hint"],
                 id="csv not offered for a timeout",
             ),
             pytest.param(
                 ReportType.TAX_LIABILITIES,
                 ReportFormat.JSON,
                 Failure.TOO_LARGE,
-                ["get_company_report"] * 3,
+                ["get_company_report", "hint", "hint"],
                 id="no report run for tax liabilities",
             ),
             pytest.param(
                 ReportType.TAX_LIABILITIES,
                 ReportFormat.CSV,
                 Failure.TOO_LARGE,
-                ["get_company_report"] * 2,
+                ["hint", "hint"],
                 id="csv request not told to use csv",
             ),
             pytest.param(
@@ -128,18 +152,26 @@ class TestReportRequestAlternatives:
             ),
         ],
     )
-    def test_alternatives_follow_report_and_failure(
-        self, report_type, response_format, failure, expected_tools
+    def test_remedies_follow_report_and_failure(
+        self, report_type, response_format, failure, expected
     ):
         request = ReportRequest(
             company_id="com_001",
             report_type=report_type,
             response_format=response_format,
+            start_date="2026-01-01",
+            end_date="2026-03-31",
         )
 
-        alternatives = request.alternatives(failure)
+        assert kinds(request.remedies(failure)) == expected
 
-        assert [alternative.tool for alternative in alternatives] == expected_tools
-
-    def test_recover_ignores_invalid_arguments(self):
-        assert ReportRequest.recover({"report_type": "nope"}, Failure.TIMED_OUT) == []
+    @pytest.mark.parametrize(
+        "arguments",
+        [
+            {"company_id": "com_001", "report_type": "nope"},
+            {"report_type": "tax_liabilities"},
+        ],
+        ids=["unknown report", "missing company"],
+    )
+    def test_recover_ignores_invalid_arguments(self, arguments):
+        assert ReportRequest.recover(arguments, Failure.TIMED_OUT) == []
