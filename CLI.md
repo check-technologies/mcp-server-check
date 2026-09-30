@@ -228,6 +228,8 @@ export CHECK_EXCLUDE_TOOLS=delete_company,delete_employee
 
 Error details are printed to stderr, data to stdout, so pipes work correctly even on errors.
 
+When a command times out and there is another way to get the data, the error lists `alternatives` (ready-to-run commands) and `hints` (advice that needs input only you have). For example, a large `companies get-report` suggests `check report-runs create ...` and hints at narrowing the date range. Commands hidden by `--read-only` or the toolset filters are left out.
+
 ## Examples
 
 ### Payroll Workflow
@@ -288,6 +290,10 @@ check companies get-report com_xxxxx --report-type payroll_journal \
 # Tax liabilities
 check companies get-report com_xxxxx --report-type tax_liabilities \
   --start-date 2026-01-01 --end-date 2026-03-31
+
+# The same report as CSV, which is smaller
+check companies get-report com_xxxxx --report-type tax_liabilities \
+  --start-date 2026-01-01 --end-date 2026-03-31 --response-format csv
 
 # W-2 preview
 check companies get-report com_xxxxx --report-type w2_preview --year 2025

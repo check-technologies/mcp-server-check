@@ -36,5 +36,6 @@ when a session starts. Run all commands through `uv run` (they execute inside `.
   `https://api.checkhq.com`) touches real payroll data — only use it for read-only checks.
 - To exercise tool round-trips without any key, mock the HTTP layer with `respx` (as the tests do)
   and drive the in-memory server via `fastmcp`'s `Client(mcp)`.
-- `uv.lock` resolves `fastmcp` to a 3.x release even though `pyproject.toml` only pins
-  `>=2.0.0`; use `uv sync --frozen` to stay consistent with CI.
+- `pyproject.toml` requires `fastmcp>=3.4.4` (tool errors rely on its per-error
+  `log_level`), and `uv.lock` pins the version the hosted connector runs; use
+  `uv sync --frozen` to stay consistent with CI.

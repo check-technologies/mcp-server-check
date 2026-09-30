@@ -10,6 +10,8 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 from fastmcp import Context
 
+from mcp_server_check.recovery import Failure
+
 try:
     _VERSION = version("mcp-server-check")
 except PackageNotFoundError:
@@ -204,8 +206,13 @@ async def _check_api_request(
     params: dict | None = None,
     data: dict | list | None = None,
     extra_headers: dict[str, str] | None = None,
+    parse: Callable[[httpx.Response], dict] = lambda response: response.json(),
 ) -> dict:
-    """Make a request to the Check API with shared error handling."""
+    """Make a request to the Check API with shared error handling.
+
+    parse turns a successful response into the tool result; the default decodes
+    a JSON body.
+    """
     check_ctx = ctx.request_context.lifespan_context
     headers: dict[str, str] = {"User-Agent": check_ctx.user_agent}
     if extra_headers:
@@ -219,7 +226,7 @@ async def _check_api_request(
         response.raise_for_status()
         if response.status_code == 204:
             return {"success": True}
-        return response.json()
+        return parse(response)
     except httpx.HTTPStatusError as e:
         try:
             error_body = e.response.json()
@@ -233,7 +240,7 @@ async def _check_api_request(
     except httpx.TimeoutException as e:
         # Surfaced separately so callers can offer an asynchronous alternative
         # instead of reporting an opaque transport error.
-        return {"error": True, "timeout": True, "detail": str(e)}
+        return {"error": True, Failure.TIMED_OUT.value: True, "detail": str(e)}
     except httpx.RequestError as e:
         return {"error": True, "detail": str(e)}
 
@@ -241,6 +248,28 @@ async def _check_api_request(
 async def check_api_get(ctx: Ctx, path: str, params: dict | None = None) -> dict:
     """Make a GET request to the Check API."""
     return await _check_api_request(ctx, "GET", path, params=params)
+
+
+async def check_api_get_csv(ctx: Ctx, path: str, params: dict | None = None) -> dict:
+    """Make a GET request for a CSV rendering, returned under the csv key."""
+    return await _check_api_request(
+        ctx,
+        "GET",
+        path,
+        params=params,
+        extra_headers={"Accept": "text/csv"},
+        parse=_csv_body,
+    )
+
+
+def _csv_body(response: httpx.Response) -> dict:
+    content_type = response.headers.get("content-type", "")
+    if not content_type.startswith("text/csv"):
+        return {
+            "error": True,
+            "detail": f"Expected a CSV response, got {content_type or 'no content type'}.",
+        }
+    return {"csv": response.text}
 
 
 async def check_api_post(

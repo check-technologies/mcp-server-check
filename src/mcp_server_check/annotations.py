@@ -16,9 +16,10 @@ import re
 from collections.abc import Callable
 from typing import Any
 
-from fastmcp.tools import FunctionTool, Tool
+from fastmcp.tools import FunctionTool, ToolResult
 from mcp.types import ToolAnnotations
 
+from mcp_server_check.errors import CheckAPIError
 from mcp_server_check.tool_filter import is_destructive_tool, is_write_tool
 
 # Acronyms that should remain uppercase in the human-readable title.
@@ -131,11 +132,31 @@ def derive_annotations(fn_name: str) -> ToolAnnotations:
     )
 
 
-def build_tool(fn: Callable[..., Any]) -> FunctionTool:
-    """Wrap a plain function in a FunctionTool with derived title and annotations."""
+class CheckTool(FunctionTool):
+    """A Check API tool that returns its result once and raises failures.
+
+    Tool functions return error dicts so composites and the CLI can read them;
+    MCP clients get them as tool errors. Every tool is built as a CheckTool, so
+    all-tools mode and run_tool behave the same way.
+    """
+
+    def convert_result(self, raw_value: Any) -> ToolResult:
+        error = CheckAPIError.from_result(raw_value)
+        if error is not None:
+            raise error
+        # Without this, fastmcp repeats a dict result as structuredContent,
+        # doubling the response.
+        result = super().convert_result(raw_value)
+        return ToolResult(content=result.content, meta=result.meta)
+
+
+def build_tool(fn: Callable[..., Any]) -> CheckTool:
+    """Wrap a plain function in a CheckTool with derived title and annotations."""
     title = derive_title(fn.__name__)
     annotations = derive_annotations(fn.__name__)
-    return Tool.from_function(fn, title=title, annotations=annotations)
+    return CheckTool.from_function(
+        fn, title=title, annotations=annotations, output_schema=None
+    )
 
 
 def add_annotated_tool(mcp: Any, fn: Callable[..., Any]) -> None:
@@ -152,5 +173,4 @@ def add_annotated_tool(mcp: Any, fn: Callable[..., Any]) -> None:
     if accepts_kwargs:
         mcp.add_tool(fn, title=title, annotations=annotations)
         return
-    tool = Tool.from_function(fn, title=title, annotations=annotations)
-    mcp.add_tool(tool)
+    mcp.add_tool(build_tool(fn))

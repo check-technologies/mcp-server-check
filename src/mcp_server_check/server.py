@@ -11,10 +11,17 @@ from typing import Any
 
 import httpx
 from fastmcp import Context, FastMCP
-from fastmcp.exceptions import ToolError
-from fastmcp.tools import FunctionTool
+from fastmcp.exceptions import ToolError, ValidationError
+from fastmcp.tools import FunctionTool, ToolResult
 
+from mcp_server_check.errors import CheckToolError
 from mcp_server_check.helpers import CheckContext
+from mcp_server_check.middleware import (
+    RecoveryMiddleware,
+    ResponseSizeLimitMiddleware,
+    ToolCall,
+    ToolErrorLogMiddleware,
+)
 from mcp_server_check.tool_filter import ToolFilter
 from mcp_server_check.tool_index import ToolIndex
 from mcp_server_check.tools import register_all
@@ -84,6 +91,7 @@ Prefer the workflow tools when they fit — they combine multiple API calls in o
 - Employee SSNs are write-once; after setting, only last 4 digits are readable
 - Tax parameter updates require the `spa_*` setting ID, not the parameter name
 - Report runs (`run_`) are asynchronous: create one, poll it until "completed" or "failed", then download — the download link expires in about a minute
+- A report that times out or is too large to return fails with "alternatives" (complete calls that can still get it, such as response_format="csv" or a report run) and "hints" (advice that needs input only you have)
 """
 
 
@@ -99,16 +107,6 @@ async def lifespan(server: FastMCP) -> AsyncIterator[CheckContext]:
         yield CheckContext(client=client, base_url=base_url)
 
 
-def _raise_on_api_error(result: Any) -> None:
-    """Raise a ``ToolError`` carrying the JSON of a failed Check API result.
-
-    Tools return ``{"error": True, ...}`` dicts so composites and the CLI can
-    read them; MCP clients only see a failure when the tool call raises.
-    """
-    if isinstance(result, dict) and result.get("error") is True:
-        raise ToolError(json.dumps(result))
-
-
 class CheckMCP(FastMCP):
     """FastMCP subclass that applies toolset-based filtering at request time."""
 
@@ -117,8 +115,13 @@ class CheckMCP(FastMCP):
         self._registry: dict[str, str] = {}
         self._static_filter: ToolFilter = ToolFilter.from_env()
         self._tool_index: ToolIndex | None = None
+        self.add_middleware(RecoveryMiddleware(self.is_tool_available))
+        self.add_middleware(ToolErrorLogMiddleware())
+        response_size_limit = ResponseSizeLimitMiddleware.from_env()
+        if response_size_limit is not None:
+            self.add_middleware(response_size_limit)
 
-    def _get_active_filter(self) -> ToolFilter:
+    def active_tool_filter(self) -> ToolFilter:
         """Return the filter for the current request.
 
         For HTTP transports, merges request-header and query-parameter
@@ -144,12 +147,23 @@ class CheckMCP(FastMCP):
             pass
         return self._static_filter
 
+    def is_tool_available(self, name: str) -> bool:
+        """Return whether the current request can call the Check tool name."""
+        if self._tool_index is not None:
+            entry = self._tool_index.get_entry(name)
+            toolset = entry.toolset if entry is not None else None
+        else:
+            toolset = self._registry.get(name)
+        return toolset is not None and self.active_tool_filter().is_tool_allowed(
+            name, toolset
+        )
+
     async def list_tools(self, **kwargs: Any) -> Sequence[FunctionTool]:
         """List tools, filtered by the active configuration."""
         all_tools = await super().list_tools(**kwargs)
         if self._tool_index is not None:
             return all_tools
-        tf = self._get_active_filter()
+        tf = self.active_tool_filter()
         return [
             t
             for t in all_tools
@@ -159,22 +173,16 @@ class CheckMCP(FastMCP):
     async def call_tool(
         self, name: str, arguments: dict[str, Any] | None = None, **kwargs: Any
     ) -> Any:
-        """Call a tool, blocking if it's filtered out.
-
-        A Check API failure returned by the tool is raised as a ``ToolError``
-        so the MCP result has ``isError: true``.
-        """
+        """Call a tool, blocking if it's filtered out."""
         if self._tool_index is not None:
             return await super().call_tool(name, arguments, **kwargs)
-        tf = self._get_active_filter()
+        tf = self.active_tool_filter()
         toolset = self._registry.get(name, "")
         if not tf.is_tool_allowed(name, toolset):
             raise ToolError(
                 f"Tool '{name}' is not available in the current configuration"
             )
-        result = await super().call_tool(name, arguments, **kwargs)
-        _raise_on_api_error(getattr(result, "structured_content", None))
-        return result
+        return await super().call_tool(name, arguments, **kwargs)
 
 
 def _setup_dynamic_mode(server: CheckMCP) -> None:
@@ -207,7 +215,7 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         toolset: Optional toolset name to restrict search (e.g. "companies", "employees").
         limit: Maximum number of results (default 20).
         """
-        tf = server._get_active_filter()
+        tf = server.active_tool_filter()
         results = index.search(query, tool_filter=tf, toolset=toolset, limit=limit)
         return json.dumps(results, indent=2)
 
@@ -227,12 +235,16 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         tool count, and example tools. Use this to understand what's available
         before searching for specific tools.
         """
-        tf = server._get_active_filter()
+        tf = server.active_tool_filter()
         results = index.search("", tool_filter=tf)
         return json.dumps(results, indent=2)
 
     @server.tool(
+        name=ToolCall.RUN_TOOL,
         title="Run Tool",
+        # Without a schema the result goes out once, as text, not also as
+        # structuredContent.
+        output_schema=None,
         annotations={
             "readOnlyHint": False,
             "destructiveHint": True,
@@ -244,12 +256,14 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         tool_name: str,
         arguments: str | dict | None = None,
         confirm: bool = False,
-    ) -> str:
+    ) -> ToolResult:
         """Execute an API tool by name with the given arguments.
 
         Use search_tools first to find the tool name and its parameter schema.
         A failed call returns a tool error whose message is a JSON object with
-        "error" and, for Check API failures, "status_code" and "detail".
+        "error" and, for Check API failures, "status_code" and "detail". A report
+        that times out or is too large also lists "alternatives" to call instead
+        and "hints".
 
         tool_name: The exact tool name (e.g. "list_companies", "get_employee").
         arguments: Tool arguments as a JSON string or dict (e.g. '{"company_id": "com_xxx"}'
@@ -258,58 +272,41 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
             delete, simulate, refund, cancel). Required when CHECK_CONFIRM_DESTRUCTIVE
             is enabled and the tool is destructive.
         """
-        tf = server._get_active_filter()
-        parsed_args: dict = {}
-        if arguments is not None:
-            if isinstance(arguments, str):
-                try:
-                    parsed_args = json.loads(arguments)
-                except json.JSONDecodeError as e:
-                    raise ToolError(
-                        json.dumps({"error": f"Invalid JSON arguments: {e}"})
-                    ) from e
-                if not isinstance(parsed_args, dict):
-                    raise ToolError(
-                        json.dumps({"error": "Arguments must be a JSON object"})
-                    )
-            elif isinstance(arguments, dict):
-                parsed_args = arguments
-            else:
-                raise ToolError(
-                    json.dumps({"error": "Arguments must be a JSON string or object"})
-                )
+        tf = server.active_tool_filter()
+        call = ToolCall.from_run_tool(tool_name, arguments)
 
         if tf.requires_confirmation(tool_name) and not confirm:
-            return json.dumps(
-                {
-                    "confirmation_required": True,
-                    "tool_name": tool_name,
-                    "arguments": parsed_args,
-                    "message": (
-                        f"⚠️  '{tool_name}' is a destructive operation that may "
-                        f"trigger irreversible effects (money movement, data deletion, "
-                        f"etc.). Call run_tool again with confirm=true to proceed."
-                    ),
-                }
+            return ToolResult(
+                content=json.dumps(
+                    {
+                        "confirmation_required": True,
+                        "tool_name": tool_name,
+                        "arguments": call.arguments,
+                        "message": (
+                            f"⚠️  '{tool_name}' is a destructive operation that may "
+                            f"trigger irreversible effects (money movement, data deletion, "
+                            f"etc.). Call run_tool again with confirm=true to proceed."
+                        ),
+                    }
+                )
             )
 
         try:
             result = await index.run(
                 name=tool_name,
-                arguments=parsed_args,
+                arguments=call.arguments,
                 tool_filter=tf,
             )
-        except ValueError as e:
-            raise ToolError(json.dumps({"error": str(e)})) from e
+        except (ValueError, ValidationError) as e:
+            raise CheckToolError({"error": str(e)}) from e
 
-        _raise_on_api_error(result)
-        return json.dumps(result) if isinstance(result, dict) else str(result)
+        return ToolResult(content=result.content)
 
 
 def _register_resources(server: CheckMCP) -> None:
     """Register MCP resources for enum values and reference data."""
     from mcp_server_check.tool_index import _TOOLSET_DESCRIPTIONS
-    from mcp_server_check.tools.companies import COMPANY_REPORT_TYPES
+    from mcp_server_check.reports import ReportType
     from mcp_server_check.tools.compensation import BENEFIT_TYPES
     from mcp_server_check.tools.components import (
         COMPANY_COMPONENTS,
@@ -368,7 +365,7 @@ def _register_resources(server: CheckMCP) -> None:
         },
         "report_type": {
             "description": "Valid report_type values for get_company_report.",
-            "values": COMPANY_REPORT_TYPES,
+            "values": [report_type.value for report_type in ReportType],
         },
         "report_run_type": {
             "description": (

@@ -98,7 +98,8 @@ async def create_report_run(
             Both are YYYY-MM-DD and bound the paydays the report covers. Optional
             "additional_columns" is a list of extra columns: both reports accept
             "employee.id" and "contractor.id", and "payroll_journal" also
-            accepts "payroll.id".
+            accepts "payroll.id". Optional "payroll" is one payroll ID that
+            limits the report to that payroll.
         company: Company ID to scope the report to. Omit to cover every company
             the API key can reach.
         metadata: Arbitrary key-value object stored on the report run.

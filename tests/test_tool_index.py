@@ -317,7 +317,7 @@ class TestToolIndexRun:
             )
         )
         result = await self.index.run("list_companies", {}, self.no_filter)
-        assert result["results"] == [{"id": "com_001"}]
+        assert json.loads(result.content[0].text)["results"] == [{"id": "com_001"}]
 
     @pytest.mark.anyio
     async def test_run_with_arguments(self, mock_api, ctx):
@@ -332,7 +332,27 @@ class TestToolIndexRun:
         result = await self.index.run(
             "get_company", {"company_id": "com_001"}, self.no_filter
         )
-        assert result == {"id": "com_001", "legal_name": "Acme Corp"}
+        assert json.loads(result.content[0].text) == {
+            "id": "com_001",
+            "legal_name": "Acme Corp",
+        }
+
+    @pytest.mark.anyio
+    async def test_run_raises_check_api_error(self, mock_api, ctx):
+        import httpx as httpx_mod
+
+        from mcp_server_check.errors import CheckAPIError
+
+        mock_api.get("/companies/com_404").mock(
+            return_value=httpx_mod.Response(404, json={"error": "Not found"})
+        )
+
+        with pytest.raises(CheckAPIError) as excinfo:
+            await self.index.run(
+                "get_company", {"company_id": "com_404"}, self.no_filter
+            )
+
+        assert excinfo.value.payload["status_code"] == 404
 
 
 # --- ToolIndex.get_toolset_names ---

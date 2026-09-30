@@ -5,7 +5,6 @@ from __future__ import annotations
 import httpx
 import pytest
 from mcp_server_check.tools.companies import (
-    COMPANY_REPORT_TYPES,
     create_company,
     get_company_benefit_aggregations,
     get_company_paydays,
@@ -152,44 +151,103 @@ async def test_get_company_report_returns_directly_when_fast_enough(
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("report_type", ["payroll_journal", "payroll_summary"])
-async def test_get_company_report_points_at_report_runs_on_timeout(
-    mock_api, ctx, report_type
-):
-    """Only a request that actually proves too slow is sent to the async path."""
-    mock_api.get(f"/companies/com_001/reports/{report_type}").mock(
+async def test_get_company_report_returns_the_timeout_error(mock_api, ctx):
+    """Remedies are added by RecoveryMiddleware or the CLI, which know the filter."""
+    mock_api.get("/companies/com_001/reports/payroll_journal").mock(
         side_effect=httpx.ReadTimeout("timed out")
     )
     result = await get_company_report(
         ctx,
         company_id="com_001",
-        report_type=report_type,
+        report_type="payroll_journal",
         start_date="2020-01-01",
         end_date="2026-12-31",
     )
-    assert result["error"] is True
-    assert "create_report_run" in result["detail"]
-    assert "payday_from" in result["detail"]
+    assert result == {"error": True, "timeout": True, "detail": "timed out"}
 
 
 @pytest.mark.anyio
-async def test_get_company_report_timeout_not_rewritten_for_other_reports(
-    mock_api, ctx
-):
-    """tax_liabilities has no report-run equivalent; leave its error alone."""
-    mock_api.get("/companies/com_001/reports/tax_liabilities").mock(
-        side_effect=httpx.ReadTimeout("timed out")
+async def test_get_company_report_csv_requests_csv_rendering(mock_api, ctx):
+    """response_format='csv' asks the API for its CSV rendering and returns it as text."""
+    csv_body = "Employee,Gross Pay\nJane Doe,1000.00\n"
+    route = mock_api.get("/companies/com_001/reports/tax_liabilities").mock(
+        return_value=httpx.Response(
+            200, text=csv_body, headers={"Content-Type": "text/csv"}
+        )
     )
     result = await get_company_report(
         ctx,
         company_id="com_001",
         report_type="tax_liabilities",
         start_date="2026-01-01",
+        end_date="2026-03-31",
+        response_format="csv",
+    )
+    assert result == {"csv": csv_body}
+    assert route.calls[0].request.headers["Accept"] == "text/csv"
+    assert route.calls[0].request.url.params["start"] == "2026-01-01"
+
+
+@pytest.mark.anyio
+async def test_get_company_report_csv_rejects_a_non_csv_response(mock_api, ctx):
+    mock_api.get("/companies/com_001/reports/tax_liabilities").mock(
+        return_value=httpx.Response(200, json={"results": []})
+    )
+    result = await get_company_report(
+        ctx,
+        company_id="com_001",
+        report_type="tax_liabilities",
+        response_format="csv",
+    )
+    assert result == {
+        "error": True,
+        "detail": "Expected a CSV response, got application/json.",
+    }
+
+
+@pytest.mark.anyio
+async def test_get_company_report_json_is_the_default_format(mock_api, ctx):
+    route = mock_api.get("/companies/com_001/reports/payroll_summary").mock(
+        return_value=httpx.Response(200, json={"report": "data"})
+    )
+    await get_company_report(
+        ctx,
+        company_id="com_001",
+        report_type="payroll_summary",
+        start_date="2026-01-01",
         end_date="2026-01-31",
     )
+    assert route.calls[0].request.headers["Accept"] != "text/csv"
+
+
+@pytest.mark.anyio
+async def test_get_company_report_rejects_unknown_format(mock_api, ctx):
+    result = await get_company_report(
+        ctx,
+        company_id="com_001",
+        report_type="payroll_journal",
+        response_format="xml",
+    )
     assert result["error"] is True
-    assert result.get("timeout") is True
-    assert "create_report_run" not in result.get("detail", "")
+    assert "response_format" in result["detail"]
+
+
+@pytest.mark.anyio
+async def test_get_company_report_csv_error_keeps_status(mock_api, ctx):
+    mock_api.get("/companies/com_001/reports/payroll_journal").mock(
+        return_value=httpx.Response(400, text="Invalid date range")
+    )
+    result = await get_company_report(
+        ctx,
+        company_id="com_001",
+        report_type="payroll_journal",
+        response_format="csv",
+    )
+    assert result == {
+        "error": True,
+        "status_code": 400,
+        "detail": "Invalid date range",
+    }
 
 
 @pytest.mark.anyio
@@ -259,10 +317,6 @@ async def test_get_company_report_invalid_type(mock_api, ctx):
     )
     assert result["error"] is True
     assert "Unknown report_type" in result["detail"]
-
-
-def test_report_type_count():
-    assert len(COMPANY_REPORT_TYPES) == 8
 
 
 @pytest.mark.anyio

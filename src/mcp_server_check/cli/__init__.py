@@ -9,70 +9,10 @@ from __future__ import annotations
 import click
 
 from mcp_server_check import __version__
-from mcp_server_check.tool_filter import ToolFilter
-
 from .codegen import build_command, collect_tools
 from .context import resolve_api_key, resolve_base_url
+from .groups import ToolsetGroup, build_tool_filter
 from .setup import init_command
-
-
-# ---------------------------------------------------------------------------
-# Filtered click groups
-# ---------------------------------------------------------------------------
-
-
-def _build_filter(ctx: click.Context) -> ToolFilter:
-    """Build a ToolFilter by merging env vars with the ``--read-only`` flag."""
-    root = ctx
-    while root.parent:
-        root = root.parent
-    read_only = root.params.get("read_only", False) if root.params else False
-    env_filter = ToolFilter.from_env()
-    if read_only and not env_filter.read_only:
-        return ToolFilter(
-            toolsets=env_filter.toolsets,
-            tools=env_filter.tools,
-            exclude_tools=env_filter.exclude_tools,
-            read_only=True,
-        )
-    return env_filter
-
-
-class _FilteredGroup(click.Group):
-    """Click group that hides commands rejected by :class:`ToolFilter`."""
-
-    def __init__(
-        self,
-        *args,
-        toolset_name: str = "",
-        tool_map: dict[str, str] | None = None,
-        **kwargs,
-    ):
-        super().__init__(*args, **kwargs)
-        self.toolset_name = toolset_name
-        # command_cli_name -> tool_function_name
-        self.tool_map: dict[str, str] = tool_map if tool_map is not None else {}
-
-    def list_commands(self, ctx: click.Context) -> list[str]:
-        tf = _build_filter(ctx)
-        return sorted(
-            name
-            for name in super().list_commands(ctx)
-            if name in self.tool_map
-            and tf.is_tool_allowed(self.tool_map[name], self.toolset_name)
-        )
-
-    def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
-        cmd = super().get_command(ctx, cmd_name)
-        if cmd is None:
-            return None
-        func_name = self.tool_map.get(cmd_name)
-        if func_name is None:
-            return cmd
-        tf = _build_filter(ctx)
-        if not tf.is_tool_allowed(func_name, self.toolset_name):
-            return None
-        return cmd
 
 
 class _MainCLI(click.Group):
@@ -95,7 +35,7 @@ class _MainCLI(click.Group):
         )
 
     def list_commands(self, ctx: click.Context) -> list[str]:
-        tf = _build_filter(ctx)
+        tf = build_tool_filter(ctx)
         commands: list[str] = []
         for name in super().list_commands(ctx):
             toolset = self.toolset_names.get(name)
@@ -114,7 +54,7 @@ class _MainCLI(click.Group):
         toolset = self.toolset_names.get(cmd_name)
         if toolset is None:
             return cmd
-        tf = _build_filter(ctx)
+        tf = build_tool_filter(ctx)
         if tf.toolsets is not None and toolset not in tf.toolsets:
             return None
         return cmd
@@ -217,7 +157,7 @@ def _build_cli() -> click.Group:
         group_name = toolset_name.replace("_", "-")
         tool_map: dict[str, str] = {}
 
-        group = _FilteredGroup(
+        group = ToolsetGroup(
             name=group_name,
             toolset_name=toolset_name,
             tool_map=tool_map,
