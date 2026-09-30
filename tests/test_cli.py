@@ -279,6 +279,12 @@ def test_preview_toolset_flag_shows_group():
         assert command in result.output
 
 
+def test_preview_toolset_flag_shows_group_in_top_level_help():
+    result = _invoke("--preview-toolsets", "corrections", "--help")
+    assert result.exit_code == 0
+    assert "Commands for corrections" in result.output
+
+
 def test_preview_toolset_env_shows_group():
     result = _invoke("--help", env={"CHECK_PREVIEW_TOOLSETS": "corrections"})
     assert "Commands for corrections" in result.output

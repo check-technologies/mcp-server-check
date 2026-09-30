@@ -131,6 +131,9 @@ def _build_cli() -> click.Group:
         "--preview-toolsets",
         type=CSVList(),
         default=None,
+        # Eager so it lands in the root params before an eager --help renders
+        # the toolset groups.
+        is_eager=True,
         help="Comma-separated preview toolsets to enable (or CHECK_PREVIEW_TOOLSETS env var).",
     )
     @click.option(
