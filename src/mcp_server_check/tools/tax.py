@@ -63,11 +63,20 @@ async def list_company_tax_param_settings(
 ) -> dict:
     """List tax parameter settings for a company.
 
+    This is not a change history. For each setting, the response holds one
+    value per ``effective_start``: when several writes share an effective
+    date, only the latest is returned and the earlier ones are omitted. Do not
+    tell the user a value was only ever set once, or that no earlier value
+    exists, based on this response. Check Support can pull the full audit
+    trail of every write.
+
     Args:
         company_id: The Check company ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
-        as_of: Filter as of a specific date (YYYY-MM-DD).
+        as_of: Return the values in effect on this date (YYYY-MM-DD). It
+            filters by effective date, so it cannot surface earlier writes
+            that share an effective date with the latest one.
         jurisdiction: Filter by tax jurisdiction.
         submitter: Filter by submitter.
     """
@@ -88,6 +97,13 @@ async def get_company_tax_param_setting(
     ctx: Ctx, company_id: str, setting_id: str
 ) -> dict:
     """Get a specific tax parameter setting for a company.
+
+    This is not a change history. For each setting, the response holds one
+    value per ``effective_start``: when several writes share an effective
+    date, only the latest is returned and the earlier ones are omitted. Do not
+    tell the user a value was only ever set once, or that no earlier value
+    exists, based on this response. Check Support can pull the full audit
+    trail of every write.
 
     Args:
         company_id: The Check company ID.
@@ -138,7 +154,9 @@ async def list_employee_tax_params(
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
         company: Filter by company ID.
-        as_of: Filter as of a specific date (YYYY-MM-DD).
+        as_of: Return the values in effect on this date (YYYY-MM-DD). It
+            filters by effective date, so it cannot surface earlier writes
+            that share an effective date with the latest one.
         jurisdiction: Filter by tax jurisdiction.
         submitter: Filter by submitter.
     """
@@ -200,11 +218,20 @@ async def list_employee_tax_param_settings(
 ) -> dict:
     """List tax parameter settings for an employee.
 
+    This is not a change history. For each setting, the response holds one
+    value per ``effective_start``: when several writes share an effective
+    date, only the latest is returned and the earlier ones are omitted. Do not
+    tell the user a value was only ever set once, or that no earlier value
+    exists, based on this response. Check Support can pull the full audit
+    trail of every write.
+
     Args:
         employee_id: The Check employee ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
-        as_of: Filter as of a specific date (YYYY-MM-DD).
+        as_of: Return the values in effect on this date (YYYY-MM-DD). It
+            filters by effective date, so it cannot surface earlier writes
+            that share an effective date with the latest one.
         jurisdiction: Filter by tax jurisdiction.
         submitter: Filter by submitter.
     """
@@ -225,6 +252,13 @@ async def get_employee_tax_param_setting(
     ctx: Ctx, employee_id: str, setting_id: str
 ) -> dict:
     """Get a specific tax parameter setting for an employee.
+
+    This is not a change history. For each setting, the response holds one
+    value per ``effective_start``: when several writes share an effective
+    date, only the latest is returned and the earlier ones are omitted. Do not
+    tell the user a value was only ever set once, or that no earlier value
+    exists, based on this response. Check Support can pull the full audit
+    trail of every write.
 
     Args:
         employee_id: The Check employee ID.
