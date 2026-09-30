@@ -22,7 +22,10 @@ when a session starts. Run all commands through `uv run` (they execute inside `.
   otherwise). Defaults to stdio transport and "dynamic" tool mode (exposes 3 meta-tools:
   `search_tools`, `list_toolsets`, `run_tool`). Env knobs: `CHECK_TOOL_MODE=all` (legacy
   all-tools), `CHECK_TRANSPORT`, `CHECK_ENV` / `CHECK_API_BASE_URL`, `CHECK_READ_ONLY`,
-  `CHECK_TOOLSETS`, `CHECK_TOOLS`, `CHECK_EXCLUDE_TOOLS`.
+  `CHECK_TOOLSETS`, `CHECK_TOOLS`, `CHECK_EXCLUDE_TOOLS`, `CHECK_PREVIEW_TOOLSETS`.
+- Preview toolsets are hidden unless opted into via
+  `CHECK_PREVIEW_TOOLSETS`, the `x-mcp-preview-toolsets` header, the `preview_toolsets`
+  query parameter, or the CLI's `--preview-toolsets`.
 - CLI: `uv run check ...` (see `CLI.md`). `check --help`, `check --version`, and
   `check init <target>` work without a key; any command that hits the API needs `CHECK_API_KEY`
   (passed via `--api-key` or env). Defaults to the **sandbox** environment.

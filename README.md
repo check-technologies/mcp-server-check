@@ -26,6 +26,8 @@ CHECK_API_KEY=your-key uv run mcp-server-check
 | `CHECK_TOOLS` | No | — | Comma-separated allowlist of individual tool names |
 | `CHECK_EXCLUDE_TOOLS` | No | — | Comma-separated list of tool names to hide |
 | `CHECK_READ_ONLY` | No | — | Set to `1`, `true`, or `yes` to disable all write/mutating tools |
+| `CHECK_CONFIRM_DESTRUCTIVE` | No | — | Set to `1`, `true`, or `yes` to require `confirm=true` on `run_tool` before a destructive tool (approve, delete, simulate, refund, cancel) runs |
+| `CHECK_PREVIEW_TOOLSETS` | No | — | Comma-separated list of [preview toolsets](#preview-toolsets) to enable |
 | `CHECK_TRANSPORT` | No | `stdio` | Transport protocol: `stdio`, `sse`, or `streamable-http` |
 | `CHECK_MAX_RESPONSE_BYTES` | No | `6000000` | Largest tool result to return; a bigger one becomes a tool error listing ways to narrow it. `0` disables the check |
 
@@ -49,8 +51,10 @@ The server supports fine-grained tool filtering, configurable via environment va
 | Individual tools | `CHECK_TOOLS` | `X-MCP-Tools` |
 | Exclude tools | `CHECK_EXCLUDE_TOOLS` | `X-MCP-Exclude-Tools` |
 | Read-only | `CHECK_READ_ONLY` | `X-MCP-Readonly` |
+| Confirm destructive | `CHECK_CONFIRM_DESTRUCTIVE` | `X-MCP-Confirm-Destructive` |
+| Preview toolsets | `CHECK_PREVIEW_TOOLSETS` | `X-MCP-Preview-Toolsets` (or the `preview_toolsets` query parameter) |
 
-**Filtering precedence:** `exclude_tools` > `read_only` > `tools` > `toolsets`. Exclude always wins; if `tools` is set it acts as an allowlist independent of toolsets.
+**Filtering precedence:** `exclude_tools` > `preview_toolsets` > `read_only` > `tools` > `toolsets`. Exclude always wins; a preview toolset stays hidden until it is opted into, even if `tools` or `toolsets` names it; if `tools` is set it acts as an allowlist independent of toolsets.
 
 #### Toolsets
 
@@ -85,6 +89,25 @@ Set `CHECK_READ_ONLY=1` to run the server with only read-only tools (list, get, 
 ```bash
 CHECK_READ_ONLY=1 CHECK_API_KEY=your-key uv run mcp-server-check
 ```
+
+#### Preview Toolsets
+
+Toolsets for APIs still being piloted with specific partners are hidden unless the client opts in. Opt in with any of:
+
+```bash
+# Local (stdio)
+CHECK_PREVIEW_TOOLSETS=<toolset> CHECK_API_KEY=your-key uv run mcp-server-check
+```
+
+```
+# Remote: HTTP header
+X-MCP-Preview-Toolsets: <toolset>
+
+# Remote: query parameter, for clients that can only be configured with a URL
+https://<server>/mcp?preview_toolsets=<toolset>
+```
+
+Opting in works the same in sandbox and production, and either the server or the client can do it. Once enabled, the toolset behaves like any other: read-only mode, `exclude_tools`, `toolsets`, and destructive confirmation still apply. Opting in only makes the tools visible — the Check API still decides per partner whether the underlying endpoints are available, so a partner without access gets "not found" or "feature unavailable" errors.
 
 #### HTTP Headers (Remote Transport)
 

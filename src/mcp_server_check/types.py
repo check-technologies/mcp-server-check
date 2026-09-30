@@ -51,6 +51,16 @@ class OffCycleOptions(TypedDict, total=False):
     """Whether to apply post-tax deductions."""
 
 
+class VoidSubset(TypedDict, total=False):
+    """The part of a payroll to void. At least one list must be non-empty."""
+
+    payroll_items: list[str]
+    """IDs of the payroll items to void (e.g. "itm_xxxxx")."""
+
+    contractor_payments: list[str]
+    """IDs of the contractor payments to void (e.g. "cpa_xxxxx")."""
+
+
 class TaxParamUpdate(TypedDict, total=False):
     """A single tax parameter update entry."""
 

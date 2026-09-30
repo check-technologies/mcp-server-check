@@ -92,6 +92,14 @@ _TOOLSET_DESCRIPTIONS: dict[str, str] = {
     "components": "Generate embedded UI component URLs for company, employee, and contractor onboarding flows.",
     "contractor_payments": "Create, update, delete, and view contractor payment records.",
     "contractors": "Manage 1099 contractors, their forms, and tax documents.",
+    "corrections": (
+        "Correct a company's past payrolls. Workflow: create_correction for the "
+        "company and tax year → void_payroll and/or add_payroll_to_correction → "
+        "preview_correction and poll get_correction until preview.status is succeeded → "
+        "review totals → approve_correction (moves money) and poll until approval.status "
+        "is succeeded. reopen_correction cancels a pending approval before its "
+        "reopen_deadline."
+    ),
     "documents": "Access company tax documents, authorization documents, employee/contractor tax documents, and setup documents.",
     "employees": "Manage W-2 employees, their forms, paystubs, attributes, and reciprocity elections.",
     "external_payrolls": "Create and manage external (imported) payrolls for historical data.",

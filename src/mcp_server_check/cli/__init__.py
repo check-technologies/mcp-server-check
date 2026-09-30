@@ -9,7 +9,7 @@ from __future__ import annotations
 import click
 
 from mcp_server_check import __version__
-from .codegen import build_command, collect_tools
+from .codegen import CSVList, build_command, collect_tools
 from .context import resolve_api_key, resolve_base_url
 from .groups import ToolsetGroup, build_tool_filter
 from .setup import init_command
@@ -43,7 +43,7 @@ class _MainCLI(click.Group):
             if toolset is None:
                 commands.append(name)
                 continue
-            if tf.toolsets is None or toolset in tf.toolsets:
+            if tf.is_toolset_allowed(toolset):
                 commands.append(name)
         return commands
 
@@ -55,7 +55,7 @@ class _MainCLI(click.Group):
         if toolset is None:
             return cmd
         tf = build_tool_filter(ctx)
-        if tf.toolsets is not None and toolset not in tf.toolsets:
+        if not tf.is_toolset_allowed(toolset):
             return None
         return cmd
 
@@ -128,6 +128,12 @@ def _build_cli() -> click.Group:
         help="Block write operations (or CHECK_READ_ONLY env var).",
     )
     @click.option(
+        "--preview-toolsets",
+        type=CSVList(),
+        default=None,
+        help="Comma-separated preview toolsets to enable (or CHECK_PREVIEW_TOOLSETS env var).",
+    )
+    @click.option(
         "--verbose",
         is_flag=True,
         default=False,
@@ -141,6 +147,7 @@ def _build_cli() -> click.Group:
         environment: str | None,
         fmt: str,
         read_only: bool,
+        preview_toolsets: list[str] | None,
         verbose: bool,
     ) -> None:
         """Check Payroll API CLI."""

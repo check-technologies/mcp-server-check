@@ -13,6 +13,7 @@ from typing import Any, Callable
 
 import click
 import httpx
+from click.core import ParameterSource
 
 from mcp_server_check.helpers import CheckContext
 from mcp_server_check.tools import collect_all_tools
@@ -243,11 +244,36 @@ def _build_params(func: Callable) -> list[click.Parameter]:
 # ---------------------------------------------------------------------------
 
 
+def _required_nullable_params(func: Callable) -> set[str]:
+    """Names of parameters typed X | None with no default.
+
+    The caller must choose a value, and null is one of the choices, so click
+    can't enforce presence itself (it treats a converted None as missing).
+    """
+    hints = typing.get_type_hints(func)
+    return {
+        name
+        for name, param in inspect.signature(func).parameters.items()
+        if name != "ctx"
+        and param.default is inspect.Parameter.empty
+        and _unwrap_optional(hints.get(name, str))[1]
+    }
+
+
 def _make_callback(func: Callable) -> Callable:
     """Create a sync click callback that runs the async tool function."""
+    required_nullable = _required_nullable_params(func)
 
     def callback(**kwargs: Any) -> None:
         ctx = click.get_current_context()
+        for name in sorted(required_nullable):
+            if ctx.get_parameter_source(name) is ParameterSource.DEFAULT:
+                raise click.UsageError(
+                    f"Missing option '--{name.replace('_', '-')}' (pass null "
+                    "explicitly if that is the intent).",
+                    ctx=ctx,
+                )
+
         api_key: str = ctx.obj["api_key"]
         base_url: str = ctx.obj["base_url"]
         fmt: str = ctx.obj["format"]
@@ -262,7 +288,9 @@ def _make_callback(func: Callable) -> Callable:
             return
 
         # Strip None values so tool functions use their own defaults
-        call_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        call_kwargs = {
+            k: v for k, v in kwargs.items() if v is not None or k in required_nullable
+        }
 
         async def _run() -> dict:
             try:

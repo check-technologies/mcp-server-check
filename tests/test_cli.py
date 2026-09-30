@@ -266,6 +266,64 @@ def test_toolsets_env_blocks_access():
     assert result.exit_code == 2
 
 
+def test_preview_toolset_hidden_by_default():
+    help_result = _invoke("--help")
+    assert "Commands for corrections" not in help_result.output
+    assert _invoke("corrections", "--help").exit_code == 2
+
+
+def test_preview_toolset_flag_shows_group():
+    result = _invoke("--preview-toolsets", "corrections", "corrections", "--help")
+    assert result.exit_code == 0
+    for command in ("list", "approve", "reopen", "void-payroll", "add-payroll-to"):
+        assert command in result.output
+
+
+def test_preview_toolset_env_shows_group():
+    result = _invoke("--help", env={"CHECK_PREVIEW_TOOLSETS": "corrections"})
+    assert "Commands for corrections" in result.output
+
+
+@respx.mock(base_url=BASE_URL, assert_all_called=False)
+def test_void_payroll_requires_explicit_subset(respx_mock):
+    route = respx_mock.post("/payrolls/pay_001/void")
+    result = _invoke(
+        "--preview-toolsets",
+        "corrections",
+        "corrections",
+        "void-payroll",
+        "pay_001",
+        "--correction",
+        "cor_001",
+    )
+    assert result.exit_code == 2
+    assert "--subset" in result.output
+    assert not route.called
+
+
+@respx.mock(base_url=BASE_URL, assert_all_called=False)
+def test_void_payroll_null_subset_voids_entire_payroll(respx_mock):
+    route = respx_mock.post("/payrolls/pay_001/void").mock(
+        return_value=httpx.Response(201, json={"id": "pay_void"})
+    )
+    result = _invoke(
+        "--preview-toolsets",
+        "corrections",
+        "corrections",
+        "void-payroll",
+        "pay_001",
+        "--correction",
+        "cor_001",
+        "--subset",
+        "null",
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(route.calls.last.request.content) == {
+        "correction": "cor_001",
+        "subset": None,
+    }
+
+
 @respx.mock(base_url=BASE_URL, assert_all_called=False)
 def test_read_only_env_blocks_write(respx_mock):
     """CHECK_READ_ONLY=1 should block create commands at runtime."""

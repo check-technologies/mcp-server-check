@@ -10,11 +10,19 @@ from mcp_server_check.tool_filter import ToolFilter
 
 
 def build_tool_filter(ctx: click.Context) -> ToolFilter:
-    """Build a ToolFilter by merging env vars with the --read-only flag."""
+    """Build a ToolFilter by merging env vars with the --read-only and
+    --preview-toolsets flags."""
     root = ctx.find_root()
-    read_only = root.params.get("read_only", False) if root.params else False
-    env_filter = ToolFilter.from_env()
-    return replace(env_filter, read_only=True) if read_only else env_filter
+    params = root.params or {}
+    tool_filter = ToolFilter.from_env()
+    if params.get("read_only"):
+        tool_filter = replace(tool_filter, read_only=True)
+    preview_toolsets = params.get("preview_toolsets")
+    if preview_toolsets:
+        tool_filter = tool_filter.merge(
+            ToolFilter(preview_toolsets=frozenset(preview_toolsets))
+        )
+    return tool_filter
 
 
 class ToolsetGroup(click.Group):
