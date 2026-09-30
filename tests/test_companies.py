@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 from mcp_server_check.tools.companies import (
@@ -75,6 +77,23 @@ async def test_onboard_company(mock_api, ctx):
     )
     result = await onboard_company(ctx, company_id="com_001")
     assert result["status"] == "active"
+
+
+@pytest.mark.anyio
+async def test_onboard_company_field_permissions(mock_api, ctx):
+    route = mock_api.post("/companies/com_001/onboard").mock(
+        return_value=httpx.Response(
+            200, json={"url": "https://onboard.checkhq.com/..."}
+        )
+    )
+    await onboard_company(
+        ctx,
+        company_id="com_001",
+        field_permissions={"company:legal_name": "read"},
+    )
+    assert route.calls[0].request.content is not None
+    body = json.loads(route.calls[0].request.content)
+    assert body["field_permissions"] == {"company:legal_name": "read"}
 
 
 @pytest.mark.anyio

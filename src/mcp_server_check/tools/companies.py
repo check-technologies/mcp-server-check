@@ -203,13 +203,27 @@ async def update_company(
     )
 
 
-async def onboard_company(ctx: Ctx, company_id: str) -> dict:
+async def onboard_company(
+    ctx: Ctx,
+    company_id: str,
+    field_permissions: dict[str, str] | None = None,
+) -> dict:
     """Onboard a company, transitioning it to active status.
 
     Args:
         company_id: The Check company ID.
+        field_permissions: Optional map of lockable fields to access levels for
+            the minted onboard link. Keys must be one of "company:legal_name",
+            "company:trade_name", "company:address", or
+            "company_tax_param:federal_ein"; values are "read" or "read_write"
+            ("read_write" is a no-op). Omitted fields remain editable in the
+            embedded flow.
     """
-    return await check_api_post(ctx, f"/companies/{company_id}/onboard")
+    return await check_api_post(
+        ctx,
+        f"/companies/{company_id}/onboard",
+        data=build_body({}, field_permissions=field_permissions),
+    )
 
 
 async def get_company_paydays(
