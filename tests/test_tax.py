@@ -8,7 +8,9 @@ import httpx
 import pytest
 
 from mcp_server_check.tools.tax import (
+    get_company_tax_param_setting,
     get_company_tax_params,
+    get_employee_tax_param_setting,
     get_filing,
     get_tax,
     list_company_tax_elections,
@@ -381,3 +383,20 @@ async def test_get_tax(mock_api, ctx):
     result = await get_tax(ctx, tax_id="tax_001")
     assert result["id"] == "tax_001"
     assert result["jurisdiction"] == "fed"
+
+
+@pytest.mark.parametrize(
+    "tool",
+    [
+        list_company_tax_param_settings,
+        get_company_tax_param_setting,
+        list_employee_tax_param_settings,
+        get_employee_tax_param_setting,
+    ],
+)
+def test_settings_tools_say_they_are_not_a_change_history(tool):
+    """The API keeps only the latest write per effective date, and an agent
+    reading these descriptions told partners no earlier value existed."""
+    doc = " ".join(tool.__doc__.split())
+    assert "not a change history" in doc
+    assert "only the latest is returned" in doc
