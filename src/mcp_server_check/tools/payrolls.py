@@ -170,6 +170,7 @@ async def update_payroll(
     contractor_payments: list[dict] | None = None,
     metadata: dict | None = None,
     bank_account: str | None = None,
+    correction: str | None = None,
 ) -> dict:
     """Update an existing payroll.
 
@@ -190,6 +191,8 @@ async def update_payroll(
         contractor_payments: List of contractor payment dicts (see create_payroll for shape).
         metadata: Arbitrary key-value object stored on the payroll.
         bank_account: ID of the bank account to fund the payroll.
+        correction: Check correction ID (e.g. "cor_xxxxx"). On update, send only to
+            restate the payroll's current correction; a different value is rejected.
     """
     return await check_api_patch(
         ctx,
@@ -209,6 +212,7 @@ async def update_payroll(
             contractor_payments=contractor_payments,
             metadata=metadata,
             bank_account=bank_account,
+            correction=correction,
         ),
     )
 

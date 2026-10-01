@@ -100,6 +100,18 @@ async def test_update_payroll(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_update_payroll_restate_correction(mock_api, ctx):
+    route = mock_api.patch("/payrolls/prl_001").mock(
+        return_value=httpx.Response(
+            200, json={"id": "prl_001", "correction": "cor_001"}
+        )
+    )
+    result = await update_payroll(ctx, payroll_id="prl_001", correction="cor_001")
+    assert result["correction"] == "cor_001"
+    assert route.calls.last.request.content == b'{"correction":"cor_001"}'
+
+
+@pytest.mark.anyio
 async def test_delete_payroll(mock_api, ctx):
     mock_api.delete("/payrolls/prl_001").mock(return_value=httpx.Response(204))
     result = await delete_payroll(ctx, payroll_id="prl_001")
