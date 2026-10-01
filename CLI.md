@@ -100,6 +100,7 @@ Use `check <group> --help` to see all commands in a group.
 --env [sandbox|production]  API environment (default: sandbox; or CHECK_ENV)
 --format [json|table]       Output format (default: json)
 --read-only                 Block write operations (or CHECK_READ_ONLY)
+--preview-toolsets CSV      Enable preview toolsets (or CHECK_PREVIEW_TOOLSETS)
 --verbose                   Print request details to stderr
 --version                   Show version
 --help                      Show help
@@ -215,7 +216,18 @@ export CHECK_TOOLS=list_companies,get_company
 export CHECK_EXCLUDE_TOOLS=delete_company,delete_employee
 ```
 
-**Filtering precedence:** `CHECK_EXCLUDE_TOOLS` > `CHECK_READ_ONLY` > `CHECK_TOOLS` > `CHECK_TOOLSETS`.
+### Preview Toolsets
+
+Toolsets for APIs still being piloted are hidden until you opt in:
+
+```bash
+check --preview-toolsets <toolset> <toolset> --help
+
+# Or via environment variable
+export CHECK_PREVIEW_TOOLSETS=<toolset>
+```
+
+**Filtering precedence:** `CHECK_EXCLUDE_TOOLS` > `CHECK_PREVIEW_TOOLSETS` > `CHECK_READ_ONLY` > `CHECK_TOOLS` > `CHECK_TOOLSETS`.
 
 ## Exit Codes
 

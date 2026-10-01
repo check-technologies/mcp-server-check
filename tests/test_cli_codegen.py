@@ -343,7 +343,7 @@ class TestBuildCommand:
 class TestCollectTools:
     def test_returns_all_toolsets(self):
         tools = collect_tools()
-        assert len(tools) == 21
+        assert len(tools) == 22
         assert "companies" in tools
         assert "employees" in tools
         assert "payrolls" in tools

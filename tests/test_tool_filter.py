@@ -7,6 +7,7 @@ from unittest import mock
 
 import pytest
 from mcp_server_check.tool_filter import (
+    PREVIEW_TOOLSETS,
     TOOLSETS,
     ToolFilter,
     is_destructive_tool,
@@ -45,6 +46,12 @@ class TestIsWriteTool:
             "upload_company_provided_document_file",
             "add_filing_blockers",
             "remove_filing_blockers",
+            "void_payroll",
+            "add_payroll_to_correction",
+            "preview_correction",
+            "approve_correction",
+            "reopen_correction",
+            "delete_correction",
         ],
     )
     def test_write_tools_detected(self, name):
@@ -58,6 +65,8 @@ class TestIsWriteTool:
             "get_employee",
             "list_payrolls",
             "preview_payroll",
+            "list_corrections",
+            "get_correction",
             "download_company_tax_document",
             "validate_address",
             "list_webhook_configs",
@@ -115,6 +124,16 @@ class TestFromEnv:
         assert tf.toolsets is None
         assert tf.tools is None
 
+    def test_preview_toolsets(self):
+        with mock.patch.dict(os.environ, {"CHECK_PREVIEW_TOOLSETS": "corrections"}):
+            tf = ToolFilter.from_env()
+        assert tf.preview_toolsets == frozenset({"corrections"})
+
+    def test_preview_toolsets_default_empty(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            tf = ToolFilter.from_env()
+        assert tf.preview_toolsets == frozenset()
+
 
 # --- ToolFilter.from_headers ---
 
@@ -147,6 +166,10 @@ class TestFromHeaders:
         tf = ToolFilter.from_headers(headers)
         assert tf.read_only is True
 
+    def test_preview_toolsets_header(self):
+        tf = ToolFilter.from_headers({"x-mcp-preview-toolsets": "corrections"})
+        assert tf.preview_toolsets == frozenset({"corrections"})
+
 
 # --- ToolFilter.from_query_params ---
 
@@ -176,7 +199,11 @@ class TestFromQueryParams:
         tf = ToolFilter.from_query_params({"foo": "bar", "baz": "1"})
         assert tf == ToolFilter()
 
-    def test_only_read_only_is_parsed(self):
+    def test_preview_toolsets(self):
+        tf = ToolFilter.from_query_params({"preview_toolsets": "corrections"})
+        assert tf.preview_toolsets == frozenset({"corrections"})
+
+    def test_only_read_only_and_preview_toolsets_are_parsed(self):
         """Query params for other filter fields (toolsets, confirm_destructive, etc.) are ignored."""
         tf = ToolFilter.from_query_params(
             {
@@ -262,6 +289,84 @@ class TestIsToolAllowed:
         assert tf.is_tool_allowed("list_employees", "employees") is False
 
 
+# --- Preview toolsets ---
+
+
+class TestPreviewToolsets:
+    def test_hidden_by_default(self):
+        tf = ToolFilter()
+        assert tf.is_tool_allowed("list_corrections", "corrections") is False
+        assert tf.is_tool_allowed("list_companies", "companies") is True
+
+    def test_visible_when_opted_in(self):
+        tf = ToolFilter(preview_toolsets=frozenset({"corrections"}))
+        assert tf.is_tool_allowed("list_corrections", "corrections") is True
+        assert tf.is_tool_allowed("approve_correction", "corrections") is True
+
+    def test_tools_allowlist_does_not_bypass_opt_in(self):
+        tf = ToolFilter(tools=frozenset({"list_corrections"}))
+        assert tf.is_tool_allowed("list_corrections", "corrections") is False
+
+    def test_toolsets_allowlist_does_not_bypass_opt_in(self):
+        tf = ToolFilter(toolsets=frozenset({"corrections"}))
+        assert tf.is_tool_allowed("list_corrections", "corrections") is False
+
+    def test_toolsets_allowlist_still_applies_when_opted_in(self):
+        tf = ToolFilter(
+            toolsets=frozenset({"companies"}),
+            preview_toolsets=frozenset({"corrections"}),
+        )
+        assert tf.is_tool_allowed("list_corrections", "corrections") is False
+
+    def test_read_only_still_applies_when_opted_in(self):
+        tf = ToolFilter(read_only=True, preview_toolsets=frozenset({"corrections"}))
+        assert tf.is_tool_allowed("list_corrections", "corrections") is True
+        assert tf.is_tool_allowed("approve_correction", "corrections") is False
+        assert tf.is_tool_allowed("preview_correction", "corrections") is False
+        assert tf.is_tool_allowed("void_payroll", "corrections") is False
+
+    def test_exclude_still_applies_when_opted_in(self):
+        tf = ToolFilter(
+            exclude_tools=frozenset({"approve_correction"}),
+            preview_toolsets=frozenset({"corrections"}),
+        )
+        assert tf.is_tool_allowed("approve_correction", "corrections") is False
+        assert tf.is_tool_allowed("get_correction", "corrections") is True
+
+    def test_unknown_preview_toolsets_are_stripped(self):
+        tf = ToolFilter(preview_toolsets=frozenset({"corrections", "companies"}))
+        assert tf.preview_toolsets == frozenset({"corrections"})
+
+    def test_is_toolset_allowed(self):
+        assert ToolFilter().is_toolset_allowed("corrections") is False
+        assert ToolFilter().is_toolset_allowed("companies") is True
+        opted_in = ToolFilter(preview_toolsets=frozenset({"corrections"}))
+        assert opted_in.is_toolset_allowed("corrections") is True
+
+    def test_merge_unions_preview_toolsets(self):
+        """Either the server or the request can opt in."""
+        env = ToolFilter()
+        header = ToolFilter(preview_toolsets=frozenset({"corrections"}))
+        assert env.merge(header).preview_toolsets == frozenset({"corrections"})
+        assert header.merge(env).preview_toolsets == frozenset({"corrections"})
+
+    def test_server_toolsets_policy_keeps_preview_hidden(self):
+        env = ToolFilter(toolsets=frozenset({"companies"}))
+        header = ToolFilter(preview_toolsets=frozenset({"corrections"}))
+        merged = env.merge(header)
+        assert merged.is_tool_allowed("list_corrections", "corrections") is False
+
+    def test_confirmation_for_destructive_correction_tools(self):
+        tf = ToolFilter(
+            confirm_destructive=True, preview_toolsets=frozenset({"corrections"})
+        )
+        assert tf.requires_confirmation("approve_correction") is True
+        assert tf.requires_confirmation("reopen_correction") is True
+        assert tf.requires_confirmation("delete_correction") is True
+        assert tf.requires_confirmation("preview_correction") is False
+        assert tf.requires_confirmation("void_payroll") is False
+
+
 # --- Invalid toolset handling ---
 
 
@@ -298,6 +403,9 @@ class TestIsDestructiveTool:
             "start_implementation",
             "cancel_implementation",
             "sync_accounting",
+            "approve_correction",
+            "reopen_correction",
+            "delete_correction",
         ],
     )
     def test_destructive_detected(self, name):
@@ -313,6 +421,12 @@ class TestIsDestructiveTool:
             "preview_payroll",
             "onboard_company",
             "submit_employee_form",
+            "reopen_payroll",
+            "create_correction",
+            "update_correction",
+            "void_payroll",
+            "add_payroll_to_correction",
+            "preview_correction",
         ],
     )
     def test_non_destructive(self, name):
@@ -437,8 +551,8 @@ class TestMerge:
 
 
 class TestToolsets:
-    def test_has_21_toolsets(self):
-        assert len(TOOLSETS) == 21
+    def test_has_22_toolsets(self):
+        assert len(TOOLSETS) == 22
 
     def test_known_toolsets(self):
         expected = {
@@ -449,6 +563,7 @@ class TestToolsets:
             "components",
             "contractor_payments",
             "contractors",
+            "corrections",
             "documents",
             "employees",
             "external_payrolls",
@@ -465,3 +580,6 @@ class TestToolsets:
             "workplaces",
         }
         assert TOOLSETS == expected
+
+    def test_preview_toolsets_are_toolsets(self):
+        assert PREVIEW_TOOLSETS <= TOOLSETS

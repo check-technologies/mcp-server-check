@@ -7,12 +7,14 @@ import json
 import httpx
 import pytest
 from fastmcp import Client
+from fastmcp.exceptions import ToolError
 from mcp_server_check.helpers import (
     _extract_cursor,
     _format_list_response,
 )
 from mcp_server_check.server import (
     CheckMCP,
+    _register_resources,
     _setup_dynamic_mode,
     lifespan,
     mcp,
@@ -538,3 +540,133 @@ async def test_readonly_with_toolsets():
     assert "update_company" not in tool_names
     # Tools from other toolsets should also be excluded
     assert "list_employees" not in tool_names
+
+
+# --- Preview toolsets ---
+
+CORRECTION_TOOLS = {
+    "list_corrections",
+    "get_correction",
+    "create_correction",
+    "update_correction",
+    "delete_correction",
+    "void_payroll",
+    "add_payroll_to_correction",
+    "preview_correction",
+    "approve_correction",
+    "reopen_correction",
+}
+OPTED_IN = ToolFilter(preview_toolsets=frozenset({"corrections"}))
+
+
+@pytest.mark.anyio
+async def test_preview_toolset_hidden_by_default():
+    server = _make_all_tools_server(ToolFilter())
+    tool_names = {t.name for t in await server.list_tools()}
+    assert not tool_names & CORRECTION_TOOLS
+    assert server._registry["list_corrections"] == "corrections"
+    with pytest.raises(ToolError):
+        await server.call_tool("list_corrections", {})
+
+
+@pytest.mark.anyio
+async def test_preview_toolset_listed_when_opted_in():
+    server = _make_all_tools_server(OPTED_IN)
+    tool_names = {t.name for t in await server.list_tools()}
+    assert CORRECTION_TOOLS <= tool_names
+
+
+@pytest.mark.anyio
+async def test_destructive_correction_tools_annotated():
+    server = _make_all_tools_server(OPTED_IN)
+    tools = {t.name: t for t in await server.list_tools()}
+    for name in ("approve_correction", "reopen_correction", "delete_correction"):
+        assert tools[name].annotations.destructiveHint is True, name
+    for name in ("void_payroll", "add_payroll_to_correction", "preview_correction"):
+        assert tools[name].annotations.readOnlyHint is False, name
+        assert tools[name].annotations.destructiveHint is False, name
+    assert tools["get_correction"].annotations.readOnlyHint is True
+
+
+def _void_payroll_schema(tools) -> dict:
+    tool = next(t for t in tools if t.name == "void_payroll")
+    return tool.parameters
+
+
+@pytest.mark.anyio
+async def test_void_payroll_requires_subset():
+    server = _make_all_tools_server(OPTED_IN)
+    schema = _void_payroll_schema(await server.list_tools())
+    assert {"payroll_id", "correction", "subset"} <= set(schema["required"])
+
+
+@pytest.mark.anyio
+async def test_dynamic_mode_hides_preview_toolset_by_default():
+    server = _make_dynamic_server(ToolFilter())
+    overview = json.loads((await server.call_tool("list_toolsets", {})).content[0].text)
+    assert "corrections" not in {r["toolset"] for r in overview}
+    found = json.loads(
+        (await server.call_tool("search_tools", {"query": "correction"}))
+        .content[0]
+        .text
+    )
+    assert not {r["name"] for r in found} & CORRECTION_TOOLS
+    with pytest.raises(ToolError, match="not available"):
+        await server.call_tool(
+            "run_tool",
+            {"tool_name": "get_correction", "arguments": {"correction_id": "cor_1"}},
+        )
+
+
+@pytest.mark.anyio
+async def test_dynamic_mode_runs_preview_tool_when_opted_in(mock_api, monkeypatch):
+    monkeypatch.setenv("CHECK_API_KEY", "test-key")
+    monkeypatch.delenv("CHECK_API_BASE_URL", raising=False)
+    mock_api.get("/corrections/cor_1").mock(
+        return_value=httpx.Response(200, json={"id": "cor_1", "status": "draft"})
+    )
+    server = _make_dynamic_server(OPTED_IN)
+
+    async with Client(server) as client:
+        overview = json.loads(
+            (await client.call_tool("list_toolsets", {})).content[0].text
+        )
+        result = await client.call_tool(
+            "run_tool",
+            {"tool_name": "get_correction", "arguments": {"correction_id": "cor_1"}},
+        )
+
+    assert "corrections" in {r["toolset"] for r in overview}
+    assert json.loads(result.content[0].text) == {"id": "cor_1", "status": "draft"}
+
+
+@pytest.mark.anyio
+async def test_dynamic_mode_approve_correction_requires_confirmation():
+    server = _make_dynamic_server(
+        ToolFilter(
+            confirm_destructive=True, preview_toolsets=frozenset({"corrections"})
+        )
+    )
+    result = await server.call_tool(
+        "run_tool",
+        {"tool_name": "approve_correction", "arguments": {"correction_id": "cor_1"}},
+    )
+    assert json.loads(result.content[0].text)["confirmation_required"] is True
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("tool_filter", "visible"), [(ToolFilter(), False), (OPTED_IN, True)]
+)
+async def test_toolsets_resource_follows_preview_opt_in(
+    monkeypatch, tool_filter, visible
+):
+    monkeypatch.setenv("CHECK_API_KEY", "test-key")
+    server = _make_dynamic_server(tool_filter)
+    _register_resources(server)
+
+    async with Client(server) as client:
+        toolsets = json.loads((await client.read_resource("check://toolsets"))[0].text)
+
+    assert "companies" in toolsets
+    assert ("corrections" in toolsets) is visible

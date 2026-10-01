@@ -413,7 +413,15 @@ def _register_resources(server: CheckMCP) -> None:
     @server.resource("check://toolsets")
     def list_toolset_descriptions() -> str:
         """Human-readable descriptions of all toolsets."""
-        return json.dumps(_TOOLSET_DESCRIPTIONS, indent=2)
+        tf = server.active_tool_filter()
+        return json.dumps(
+            {
+                name: description
+                for name, description in _TOOLSET_DESCRIPTIONS.items()
+                if tf.is_preview_enabled(name)
+            },
+            indent=2,
+        )
 
 
 def setup_tools(server: CheckMCP, tool_mode: str = "dynamic") -> None:
@@ -457,6 +465,12 @@ def main():
     if mcp._static_filter.toolsets:
         print(
             f"Active toolsets: {', '.join(sorted(mcp._static_filter.toolsets))}",
+            file=sys.stderr,
+        )
+    if mcp._static_filter.preview_toolsets:
+        print(
+            "Preview toolsets enabled: "
+            f"{', '.join(sorted(mcp._static_filter.preview_toolsets))}",
             file=sys.stderr,
         )
     transport = os.environ.get("CHECK_TRANSPORT", "stdio")

@@ -21,6 +21,7 @@ TOOLSETS: frozenset[str] = frozenset(
         "components",
         "contractor_payments",
         "contractors",
+        "corrections",
         "documents",
         "employees",
         "external_payrolls",
@@ -37,6 +38,9 @@ TOOLSETS: frozenset[str] = frozenset(
         "workplaces",
     }
 )
+
+# Hidden until the caller opts in through preview_toolsets.
+PREVIEW_TOOLSETS: frozenset[str] = frozenset({"corrections"})
 
 _WRITE_PREFIXES = (
     "create_",
@@ -66,7 +70,11 @@ _WRITE_KEYWORDS = (
     "upload_",
     "add_",
     "remove_",
+    "void_",
 )
+# Writes whose names read like reads: preview_payroll is a GET, but
+# preview_correction starts a dry run and changes the correction's state.
+_WRITE_EXACT = frozenset({"preview_correction"})
 
 # Tools that trigger irreversible real-world effects (money movement, deletion).
 # These require explicit confirmation when CHECK_CONFIRM_DESTRUCTIVE is enabled.
@@ -85,12 +93,16 @@ _DESTRUCTIVE_EXACT = frozenset(
         # Posts journal entries into a partner's accounting system; Check
         # cannot recall them.
         "sync_accounting",
+        # Cancels an approval that is about to move money.
+        "reopen_correction",
     }
 )
 
 
 def is_write_tool(name: str) -> bool:
     """Return True if the tool name matches a write/mutating pattern."""
+    if name in _WRITE_EXACT:
+        return True
     return any(name.startswith(p) for p in _WRITE_PREFIXES) or any(
         name.startswith(k) for k in _WRITE_KEYWORDS
     )
@@ -124,8 +136,11 @@ def _parse_bool(value: str | None) -> bool:
 class ToolFilter:
     """Immutable filter configuration for tool visibility.
 
-    Filtering precedence: exclude_tools > read_only > tools > toolsets.
+    Filtering precedence: exclude_tools > preview_toolsets > read_only > tools
+    > toolsets.
     - exclude_tools always wins (tool is hidden).
+    - A tool in a preview toolset is hidden unless preview_toolsets names it,
+      even when tools or toolsets name it.
     - read_only hides write/mutating tools.
     - tools, when set, acts as an allowlist independent of toolsets.
     - toolsets, when set, limits tools to those in the named toolsets.
@@ -136,6 +151,7 @@ class ToolFilter:
     exclude_tools: frozenset[str] = frozenset()
     read_only: bool = False
     confirm_destructive: bool = False
+    preview_toolsets: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         if self.toolsets is not None:
@@ -145,11 +161,36 @@ class ToolFilter:
                     "Ignoring unknown toolset(s): %s", ", ".join(sorted(invalid))
                 )
                 object.__setattr__(self, "toolsets", self.toolsets & TOOLSETS)
+        invalid_preview = self.preview_toolsets - PREVIEW_TOOLSETS
+        if invalid_preview:
+            logger.warning(
+                "Ignoring unknown preview toolset(s): %s",
+                ", ".join(sorted(invalid_preview)),
+            )
+            object.__setattr__(
+                self, "preview_toolsets", self.preview_toolsets & PREVIEW_TOOLSETS
+            )
+
+    def is_preview_enabled(self, toolset_name: str) -> bool:
+        """Return False only for a preview toolset the caller has not opted into."""
+        return (
+            toolset_name not in PREVIEW_TOOLSETS
+            or toolset_name in self.preview_toolsets
+        )
+
+    def is_toolset_allowed(self, toolset_name: str) -> bool:
+        """Determine whether a toolset as a whole should be visible."""
+        if not self.is_preview_enabled(toolset_name):
+            return False
+        return self.toolsets is None or toolset_name in self.toolsets
 
     def is_tool_allowed(self, tool_name: str, toolset_name: str) -> bool:
         """Determine whether a tool should be visible given this filter."""
         # Exclude always wins
         if tool_name in self.exclude_tools:
+            return False
+
+        if not self.is_preview_enabled(toolset_name):
             return False
 
         # Read-only hides write tools
@@ -172,6 +213,10 @@ class ToolFilter:
         Used to combine a server-side policy (env vars) with a per-request
         override (HTTP headers) so that the policy acts as a floor that
         cannot be relaxed by the client.
+
+        preview_toolsets is the exception: it is an opt-in, so either side can
+        enable a preview toolset. A server that must keep one hidden can still
+        do so with toolsets or exclude_tools.
         """
         # toolsets: intersect when both set; keep the one that's set if only one is
         if self.toolsets is not None and other.toolsets is not None:
@@ -199,6 +244,7 @@ class ToolFilter:
             exclude_tools=self.exclude_tools | other.exclude_tools,
             read_only=self.read_only or other.read_only,
             confirm_destructive=self.confirm_destructive or other.confirm_destructive,
+            preview_toolsets=self.preview_toolsets | other.preview_toolsets,
         )
 
     def requires_confirmation(self, tool_name: str) -> bool:
@@ -217,6 +263,8 @@ class ToolFilter:
             confirm_destructive=_parse_bool(
                 os.environ.get("CHECK_CONFIRM_DESTRUCTIVE")
             ),
+            preview_toolsets=_parse_comma_set(os.environ.get("CHECK_PREVIEW_TOOLSETS"))
+            or frozenset(),
         )
 
     @classmethod
@@ -235,13 +283,16 @@ class ToolFilter:
             exclude_tools=_parse_comma_set(get("x-mcp-exclude-tools")) or frozenset(),
             read_only=_parse_bool(get("x-mcp-readonly")),
             confirm_destructive=_parse_bool(get("x-mcp-confirm-destructive")),
+            preview_toolsets=_parse_comma_set(get("x-mcp-preview-toolsets"))
+            or frozenset(),
         )
 
     @classmethod
     def from_query_params(cls, query_params: dict[str, str] | object) -> ToolFilter:
         """Build a ToolFilter from URL query parameters.
 
-        Currently only supports the ``read_only`` parameter.
+        Supports ``read_only`` and ``preview_toolsets``, for clients that can
+        only be configured with a URL.
 
         Args:
             query_params: A dict-like object (e.g. Starlette QueryParams)
@@ -252,4 +303,5 @@ class ToolFilter:
             return cls()
         return cls(
             read_only=_parse_bool(get("read_only")),
+            preview_toolsets=_parse_comma_set(get("preview_toolsets")) or frozenset(),
         )
