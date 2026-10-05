@@ -10,7 +10,9 @@ import pytest
 from mcp_server_check.tools.tax import (
     create_employee_tax_statement_overrides,
     delete_employee_tax_statement_override,
+    get_company_tax_param_setting,
     get_company_tax_params,
+    get_employee_tax_param_setting,
     get_employee_tax_statement_override,
     get_filing,
     get_tax,
@@ -517,3 +519,22 @@ async def test_get_tax(mock_api, ctx):
     result = await get_tax(ctx, tax_id="tax_001")
     assert result["id"] == "tax_001"
     assert result["jurisdiction"] == "fed"
+
+
+@pytest.mark.parametrize(
+    "tool",
+    [
+        list_company_tax_param_settings,
+        get_company_tax_param_setting,
+        list_employee_tax_param_settings,
+        get_employee_tax_param_setting,
+    ],
+)
+def test_settings_tools_explain_value_versus_settings_history(tool):
+    """An agent reading these descriptions must tell the in-force value apart
+    from the write history, and know which same-date write is in force."""
+    doc = " ".join(tool.__doc__.split())
+    assert "``value`` and ``effective_start`` are the value in force" in doc
+    assert "``settings[]`` lists every write" in doc
+    assert "latest ``created_at`` is the one in force" in doc
+    assert "not a change history" not in doc
