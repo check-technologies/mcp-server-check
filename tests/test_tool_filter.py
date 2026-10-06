@@ -48,6 +48,7 @@ class TestIsWriteTool:
             "remove_filing_blockers",
             "void_payroll",
             "add_payroll_to_correction",
+            "add_external_payroll",
             "preview_correction",
             "approve_correction",
             "reopen_correction",
@@ -426,6 +427,7 @@ class TestIsDestructiveTool:
             "update_correction",
             "void_payroll",
             "add_payroll_to_correction",
+            "add_external_payroll",
             "preview_correction",
         ],
     )

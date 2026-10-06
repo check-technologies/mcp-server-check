@@ -552,6 +552,7 @@ CORRECTION_TOOLS = {
     "delete_correction",
     "void_payroll",
     "add_payroll_to_correction",
+    "add_external_payroll",
     "preview_correction",
     "approve_correction",
     "reopen_correction",
@@ -582,7 +583,12 @@ async def test_destructive_correction_tools_annotated():
     tools = {t.name: t for t in await server.list_tools()}
     for name in ("approve_correction", "reopen_correction", "delete_correction"):
         assert tools[name].annotations.destructiveHint is True, name
-    for name in ("void_payroll", "add_payroll_to_correction", "preview_correction"):
+    for name in (
+        "void_payroll",
+        "add_payroll_to_correction",
+        "add_external_payroll",
+        "preview_correction",
+    ):
         assert tools[name].annotations.readOnlyHint is False, name
         assert tools[name].annotations.destructiveHint is False, name
     assert tools["get_correction"].annotations.readOnlyHint is True

@@ -77,8 +77,9 @@ async def create_correction(
     """Create a draft correction for a company and tax year.
 
     A correction groups changes to a company's past payrolls: void payrolls with
-    void_payroll, add missing ones with add_payroll_to_correction, then price the
-    result with preview_correction and commit it with approve_correction.
+    void_payroll, add missing managed payrolls with add_payroll_to_correction,
+    add historical external payrolls with add_external_payroll, then price the result with preview_correction and commit it with
+    approve_correction.
 
     Args:
         company: The Check company ID.
@@ -114,8 +115,8 @@ async def update_correction(
 ) -> dict:
     """Update a draft correction's settlement date, bank account, description, or metadata.
 
-    The payrolls in a correction can't be changed here; use void_payroll and
-    add_payroll_to_correction instead.
+    The payrolls in a correction can't be changed here; use void_payroll,
+    add_payroll_to_correction, and add_external_payroll instead.
 
     Args:
         correction_id: The Check correction ID.
@@ -229,6 +230,60 @@ async def add_payroll_to_correction(
     )
 
 
+async def add_external_payroll(
+    ctx: Ctx,
+    correction: str,
+    company: str,
+    period_start: str,
+    period_end: str,
+    payday: str,
+    pay_frequency: str | None = None,
+    items: list[dict] | None = None,
+    contractor_payments: list[dict] | None = None,
+    idempotency_key: str | None = None,
+) -> dict:
+    """Add a new external payroll to a draft correction.
+
+    Creates a draft external payroll attached to the correction. The company
+    must have run a managed payroll. Payday must be in the past, before the
+    company's start date, and within the correction's tax year. Approve, reopen,
+    preview, and validate on the external payroll are unavailable once attached;
+    use the correction workflow instead.
+
+    Args:
+        correction: ID of the draft correction to add the payroll to (e.g. "cor_xxxxx").
+        company: The Check company ID. Must match the correction's company.
+        period_start: Pay period start date (YYYY-MM-DD).
+        period_end: Pay period end date (YYYY-MM-DD).
+        payday: Payday date (YYYY-MM-DD). Must be in the past, before the
+            company's start date, and in the correction's tax year.
+        pay_frequency: Frequency at which the external payroll was paid.
+        items: List of external payroll item dicts. Each may include "employee",
+            "earnings" (list), "reimbursements" (list), "taxes" (list),
+            "benefits" (list), "post_tax_deductions" (list).
+        contractor_payments: List of contractor payment dicts. Each may include
+            "contractor", "amount", "reimbursement_amount".
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
+    """
+    return await check_api_post(
+        ctx,
+        "/external_payrolls",
+        data=build_body(
+            {
+                "correction": correction,
+                "company": company,
+                "period_start": period_start,
+                "period_end": period_end,
+                "payday": payday,
+            },
+            pay_frequency=pay_frequency,
+            items=items,
+            contractor_payments=contractor_payments,
+        ),
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
+    )
+
+
 async def preview_correction(ctx: Ctx, correction_id: str) -> dict:
     """Price a draft correction without moving money.
 
@@ -276,6 +331,7 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
         add_annotated_tool(mcp, delete_correction)
         add_annotated_tool(mcp, void_payroll)
         add_annotated_tool(mcp, add_payroll_to_correction)
+        add_annotated_tool(mcp, add_external_payroll)
         add_annotated_tool(mcp, preview_correction)
         add_annotated_tool(mcp, approve_correction)
         add_annotated_tool(mcp, reopen_correction)
