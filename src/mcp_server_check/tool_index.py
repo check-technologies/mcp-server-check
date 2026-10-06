@@ -94,7 +94,8 @@ _TOOLSET_DESCRIPTIONS: dict[str, str] = {
     "contractors": "Manage 1099 contractors, their forms, and tax documents.",
     "corrections": (
         "Correct a company's past payrolls. Workflow: create_correction for the "
-        "company and tax year → void_payroll and/or add_payroll_to_correction → "
+        "company and tax year → void_payroll and/or add_payroll_to_correction "
+        "and/or add_external_payroll → "
         "preview_correction and poll get_correction until preview.status is succeeded → "
         "review totals → approve_correction (moves money) and poll until approval.status "
         "is succeeded. reopen_correction cancels a pending approval before its "

@@ -8,6 +8,7 @@ import httpx
 import pytest
 
 from mcp_server_check.tools.corrections import (
+    add_external_payroll,
     add_payroll_to_correction,
     approve_correction,
     create_correction,
@@ -156,6 +157,37 @@ async def test_add_payroll_to_correction(mock_api, ctx):
         "items": items,
     }
     assert request.headers["X-Idempotency-Key"] == "idem-1"
+
+
+@pytest.mark.anyio
+async def test_add_external_payroll(mock_api, ctx):
+    route = mock_api.post("/external_payrolls").mock(
+        return_value=httpx.Response(
+            201, json={"id": "ep_new", "correction": "cor_001"}
+        )
+    )
+    items = [{"employee": "emp_001", "taxes": []}]
+    result = await add_external_payroll(
+        ctx,
+        correction="cor_001",
+        company="com_001",
+        period_start="2026-01-01",
+        period_end="2026-01-15",
+        payday="2026-01-17",
+        items=items,
+        idempotency_key="idem-2",
+    )
+    assert result["correction"] == "cor_001"
+    request = route.calls.last.request
+    assert json.loads(request.content) == {
+        "correction": "cor_001",
+        "company": "com_001",
+        "period_start": "2026-01-01",
+        "period_end": "2026-01-15",
+        "payday": "2026-01-17",
+        "items": items,
+    }
+    assert request.headers["X-Idempotency-Key"] == "idem-2"
 
 
 @pytest.mark.anyio
