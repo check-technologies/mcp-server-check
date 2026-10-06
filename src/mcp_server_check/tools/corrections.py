@@ -267,9 +267,39 @@ async def reopen_correction(ctx: Ctx, correction_id: str) -> dict:
     return await check_api_post(ctx, f"/corrections/{correction_id}/reopen")
 
 
+async def get_correction_receipt(ctx: Ctx, correction_id: str) -> dict:
+    """Get the tax rollup for a previewed correction.
+
+    Available only after preview_correction succeeds. Returns totals and one
+    entry per tax the correction moved, with each operation split into check
+    and company amounts. Does not return a file URL; use
+    get_correction_receipt_download for a PDF link.
+
+    Args:
+        correction_id: The Check correction ID.
+    """
+    return await check_api_get(ctx, f"/corrections/{correction_id}/receipt")
+
+
+async def get_correction_receipt_download(ctx: Ctx, correction_id: str) -> dict:
+    """Get a short-lived presigned URL for the correction receipt PDF.
+
+    Available only after preview_correction succeeds. Each call mints a fresh
+    URL with download_url, content_type, and expires_at.
+
+    Args:
+        correction_id: The Check correction ID.
+    """
+    return await check_api_get(
+        ctx, f"/corrections/{correction_id}/receipt_download"
+    )
+
+
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, list_corrections)
     add_annotated_tool(mcp, get_correction)
+    add_annotated_tool(mcp, get_correction_receipt)
+    add_annotated_tool(mcp, get_correction_receipt_download)
     if not read_only:
         add_annotated_tool(mcp, create_correction)
         add_annotated_tool(mcp, update_correction)

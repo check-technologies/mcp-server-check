@@ -13,6 +13,8 @@ from mcp_server_check.tools.corrections import (
     create_correction,
     delete_correction,
     get_correction,
+    get_correction_receipt,
+    get_correction_receipt_download,
     list_corrections,
     preview_correction,
     reopen_correction,
@@ -174,3 +176,27 @@ async def test_correction_actions(mock_api, ctx, tool, action):
     result = await tool(ctx, correction_id="cor_001")
     assert result["id"] == "cor_001"
     assert route.called
+
+
+@pytest.mark.anyio
+async def test_get_correction_receipt(mock_api, ctx):
+    receipt = {"totals": {"cash_requirement": "23.50"}, "taxes": []}
+    mock_api.get("/corrections/cor_001/receipt").mock(
+        return_value=httpx.Response(200, json=receipt)
+    )
+    result = await get_correction_receipt(ctx, correction_id="cor_001")
+    assert result == receipt
+
+
+@pytest.mark.anyio
+async def test_get_correction_receipt_download(mock_api, ctx):
+    download = {
+        "download_url": "https://example.com/receipt.pdf",
+        "content_type": "application/pdf",
+        "expires_at": "2026-10-06T12:00:00Z",
+    }
+    mock_api.get("/corrections/cor_001/receipt_download").mock(
+        return_value=httpx.Response(200, json=download)
+    )
+    result = await get_correction_receipt_download(ctx, correction_id="cor_001")
+    assert result == download

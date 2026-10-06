@@ -547,6 +547,8 @@ async def test_readonly_with_toolsets():
 CORRECTION_TOOLS = {
     "list_corrections",
     "get_correction",
+    "get_correction_receipt",
+    "get_correction_receipt_download",
     "create_correction",
     "update_correction",
     "delete_correction",
