@@ -48,6 +48,18 @@ async def test_list_companies_with_implementation_status(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_list_companies_with_metadata_filter(mock_api, ctx):
+    route = mock_api.get("/companies").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "com_001"}]},
+        )
+    )
+    await list_companies(ctx, metadata={"external_id": "123"})
+    assert "metadata%5Bexternal_id%5D=123" in str(route.calls[0].request.url)
+
+
+@pytest.mark.anyio
 async def test_create_company(mock_api, ctx):
     mock_api.post("/companies").mock(
         return_value=httpx.Response(201, json={"id": "com_new", "legal_name": "New Co"})

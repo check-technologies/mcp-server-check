@@ -12,6 +12,7 @@ from mcp_server_check.helpers import (
     check_api_patch,
     check_api_post,
     check_api_put,
+    merge_metadata_filter_params,
 )
 
 
@@ -109,3 +110,21 @@ async def test_http_error_with_text_body(mock_api, ctx):
     result = await check_api_get(ctx, "/bad")
     assert result["error"] is True
     assert result["status_code"] == 500
+
+
+def test_merge_metadata_filter_params() -> None:
+    assert merge_metadata_filter_params(None, None) is None
+    assert merge_metadata_filter_params({"company": "com_1"}, None) == {
+        "company": "com_1"
+    }
+    assert merge_metadata_filter_params(
+        {"company": "com_1"},
+        {"Type": "Loan", "User": "Bob"},
+    ) == {
+        "company": "com_1",
+        "metadata[Type]": "Loan",
+        "metadata[User]": "Bob",
+    }
+    assert merge_metadata_filter_params(None, {"external_id": "123"}) == {
+        "metadata[external_id]": "123"
+    }

@@ -14,6 +14,7 @@ from mcp_server_check.helpers import (
     check_api_list,
     check_api_patch,
     check_api_post,
+    merge_metadata_filter_params,
 )
 
 
@@ -23,6 +24,7 @@ async def list_contractors(
     limit: int | None = None,
     ids: list[str] | None = None,
     cursor: str | None = None,
+    metadata: dict[str, str] | None = None,
 ) -> dict:
     """List contractors, optionally filtered by company.
 
@@ -31,11 +33,16 @@ async def list_contractors(
         limit: Maximum number of results to return (default 10, max 100).
         ids: Filter to specific contractor IDs.
         cursor: Pagination cursor from a previous response.
+        metadata: Return only contractors whose metadata contains every given key and value
+            (for example {"external_id": "123"}). Multiple keys are combined with AND.
     """
     return await check_api_list(
         ctx,
         "/contractors",
-        params=build_params(company=company, limit=limit, ids=ids, cursor=cursor),
+        params=merge_metadata_filter_params(
+            build_params(company=company, limit=limit, ids=ids, cursor=cursor),
+            metadata,
+        ),
     )
 
 

@@ -199,6 +199,18 @@ def build_params(**kwargs: object) -> dict | None:
     return params or None
 
 
+def merge_metadata_filter_params(
+    params: dict | None, metadata: dict[str, str] | None
+) -> dict | None:
+    """Add metadata[key]=value query params for list metadata filtering."""
+    if not metadata:
+        return params
+    merged = dict(params or {})
+    for key, value in metadata.items():
+        merged[f"metadata[{key}]"] = value
+    return merged
+
+
 async def _check_api_request(
     ctx: Ctx,
     method: str,
