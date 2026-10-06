@@ -7,11 +7,13 @@ from fastmcp import FastMCP
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
+    build_params,
     check_api_delete,
     check_api_get,
     check_api_list,
     check_api_patch,
     check_api_post,
+    merge_metadata_filter_params,
 )
 
 
@@ -22,6 +24,7 @@ async def list_bank_accounts(
     cursor: str | None = None,
     employee: str | None = None,
     contractor: str | None = None,
+    metadata: dict[str, str] | None = None,
 ) -> dict:
     """List bank accounts, optionally filtered by company.
 
@@ -31,19 +34,23 @@ async def list_bank_accounts(
         cursor: Pagination cursor.
         employee: Filter by employee ID.
         contractor: Filter by contractor ID.
+        metadata: Return only bank accounts whose metadata contains every given key and value
+            (for example {"external_id": "123"}). Multiple keys are combined with AND.
     """
-    params: dict = {}
-    if company is not None:
-        params["company"] = company
-    if limit is not None:
-        params["limit"] = limit
-    if cursor:
-        params["cursor"] = cursor
-    if employee is not None:
-        params["employee"] = employee
-    if contractor is not None:
-        params["contractor"] = contractor
-    return await check_api_list(ctx, "/bank_accounts", params=params or None)
+    return await check_api_list(
+        ctx,
+        "/bank_accounts",
+        params=merge_metadata_filter_params(
+            build_params(
+                company=company,
+                limit=limit,
+                cursor=cursor,
+                employee=employee,
+                contractor=contractor,
+            ),
+            metadata,
+        ),
+    )
 
 
 async def get_bank_account(ctx: Ctx, bank_account_id: str) -> dict:

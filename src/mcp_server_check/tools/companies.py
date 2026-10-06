@@ -18,6 +18,7 @@ from mcp_server_check.helpers import (
     check_api_patch,
     check_api_post,
     check_api_put,
+    merge_metadata_filter_params,
 )
 
 
@@ -28,6 +29,7 @@ async def list_companies(
     ids: list[str] | None = None,
     cursor: str | None = None,
     implementation_status: str | None = None,
+    metadata: dict[str, str] | None = None,
 ) -> dict:
     """List companies in your Check account.
 
@@ -38,16 +40,21 @@ async def list_companies(
         cursor: Pagination cursor from a previous response.
         implementation_status: Filter by implementation status — "needs_attention",
             "in_review", or "completed".
+        metadata: Return only companies whose metadata contains every given key and value
+            (for example {"external_id": "123"}). Multiple keys are combined with AND.
     """
     return await check_api_list(
         ctx,
         "/companies",
-        params=build_params(
-            limit=limit,
-            active=active,
-            ids=ids,
-            cursor=cursor,
-            implementation_status=implementation_status,
+        params=merge_metadata_filter_params(
+            build_params(
+                limit=limit,
+                active=active,
+                ids=ids,
+                cursor=cursor,
+                implementation_status=implementation_status,
+            ),
+            metadata,
         ),
     )
 

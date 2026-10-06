@@ -40,6 +40,21 @@ async def test_list_employees_with_filters(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_list_employees_with_metadata_filter(mock_api, ctx):
+    mock_api.get("/employees").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "emp_001"}]},
+        )
+    )
+    result = await list_employees(ctx, metadata={"Type": "Loan", "User": "Bob"})
+    assert result["results"] == [{"id": "emp_001"}]
+    req = mock_api.get("/employees").calls.last.request
+    assert req.url.params["metadata[Type]"] == "Loan"
+    assert req.url.params["metadata[User]"] == "Bob"
+
+
+@pytest.mark.anyio
 async def test_list_employee_paystubs_with_filters(mock_api, ctx):
     mock_api.get("/employees/emp_001/paystubs").mock(
         return_value=httpx.Response(
