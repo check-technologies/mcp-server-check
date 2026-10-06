@@ -245,17 +245,18 @@ async def add_external_payroll(
     """Add a new external payroll to a draft correction.
 
     Creates a draft external payroll attached to the correction. The company
-    must have run a managed payroll; payday must be in the past and within the
-    correction's tax year. Approve, reopen, preview, and validate on the
-    external payroll are unavailable once attached — use the correction workflow
-    instead.
+    must have run a managed payroll. Payday must be in the past, before the
+    company's start date, and within the correction's tax year. Approve, reopen,
+    preview, and validate on the external payroll are unavailable once attached;
+    use the correction workflow instead.
 
     Args:
         correction: ID of the draft correction to add the payroll to (e.g. "cor_xxxxx").
         company: The Check company ID. Must match the correction's company.
         period_start: Pay period start date (YYYY-MM-DD).
         period_end: Pay period end date (YYYY-MM-DD).
-        payday: Payday date (YYYY-MM-DD).
+        payday: Payday date (YYYY-MM-DD). Must be in the past, before the
+            company's start date, and in the correction's tax year.
         pay_frequency: Frequency at which the external payroll was paid.
         items: List of external payroll item dicts. Each may include "employee",
             "earnings" (list), "reimbursements" (list), "taxes" (list),

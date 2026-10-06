@@ -162,9 +162,7 @@ async def test_add_payroll_to_correction(mock_api, ctx):
 @pytest.mark.anyio
 async def test_add_external_payroll(mock_api, ctx):
     route = mock_api.post("/external_payrolls").mock(
-        return_value=httpx.Response(
-            201, json={"id": "ep_new", "correction": "cor_001"}
-        )
+        return_value=httpx.Response(201, json={"id": "ep_new", "correction": "cor_001"})
     )
     items = [{"employee": "emp_001", "taxes": []}]
     result = await add_external_payroll(
