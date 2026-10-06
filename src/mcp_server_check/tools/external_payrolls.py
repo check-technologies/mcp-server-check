@@ -69,6 +69,7 @@ async def create_external_payroll(
     pay_frequency: str | None = None,
     items: list[dict] | None = None,
     contractor_payments: list[dict] | None = None,
+    correction: str | None = None,
     idempotency_key: str | None = None,
 ) -> dict:
     """Create a new external payroll.
@@ -84,6 +85,11 @@ async def create_external_payroll(
             "benefits" (list), "post_tax_deductions" (list).
         contractor_payments: List of contractor payment dicts. Each may include
             "contractor", "amount", "reimbursement_amount".
+        correction: Draft correction ID (e.g. "cor_xxxxx") to attach this
+            external payroll to. The company must have run a managed payroll,
+            and payday must be in the past and within the correction's tax year.
+            Approve, reopen, preview, and validate on the external payroll are
+            unavailable once attached; use the correction workflow instead.
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     body: dict = {
@@ -94,6 +100,8 @@ async def create_external_payroll(
     }
     if pay_frequency is not None:
         body["pay_frequency"] = pay_frequency
+    if correction is not None:
+        body["correction"] = correction
     if items is not None:
         body["items"] = items
     if contractor_payments is not None:

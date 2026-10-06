@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -56,6 +58,23 @@ async def test_create_external_payroll(mock_api, ctx):
         payday="2026-01-17",
     )
     assert result["id"] == "ep_new"
+
+
+@pytest.mark.anyio
+async def test_create_external_payroll_with_correction(mock_api, ctx):
+    route = mock_api.post("/external_payrolls").mock(
+        return_value=httpx.Response(201, json={"id": "ep_new", "correction": "cor_001"})
+    )
+    result = await create_external_payroll(
+        ctx,
+        company="com_001",
+        period_start="2026-01-01",
+        period_end="2026-01-15",
+        payday="2026-01-17",
+        correction="cor_001",
+    )
+    assert result["correction"] == "cor_001"
+    assert json.loads(route.calls.last.request.content)["correction"] == "cor_001"
 
 
 @pytest.mark.anyio
