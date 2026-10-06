@@ -16,6 +16,7 @@ from mcp_server_check.tools.tax import (
     list_employee_tax_elections,
     list_employee_tax_param_settings,
     list_employee_tax_params,
+    list_contractor_tax_statements,
     list_employee_tax_statements,
     list_filings,
     list_taxes,
@@ -260,6 +261,24 @@ async def test_list_employee_tax_statements_with_filters(mock_api, ctx):
     assert result["results"] == [{"id": "ets_001"}]
     req = mock_api.get("/employee_tax_statements").calls.last.request
     assert req.url.params["employee"] == "emp_123"
+    assert req.url.params["company"] == "com_456"
+    assert req.url.params["year"] == "2025"
+
+
+@pytest.mark.anyio
+async def test_list_contractor_tax_statements_with_filters(mock_api, ctx):
+    mock_api.get("/contractor_tax_statements").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "cts_001"}]},
+        )
+    )
+    result = await list_contractor_tax_statements(
+        ctx, contractor="ctr_123", company="com_456", year=2025
+    )
+    assert result["results"] == [{"id": "cts_001"}]
+    req = mock_api.get("/contractor_tax_statements").calls.last.request
+    assert req.url.params["contractor"] == "ctr_123"
     assert req.url.params["company"] == "com_456"
     assert req.url.params["year"] == "2025"
 

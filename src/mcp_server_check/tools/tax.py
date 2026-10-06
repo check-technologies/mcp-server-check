@@ -543,6 +543,50 @@ async def get_employee_tax_statement(ctx: Ctx, statement_id: str) -> dict:
     return await check_api_get(ctx, f"/employee_tax_statements/{statement_id}")
 
 
+# --- Contractor Tax Statements ---
+
+
+async def list_contractor_tax_statements(
+    ctx: Ctx,
+    contractor: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
+    company: str | None = None,
+    year: int | None = None,
+) -> dict:
+    """List contractor tax statements, optionally filtered by contractor or company.
+
+    Args:
+        contractor: Filter to tax statements for this Check contractor ID
+            (e.g. "ctr_xxxxx"). Either contractor or company is required.
+        limit: Maximum number of results to return.
+        cursor: Pagination cursor.
+        company: Filter by company ID (e.g. "com_xxxxx"). Either contractor or
+            company is required.
+        year: Filter by tax year.
+    """
+    return await check_api_list(
+        ctx,
+        "/contractor_tax_statements",
+        params=build_params(
+            contractor=contractor,
+            limit=limit,
+            cursor=cursor,
+            company=company,
+            year=year,
+        ),
+    )
+
+
+async def get_contractor_tax_statement(ctx: Ctx, statement_id: str) -> dict:
+    """Get a specific contractor tax statement.
+
+    Args:
+        statement_id: The contractor tax statement ID (e.g. "cts_xxxxx").
+    """
+    return await check_api_get(ctx, f"/contractor_tax_statements/{statement_id}")
+
+
 # --- Tax Packages ---
 
 
@@ -667,6 +711,9 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     # Employee Tax Statements
     add_annotated_tool(mcp, list_employee_tax_statements)
     add_annotated_tool(mcp, get_employee_tax_statement)
+    # Contractor Tax Statements
+    add_annotated_tool(mcp, list_contractor_tax_statements)
+    add_annotated_tool(mcp, get_contractor_tax_statement)
     # Tax Packages
     add_annotated_tool(mcp, get_tax_package)
     # Taxes (reference data)
