@@ -290,9 +290,7 @@ async def get_correction_receipt_download(ctx: Ctx, correction_id: str) -> dict:
     Args:
         correction_id: The Check correction ID.
     """
-    return await check_api_get(
-        ctx, f"/corrections/{correction_id}/receipt_download"
-    )
+    return await check_api_get(ctx, f"/corrections/{correction_id}/receipt_download")
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
