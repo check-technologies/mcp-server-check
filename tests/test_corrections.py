@@ -19,6 +19,9 @@ from mcp_server_check.tools.corrections import (
     list_corrections,
     preview_correction,
     reopen_correction,
+    simulate_correction_complete_funding,
+    simulate_correction_fail_funding,
+    simulate_correction_start_processing,
     update_correction,
     void_payroll,
 )
@@ -191,12 +194,48 @@ async def test_add_external_payroll(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_create_correction_simulation_mode(mock_api, ctx):
+    route = mock_api.post("/corrections").mock(
+        return_value=httpx.Response(201, json={"id": "cor_new"})
+    )
+    await create_correction(
+        ctx,
+        company="com_001",
+        year=2026,
+        simulation_mode="manual",
+    )
+    assert json.loads(route.calls.last.request.content) == {
+        "company": "com_001",
+        "year": 2026,
+        "simulation_mode": "manual",
+    }
+
+
+@pytest.mark.anyio
+async def test_update_correction_simulation_mode(mock_api, ctx):
+    route = mock_api.patch("/corrections/cor_001").mock(
+        return_value=httpx.Response(200, json={"id": "cor_001"})
+    )
+    await update_correction(
+        ctx,
+        correction_id="cor_001",
+        simulation_mode="automatic",
+    )
+    assert json.loads(route.calls.last.request.content) == {
+        "simulation_mode": "automatic",
+    }
+
+
+@pytest.mark.anyio
 @pytest.mark.parametrize(
     ("tool", "action"),
     [
         (preview_correction, "preview"),
         (approve_correction, "approve"),
         (reopen_correction, "reopen"),
+        (simulate_correction_start_processing, "simulate/start_processing"),
+        (simulate_correction_complete_funding, "simulate/complete_funding"),
+        (simulate_correction_fail_funding, "simulate/fail_funding"),
     ],
 )
 async def test_correction_actions(mock_api, ctx, tool, action):

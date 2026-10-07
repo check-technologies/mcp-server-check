@@ -558,6 +558,9 @@ CORRECTION_TOOLS = {
     "preview_correction",
     "approve_correction",
     "reopen_correction",
+    "simulate_correction_start_processing",
+    "simulate_correction_complete_funding",
+    "simulate_correction_fail_funding",
 }
 OPTED_IN = ToolFilter(preview_toolsets=frozenset({"corrections"}))
 
