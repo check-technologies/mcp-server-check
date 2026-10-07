@@ -195,6 +195,45 @@ class TestToolIndexSearch:
         employee_names = [n for n in names if "employee" in n]
         assert len(employee_names) > 0
 
+    def test_synonym_search_exempt(self):
+        """'exempt' expands to 'exemption' so the election tools surface."""
+        results = self.index.search("employee exempt from tax", self.no_filter)
+        names = [r["name"] for r in results]
+        assert "list_employee_tax_elections" in names
+        assert "update_employee_tax_elections" in names
+
+    def test_search_minister_fica_exemption_finds_employee_election_tools(self):
+        """A minister FICA exemption request should surface the employee
+        election tools (not a support escalation) — see Checkmate finding."""
+        results = self.index.search(
+            "minister exempt from social security and medicare", self.no_filter
+        )
+        names = [r["name"] for r in results[:4]]
+        assert "update_employee_tax_elections" in names
+        assert "list_employee_tax_elections" in names
+
+    def test_search_fica_exempt(self):
+        """'FICA' is a tax synonym and 'exempt' an exemption synonym."""
+        results = self.index.search("FICA exempt", self.no_filter)
+        names = [r["name"] for r in results]
+        assert "update_employee_tax_elections" in names
+        assert "list_employee_tax_elections" in names
+
+    def test_search_church_unemployment_exemption_finds_company_elections(self):
+        """Company unemployment exemptions should surface the company list
+        tool first so the agent checks the current setup before escalating."""
+        results = self.index.search("church unemployment exemption", self.no_filter)
+        assert results[0]["name"] == "list_company_tax_elections"
+
+    def test_election_descriptions_say_who_can_set_exemptions(self):
+        """The one-line descriptions (all the dynamic mode surfaces) must say
+        a partner can set employee exemptions directly."""
+        entry = self.index.get_entry("update_employee_tax_elections")
+        assert "Social Security" in entry.description
+        assert "Check Support" in entry.description
+        entry = self.index.get_entry("list_company_tax_elections")
+        assert "unemployment" in entry.description
+
     def test_search_report_finds_every_report_run_tool(self):
         """Report run tools are discoverable by their own name tokens."""
         results = self.index.search("report", self.no_filter, limit=50)

@@ -441,12 +441,12 @@ Tax parameters, elections (including tax exemptions), filings, statements, packa
 | `bulk_get_employee_tax_param_settings` | POST | Bulk get tax param settings |
 | `bulk_update_employee_tax_param_settings` | POST | Bulk update tax param settings |
 | **Company Tax Elections** | | |
-| `list_company_tax_elections` | GET | List tax elections (exemption settings); filter by company, tax, exemptible, jurisdiction |
+| `list_company_tax_elections` | GET | List a company's tax exemptions (tax elections) for employer-paid taxes; `exemptible: false` (e.g. SUI/FUTA) means only Check Support can set it |
 | `create_company_tax_elections` | POST | Create company tax elections |
-| `update_company_tax_elections` | PATCH | Update company tax elections (incl. exemptions) |
+| `update_company_tax_elections` | PATCH | Set or remove a company's exemption from an employer-paid tax |
 | **Employee Tax Elections** | | |
-| `list_employee_tax_elections` | GET | List tax elections (exemption settings); filter by employee, company, tax, exemptible, jurisdiction |
-| `update_employee_tax_elections` | PATCH | Update employee tax elections (incl. exemptions) |
+| `list_employee_tax_elections` | GET | List an employee's tax exemptions (Social Security, Medicare/FICA, income tax withholding, …); includes the employer halves of FICA |
+| `update_employee_tax_elections` | PATCH | Set or remove an employee's tax exemption (e.g. minister/clergy FICA exemption) — no Support request needed when `exemptible` is true |
 | **Filings** | | |
 | `list_filings` | GET | List tax filings |
 | `get_filing` | GET | Get a specific tax filing |
