@@ -292,11 +292,24 @@ async def list_company_tax_elections(
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
-    """List tax elections (exemption settings) for company-paid taxes.
+    """List a company's tax exemptions (tax elections) for employer-paid taxes — FUTA/SUI unemployment, employer Social Security/Medicare, workers' comp; check this before escalating a company exemption (e.g. a church/nonprofit unemployment exemption) to Check Support.
 
-    Tax elections replace the former exempt status and exemptible taxes
-    endpoints. Each election has an ``exemptible`` flag and a ``setting``
-    object holding the current ``exempt`` value and its effective dates.
+    Each result is a tax election (``txe_*``) with the ``tax`` ID, its
+    ``description``, an ``exemptible`` flag, and a ``setting`` object holding
+    the current ``exempt`` value and its effective dates (``setting_timeline``
+    has the history). Use it to answer "is this company exempt from X?" and to
+    find the ``txe_*`` ID to pass to update_company_tax_elections.
+
+    ``exemptible: true`` means the partner can set the exemption directly with
+    update_company_tax_elections. ``exemptible: false`` means the exemption
+    cannot be set through the API and only Check Support can apply it — this
+    is the case for state unemployment (SUI) and FUTA exemptions, so for those
+    report the current setting and draft a support request instead of
+    attempting an update.
+
+    A minister's/clergy Social Security and Medicare (FICA) exemption is set
+    per employee — including the employer halves — with
+    update_employee_tax_elections, not here.
 
     Results are paginated. When ``next`` is non-null in the response, pass it
     back as ``cursor`` to fetch the following page — required to enumerate
@@ -307,7 +320,7 @@ async def list_company_tax_elections(
         company: Filter to this Check company ID (e.g. "com_xxxxx").
         tax: Filter to this Check tax ID (e.g. "tax_xxxxx").
         as_of: Return elections applicable on this date (defaults to today).
-        exemptible: If true, only return taxes that qualify for exemption.
+        exemptible: If true, only return taxes whose exemption the partner can set via the API (exemptible); if false, only taxes that require Check Support to exempt.
         jurisdiction: Filter by region code (e.g. "fed", "ny", "pa").
         limit: Maximum number of results to return per page.
         cursor: Pagination cursor from a previous response's ``next`` field.
@@ -330,15 +343,20 @@ async def list_company_tax_elections(
 async def create_company_tax_elections(
     ctx: Ctx, data: list[dict], idempotency_key: str | None = None
 ) -> dict:
-    """Create tax elections for a company.
+    """Create company tax exemptions (tax elections) for employer-paid taxes when no election exists yet; prefer update_company_tax_elections for existing ones.
 
     The request body is a JSON array of tax elections. Each item requires
     ``id`` (the ``txe_*`` tax election ID) and ``company`` (the ``com_*``
     company ID), plus a ``setting`` object with ``exempt`` (bool),
     ``effective_start`` (date), and optionally ``effective_end`` (date).
 
+    Only taxes whose election shows ``exemptible: true`` in
+    list_company_tax_elections can be set here; the API rejects the rest
+    ("Tax ... is not exemptible"), and those (e.g. SUI/FUTA unemployment)
+    require a Check Support request.
+
     Args:
-        data: List of tax elections to create.
+        data: List of tax elections to create, e.g. [{"id": "txe_...", "company": "com_...", "setting": {"exempt": true, "effective_start": "2026-01-01"}}].
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     return await check_api_post(
@@ -350,15 +368,24 @@ async def create_company_tax_elections(
 
 
 async def update_company_tax_elections(ctx: Ctx, data: list[dict]) -> dict:
-    """Update tax elections (exemption settings) for a company.
+    """Set or remove a company's exemption from an employer-paid tax (mark the company exempt or not exempt) — partners can do this directly for taxes whose election shows exemptible: true.
 
-    The request body is a JSON array of tax election updates. Each item
-    requires ``id`` (the ``txe_*`` tax election ID) and ``company`` (the
-    ``com_*`` company ID), plus a ``setting`` object with ``exempt`` (bool),
-    ``effective_start`` (date), and optionally ``effective_end`` (date).
+    First call list_company_tax_elections for the company to get the ``txe_*``
+    ID of the tax and confirm ``exemptible`` is true. Then send a JSON array
+    of updates: each item requires ``id`` (the ``txe_*`` tax election ID) and
+    ``company`` (the ``com_*`` company ID), plus a ``setting`` object with
+    ``exempt`` (bool), ``effective_start`` (date), and optionally
+    ``effective_end`` (date). Set ``exempt: false`` to end an exemption.
+
+    Taxes with ``exemptible: false`` — notably state unemployment (SUI) and
+    FUTA, which churches and some nonprofits ask to be exempted from — are
+    rejected by the API ("Tax ... is not exemptible") and must be requested
+    from Check Support. A minister's Social Security/Medicare (FICA)
+    exemption is an employee-level election: use
+    update_employee_tax_elections.
 
     Args:
-        data: List of tax election updates.
+        data: List of tax election updates, e.g. [{"id": "txe_...", "company": "com_...", "setting": {"exempt": true, "effective_start": "2026-01-01"}}].
     """
     return await check_api_patch(ctx, "/company_tax_elections", data=data)
 
@@ -377,11 +404,19 @@ async def list_employee_tax_elections(
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
-    """List tax elections (exemption settings) for employee-paid taxes.
+    """List an employee's tax exemptions (tax elections): whether they are exempt from Social Security, Medicare (FICA), federal/state income tax withholding, paid leave, or local taxes — use this to check an employee's exempt status and to find the txe_ ID needed to set an exemption.
 
-    Tax elections replace the former per-employee exempt status endpoint.
-    Each election has an ``exemptible`` flag and a ``setting`` object holding
-    the current ``exempt`` value and its effective dates.
+    Each result is a tax election (``txe_*``) with the ``tax`` ID, its
+    ``description`` (e.g. "Social Security Tax", "Medicare", "Employer Social
+    Security Tax"), an ``exemptible`` flag, and a ``setting`` object holding
+    the current ``exempt`` value and its effective dates
+    (``setting_timeline`` has the history). Employee elections also cover the
+    employer halves of Social Security and Medicare, so a minister/clergy
+    FICA exemption is handled entirely here.
+
+    ``exemptible: true`` means the partner can set the exemption directly with
+    update_employee_tax_elections — no Check Support request is needed.
+    ``exemptible: false`` means only Check Support can apply it.
 
     Results are paginated. When ``next`` is non-null in the response, pass it
     back as ``cursor`` to fetch the following page.
@@ -391,7 +426,7 @@ async def list_employee_tax_elections(
         company: Filter to this Check company ID (e.g. "com_xxxxx").
         tax: Filter to this Check tax ID (e.g. "tax_xxxxx").
         as_of: Return elections applicable on this date (defaults to today).
-        exemptible: If true, only return taxes that qualify for exemption.
+        exemptible: If true, only return taxes whose exemption the partner can set via the API (exemptible); if false, only taxes that require Check Support to exempt.
         jurisdiction: Filter by region code (e.g. "fed", "ny", "pa").
         limit: Maximum number of results to return per page.
         cursor: Pagination cursor from a previous response's ``next`` field.
@@ -413,15 +448,26 @@ async def list_employee_tax_elections(
 
 
 async def update_employee_tax_elections(ctx: Ctx, data: list[dict]) -> dict:
-    """Update tax elections (exemption settings) for an employee.
+    """Set or remove an employee's tax exemption (mark them exempt from Social Security, Medicare/FICA, federal or state income tax withholding, etc.) — e.g. a minister/clergy FICA exemption; partners can do this directly without contacting Check Support.
 
-    The request body is a JSON array of tax election updates. Each item
-    requires ``id`` (the ``txe_*`` tax election ID) and ``employee`` (the
-    ``emp_*`` employee ID), plus a ``setting`` object with ``exempt`` (bool),
-    ``effective_start`` (date), and optionally ``effective_end`` (date).
+    Workflow: call list_employee_tax_elections for the employee to get the
+    ``txe_*`` ID of each tax to exempt and confirm ``exemptible`` is true, then
+    send a JSON array of updates. Each item requires ``id`` (the ``txe_*`` tax
+    election ID) and ``employee`` (the ``emp_*`` employee ID), plus a
+    ``setting`` object with ``exempt`` (bool), ``effective_start`` (date), and
+    optionally ``effective_end`` (date). Set ``exempt: false`` to end an
+    exemption.
+
+    A full FICA exemption (e.g. a minister with an approved IRS Form 4361)
+    means exempting the employee from Social Security Tax, Medicare,
+    Additional Medicare, Employer Social Security Tax, and Employer Medicare
+    Tax — all of which appear as employee tax elections and can be updated in
+    one call. Taxes whose election shows ``exemptible: false`` are rejected by
+    the API ("Tax ... is not exemptible") and must be requested from Check
+    Support.
 
     Args:
-        data: List of tax election updates.
+        data: List of tax election updates, e.g. [{"id": "txe_...", "employee": "emp_...", "setting": {"exempt": true, "effective_start": "2026-01-01"}}].
     """
     return await check_api_patch(ctx, "/employee_tax_elections", data=data)
 
