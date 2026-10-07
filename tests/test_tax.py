@@ -236,7 +236,12 @@ async def test_list_filings_with_filters(mock_api, ctx):
         )
     )
     result = await list_filings(
-        ctx, company="com_123", year=2025, period="q1", status="blocked"
+        ctx,
+        company="com_123",
+        year=2025,
+        period="q1",
+        status="blocked",
+        correction="cor_abc",
     )
     assert result["results"] == [{"id": "com_fil_001"}]
     req = mock_api.get("/filings").calls.last.request
@@ -244,6 +249,7 @@ async def test_list_filings_with_filters(mock_api, ctx):
     assert req.url.params["year"] == "2025"
     assert req.url.params["period"] == "q1"
     assert req.url.params["status"] == "blocked"
+    assert req.url.params["correction"] == "cor_abc"
 
 
 @pytest.mark.anyio

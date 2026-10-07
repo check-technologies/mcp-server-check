@@ -483,6 +483,7 @@ async def list_filings(
     year: int | None = None,
     period: str | None = None,
     status: str | None = None,
+    correction: str | None = None,
 ) -> dict:
     """List filings, optionally filtered by company.
 
@@ -497,6 +498,8 @@ async def list_filings(
         year: Filter by tax year.
         period: Filter by filing period (e.g. "annual", "q1", "q2", "q3", "q4", "january", etc.).
         status: Filter by filing status ("pending", "blocked", "submitted", "filed", or "inapplicable").
+        correction: Filter to filings produced by this correction session (e.g. "cor_xxxxx").
+            Requires the corrections API for the provider.
     """
     return await check_api_list(
         ctx,
@@ -508,6 +511,7 @@ async def list_filings(
             year=year,
             period=period,
             status=status,
+            correction=correction,
         ),
     )
 
