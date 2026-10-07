@@ -112,8 +112,9 @@ _TOOLSET_DESCRIPTIONS: dict[str, str] = {
         "and/or add_external_payroll → "
         "preview_correction and poll get_correction until preview.status is succeeded → "
         "review totals → approve_correction (moves money) and poll until approval.status "
-        "is succeeded. reopen_correction cancels a pending approval before its "
-        "reopen_deadline."
+        'is succeeded. In sandbox, set simulation_mode to "manual" on create or '
+        "update_correction to step money movement with simulate_correction_* tools. "
+        "reopen_correction cancels a pending approval before its reopen_deadline."
     ),
     "documents": "Access company tax documents, authorization documents, employee/contractor tax documents, and setup documents.",
     "employees": "Manage W-2 employees, their forms, paystubs, attributes, and reciprocity elections.",

@@ -73,6 +73,7 @@ async def create_correction(
     bank_account: str | None = None,
     description: str | None = None,
     metadata: dict | None = None,
+    simulation_mode: str | None = None,
 ) -> dict:
     """Create a draft correction for a company and tax year.
 
@@ -91,6 +92,9 @@ async def create_correction(
             to the company's default bank account.
         description: Free-text explanation of why the correction exists.
         metadata: Arbitrary key-value object stored on the correction.
+        simulation_mode: Sandbox only. How money moves after approval — "automatic"
+            (default) or "manual" (step with simulate_correction_* tools). Null
+            omits the field and uses automatic.
     """
     return await check_api_post(
         ctx,
@@ -101,6 +105,7 @@ async def create_correction(
             bank_account=bank_account,
             description=description,
             metadata=metadata,
+            simulation_mode=simulation_mode,
         ),
     )
 
@@ -112,8 +117,9 @@ async def update_correction(
     bank_account: str | None = None,
     description: str | None = None,
     metadata: dict | None = None,
+    simulation_mode: str | None = None,
 ) -> dict:
-    """Update a draft correction's settlement date, bank account, description, or metadata.
+    """Update a draft correction's settlement date, bank account, description, metadata, or simulation mode.
 
     The payrolls in a correction can't be changed here; use void_payroll,
     add_payroll_to_correction, and add_external_payroll instead.
@@ -124,6 +130,8 @@ async def update_correction(
         bank_account: ID of the company bank account to debit or credit.
         description: Free-text explanation of why the correction exists.
         metadata: Arbitrary key-value object stored on the correction.
+        simulation_mode: Sandbox only. "automatic" or "manual". Settable while
+            the correction is draft.
     """
     return await check_api_patch(
         ctx,
@@ -134,6 +142,7 @@ async def update_correction(
             bank_account=bank_account,
             description=description,
             metadata=metadata,
+            simulation_mode=simulation_mode,
         ),
     )
 
@@ -322,6 +331,48 @@ async def reopen_correction(ctx: Ctx, correction_id: str) -> dict:
     return await check_api_post(ctx, f"/corrections/{correction_id}/reopen")
 
 
+async def simulate_correction_start_processing(ctx: Ctx, correction_id: str) -> dict:
+    """Simulate starting correction processing (sandbox only).
+
+    For corrections with simulation_mode "manual". Returns an empty body on
+    success; poll get_correction for the new status.
+
+    Args:
+        correction_id: The Check correction ID.
+    """
+    return await check_api_post(
+        ctx, f"/corrections/{correction_id}/simulate/start_processing"
+    )
+
+
+async def simulate_correction_complete_funding(ctx: Ctx, correction_id: str) -> dict:
+    """Simulate completing correction funding (sandbox only).
+
+    For corrections with simulation_mode "manual". Returns an empty body on
+    success; poll get_correction for the new status.
+
+    Args:
+        correction_id: The Check correction ID.
+    """
+    return await check_api_post(
+        ctx, f"/corrections/{correction_id}/simulate/complete_funding"
+    )
+
+
+async def simulate_correction_fail_funding(ctx: Ctx, correction_id: str) -> dict:
+    """Simulate failing correction funding (sandbox only).
+
+    For corrections with simulation_mode "manual". Returns an empty body on
+    success; poll get_correction for the new status.
+
+    Args:
+        correction_id: The Check correction ID.
+    """
+    return await check_api_post(
+        ctx, f"/corrections/{correction_id}/simulate/fail_funding"
+    )
+
+
 async def get_correction_receipt(ctx: Ctx, correction_id: str) -> dict:
     """Get the tax rollup for a previewed correction.
 
@@ -363,3 +414,6 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
         add_annotated_tool(mcp, preview_correction)
         add_annotated_tool(mcp, approve_correction)
         add_annotated_tool(mcp, reopen_correction)
+        add_annotated_tool(mcp, simulate_correction_start_processing)
+        add_annotated_tool(mcp, simulate_correction_complete_funding)
+        add_annotated_tool(mcp, simulate_correction_fail_funding)
