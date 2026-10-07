@@ -198,8 +198,11 @@ async def add_payroll_to_correction(
 ) -> dict:
     """Add a new payroll to a draft correction, e.g. to replace a voided one or record a missed one.
 
-    The payroll is created in draft; add its payroll items with the payroll item
-    tools or inline via items. It is approved along with the correction.
+    The payroll is created in draft and is approved along with the correction.
+    Check API writes inline items only when the request carries
+    ?include_items=true, and inline contractor_payments only with
+    ?include_contractor_payments=true; this tool adds whichever parameter applies
+    when you pass items or contractor_payments.
 
     Args:
         correction: ID of the draft correction to add the payroll to (e.g. "cor_xxxxx").
@@ -212,9 +215,11 @@ async def add_payroll_to_correction(
             "quarterly", or "annually".
         pay_schedule: ID of the pay schedule this payroll relates to.
         items: List of payroll item dicts (see create_payroll for shape). Each must
-            use "payment_method": "manual".
+            use "payment_method": "manual". When set, the tool sends
+            ?include_items=true so Check API writes them.
         contractor_payments: List of contractor payment dicts (see create_payroll for
-            shape). Each must use "payment_method": "manual".
+            shape). Each must use "payment_method": "manual". When set, the tool
+            sends ?include_contractor_payments=true so Check API writes them.
         metadata: Arbitrary key-value object stored on the payroll.
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
@@ -236,6 +241,12 @@ async def add_payroll_to_correction(
             metadata=metadata,
         ),
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
+        params=build_params(
+            include_items=True if items is not None else None,
+            include_contractor_payments=(
+                True if contractor_payments is not None else None
+            ),
+        ),
     )
 
 

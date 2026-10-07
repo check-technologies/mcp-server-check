@@ -162,6 +162,45 @@ async def test_add_payroll_to_correction(mock_api, ctx):
         "items": items,
     }
     assert request.headers["X-Idempotency-Key"] == "idem-1"
+    assert request.url.params["include_items"] == "true"
+    assert "include_contractor_payments" not in request.url.params
+
+
+@pytest.mark.anyio
+async def test_add_payroll_to_correction_contractor_payments_only(mock_api, ctx):
+    route = mock_api.post("/payrolls").mock(
+        return_value=httpx.Response(201, json={"id": "pay_new"})
+    )
+    contractor_payments = [{"contractor": "ctr_001", "payment_method": "manual"}]
+    await add_payroll_to_correction(
+        ctx,
+        correction="cor_001",
+        company="com_001",
+        period_start="2026-07-01",
+        period_end="2026-07-15",
+        payday="2026-07-17",
+        contractor_payments=contractor_payments,
+    )
+    request = route.calls.last.request
+    assert json.loads(request.content)["contractor_payments"] == contractor_payments
+    assert request.url.params["include_contractor_payments"] == "true"
+    assert "include_items" not in request.url.params
+
+
+@pytest.mark.anyio
+async def test_add_payroll_to_correction_without_lists_sends_no_params(mock_api, ctx):
+    route = mock_api.post("/payrolls").mock(
+        return_value=httpx.Response(201, json={"id": "pay_new"})
+    )
+    await add_payroll_to_correction(
+        ctx,
+        correction="cor_001",
+        company="com_001",
+        period_start="2026-07-01",
+        period_end="2026-07-15",
+        payday="2026-07-17",
+    )
+    assert route.calls.last.request.url.query == b""
 
 
 @pytest.mark.anyio

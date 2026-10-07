@@ -289,9 +289,12 @@ async def check_api_post(
     path: str,
     data: dict | list | None = None,
     headers: dict[str, str] | None = None,
+    params: dict | None = None,
 ) -> dict:
     """Make a POST request to the Check API."""
-    return await _check_api_request(ctx, "POST", path, data=data, extra_headers=headers)
+    return await _check_api_request(
+        ctx, "POST", path, params=params, data=data, extra_headers=headers
+    )
 
 
 async def check_api_patch(ctx: Ctx, path: str, data: dict | list) -> dict:
