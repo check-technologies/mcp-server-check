@@ -26,6 +26,7 @@ async def list_payments(
     type: str | None = None,
     completion_date_after: str | None = None,
     completion_date_before: str | None = None,
+    parent_id: list[str] | None = None,
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
@@ -42,6 +43,10 @@ async def list_payments(
         type: Filter by payment type: "company_cash_requirement", "employee_net_pay", "net_pay_refund", "collection", or "refund".
         completion_date_after: Filter to payments with completion date on or after this date (YYYY-MM-DD).
         completion_date_before: Filter to payments with completion date on or before this date (YYYY-MM-DD).
+        parent_id: Filter to payments whose parent_id matches (e.g. "prl_xxxxx",
+            "pit_xxxxx", "ctp_xxxxx", or "cor_xxxxx" for correction parents when
+            your account has the corrections API). Multiple values are OR'd (max
+            100 per request).
         limit: Maximum number of results to return (default 25, max 100).
         cursor: Pagination cursor.
     """
@@ -59,6 +64,7 @@ async def list_payments(
             type=type,
             completion_date_after=completion_date_after,
             completion_date_before=completion_date_before,
+            parent_id=parent_id,
             limit=limit,
             cursor=cursor,
         ),
