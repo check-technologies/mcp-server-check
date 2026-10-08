@@ -56,6 +56,23 @@ async def test_list_payments_with_filters(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_list_payments_parent_id_filter(mock_api, ctx):
+    mock_api.get("/payments").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "pmt_003"}]},
+        )
+    )
+    result = await list_payments(
+        ctx,
+        parent_id=["prl_abc", "cor_def"],
+    )
+    assert result["results"] == [{"id": "pmt_003"}]
+    req = mock_api.get("/payments").calls.last.request
+    assert req.url.params.get_list("parent_id") == ["prl_abc", "cor_def"]
+
+
+@pytest.mark.anyio
 async def test_get_payment(mock_api, ctx):
     mock_api.get("/payments/pmt_001").mock(
         return_value=httpx.Response(200, json={"id": "pmt_001"})
