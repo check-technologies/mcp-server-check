@@ -57,7 +57,9 @@ async def get_correction(ctx: Ctx, correction_id: str) -> dict:
 
     Poll this after preview_correction or approve_correction: each runs in the
     background and reports progress on the correction's "preview" or "approval"
-    object ("calculating", then "succeeded" or "failed" with an "error_code").
+    object ("calculating", then "succeeded" or "failed"). On preview failure,
+    "preview.messages" lists calculation messages (severity, code, message); on
+    approval failure, "approval.error_code" names the failure.
 
     Args:
         correction_id: The Check correction ID (e.g. "cor_xxxxx").
@@ -317,7 +319,7 @@ async def preview_correction(ctx: Ctx, correction_id: str) -> dict:
 
     Runs in the background: poll get_correction until "preview.status" is
     "succeeded" (the correction's "totals" then hold the exact amounts approval
-    will move) or "failed".
+    will move) or "failed" (see "preview.messages" on get_correction).
 
     Args:
         correction_id: The Check correction ID.
