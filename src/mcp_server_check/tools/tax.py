@@ -63,11 +63,25 @@ async def list_company_tax_param_settings(
 ) -> dict:
     """List tax parameter settings for a company.
 
+    Each returned setting answers two questions:
+
+    - What applies on a date: ``value`` and ``effective_start`` are the value
+      in force on ``as_of`` (today by default).
+    - What changed: ``settings[]`` lists every write that has not been
+      deleted, newest ``effective_start`` first and, within a date, newest
+      ``created_at`` first. For each ``effective_start``, the entry with the
+      latest ``created_at`` is the one in force from that date; each earlier
+      entry for that date was replaced when the next one was written.
+
+    Deleted values are not listed. A form submission deletes a setting's
+    earlier values, so a setting last set through a form shows one entry.
+
     Args:
         company_id: The Check company ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
-        as_of: Filter as of a specific date (YYYY-MM-DD).
+        as_of: Return as ``value`` what applies on this date (YYYY-MM-DD).
+            Defaults to today.
         jurisdiction: Filter by tax jurisdiction.
         submitter: Filter by submitter.
     """
@@ -88,6 +102,19 @@ async def get_company_tax_param_setting(
     ctx: Ctx, company_id: str, setting_id: str
 ) -> dict:
     """Get a specific tax parameter setting for a company.
+
+    Each returned setting answers two questions:
+
+    - What applies now: ``value`` and ``effective_start`` are the value in
+      force today.
+    - What changed: ``settings[]`` lists every write that has not been
+      deleted, newest ``effective_start`` first and, within a date, newest
+      ``created_at`` first. For each ``effective_start``, the entry with the
+      latest ``created_at`` is the one in force from that date; each earlier
+      entry for that date was replaced when the next one was written.
+
+    Deleted values are not listed. A form submission deletes a setting's
+    earlier values, so a setting last set through a form shows one entry.
 
     Args:
         company_id: The Check company ID.
@@ -200,11 +227,25 @@ async def list_employee_tax_param_settings(
 ) -> dict:
     """List tax parameter settings for an employee.
 
+    Each returned setting answers two questions:
+
+    - What applies on a date: ``value`` and ``effective_start`` are the value
+      in force on ``as_of`` (today by default).
+    - What changed: ``settings[]`` lists every write that has not been
+      deleted, newest ``effective_start`` first and, within a date, newest
+      ``created_at`` first. For each ``effective_start``, the entry with the
+      latest ``created_at`` is the one in force from that date; each earlier
+      entry for that date was replaced when the next one was written.
+
+    Deleted values are not listed. A form submission deletes a setting's
+    earlier values, so a setting last set through a form shows one entry.
+
     Args:
         employee_id: The Check employee ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
-        as_of: Filter as of a specific date (YYYY-MM-DD).
+        as_of: Return as ``value`` what applies on this date (YYYY-MM-DD).
+            Defaults to today.
         jurisdiction: Filter by tax jurisdiction.
         submitter: Filter by submitter.
     """
@@ -225,6 +266,19 @@ async def get_employee_tax_param_setting(
     ctx: Ctx, employee_id: str, setting_id: str
 ) -> dict:
     """Get a specific tax parameter setting for an employee.
+
+    Each returned setting answers two questions:
+
+    - What applies now: ``value`` and ``effective_start`` are the value in
+      force today.
+    - What changed: ``settings[]`` lists every write that has not been
+      deleted, newest ``effective_start`` first and, within a date, newest
+      ``created_at`` first. For each ``effective_start``, the entry with the
+      latest ``created_at`` is the one in force from that date; each earlier
+      entry for that date was replaced when the next one was written.
+
+    Deleted values are not listed. A form submission deletes a setting's
+    earlier values, so a setting last set through a form shows one entry.
 
     Args:
         employee_id: The Check employee ID.
