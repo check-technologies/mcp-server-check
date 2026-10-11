@@ -240,7 +240,11 @@ _post_tax_deductions = Resource(
         Field(
             "child_support",
             dict,
-            doc="Config dict for child_support type with keys: external_id, agency, fips_code, issue_date, amount, max_percent.",
+            doc=(
+                "Config dict for child_support type with keys: external_id, agency "
+                "(two-letter child support disbursement unit — US states, DC, PR, VI), "
+                "fips_code, issue_date, amount, max_percent."
+            ),
         ),
         Field(
             "miscellaneous_garnishment",
