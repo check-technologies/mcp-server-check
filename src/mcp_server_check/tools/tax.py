@@ -98,26 +98,6 @@ async def get_company_tax_param_setting(
     )
 
 
-async def list_company_jurisdictions(
-    ctx: Ctx,
-    company_id: str,
-    limit: int | None = None,
-    cursor: str | None = None,
-) -> dict:
-    """List tax jurisdictions for a company.
-
-    Args:
-        company_id: The Check company ID.
-        limit: Maximum number of results to return.
-        cursor: Pagination cursor.
-    """
-    return await check_api_list(
-        ctx,
-        f"/company_tax_params/{company_id}/jurisdictions",
-        params=build_params(limit=limit, cursor=cursor),
-    )
-
-
 # --- Employee Tax Params ---
 
 
@@ -232,26 +212,6 @@ async def get_employee_tax_param_setting(
     """
     return await check_api_get(
         ctx, f"/employee_tax_params/{employee_id}/settings/{setting_id}"
-    )
-
-
-async def list_employee_jurisdictions(
-    ctx: Ctx,
-    employee_id: str,
-    limit: int | None = None,
-    cursor: str | None = None,
-) -> dict:
-    """List tax jurisdictions for an employee.
-
-    Args:
-        employee_id: The Check employee ID.
-        limit: Maximum number of results to return.
-        cursor: Pagination cursor.
-    """
-    return await check_api_list(
-        ctx,
-        f"/employee_tax_params/{employee_id}/jurisdictions",
-        params=build_params(limit=limit, cursor=cursor),
     )
 
 
@@ -699,13 +659,11 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, get_company_tax_params)
     add_annotated_tool(mcp, list_company_tax_param_settings)
     add_annotated_tool(mcp, get_company_tax_param_setting)
-    add_annotated_tool(mcp, list_company_jurisdictions)
     # Employee Tax Params
     add_annotated_tool(mcp, list_employee_tax_params)
     add_annotated_tool(mcp, get_employee_tax_params)
     add_annotated_tool(mcp, list_employee_tax_param_settings)
     add_annotated_tool(mcp, get_employee_tax_param_setting)
-    add_annotated_tool(mcp, list_employee_jurisdictions)
     add_annotated_tool(mcp, bulk_get_employee_tax_param_settings)
     # Company Tax Elections
     add_annotated_tool(mcp, list_company_tax_elections)
