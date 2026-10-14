@@ -4,7 +4,7 @@
 
 > **Terms of Service** — By using this MCP server to access the Check API, you agree to the [MCP Usage Terms](TERMS_OF_SERVICE.md), which are in addition to your existing agreement with Check.
 
-An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 265 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
+An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 263 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
 
@@ -165,7 +165,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 ## Available Tools
 
-265 tools organized across 17 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
+263 tools organized across 17 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
 
 ### Companies (26 tools)
 
@@ -419,7 +419,7 @@ Asynchronous reporting. `create_report_run` returns a `run_` ID, `get_report_run
 | `refund_payment` | POST | Refund a payment |
 | `cancel_payment` | POST | Cancel a payment |
 
-### Tax (28 tools)
+### Tax (26 tools)
 
 Tax parameters, elections (including tax exemptions), filings, statements, packages, and tax reference data.
 
@@ -430,14 +430,12 @@ Tax parameters, elections (including tax exemptions), filings, statements, packa
 | `update_company_tax_params` | PATCH | Update company tax parameters |
 | `list_company_tax_param_settings` | GET | List tax parameter settings |
 | `get_company_tax_param_setting` | GET | Get a specific tax param setting |
-| `list_company_jurisdictions` | GET | List tax jurisdictions for a company |
 | **Employee Tax Params** | | |
 | `list_employee_tax_params` | GET | List employee tax parameters |
 | `get_employee_tax_params` | GET | Get tax parameters for an employee |
 | `update_employee_tax_params` | PATCH | Update employee tax parameters |
 | `list_employee_tax_param_settings` | GET | List employee tax param settings |
 | `get_employee_tax_param_setting` | GET | Get a specific setting |
-| `list_employee_jurisdictions` | GET | List tax jurisdictions for an employee |
 | `bulk_get_employee_tax_param_settings` | POST | Bulk get tax param settings |
 | `bulk_update_employee_tax_param_settings` | POST | Bulk update tax param settings |
 | **Company Tax Elections** | | |
