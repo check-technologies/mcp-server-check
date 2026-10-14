@@ -556,6 +556,8 @@ CORRECTION_TOOLS = {
     "add_payroll_to_correction",
     "add_external_payroll",
     "preview_correction",
+    "create_correction_payroll_journal_run",
+    "create_correction_payroll_summary_run",
     "approve_correction",
     "reopen_correction",
     "simulate_correction_start_processing",

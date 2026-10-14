@@ -94,14 +94,19 @@ async def create_report_run(
 
     Args:
         report: The report to generate: "payroll_journal" or "payroll_summary".
-        parameters: Report parameters; "payday_from" and "payday_to" are required.
-            Both are YYYY-MM-DD and bound the paydays the report covers. Optional
-            "additional_columns" is a list of extra columns: both reports accept
-            "employee.id" and "contractor.id", and "payroll_journal" also
-            accepts "payroll.id". Optional "payroll" is one payroll ID that
-            limits the report to that payroll.
+        parameters: Report parameters; "payday_from" and "payday_to" are required
+            unless "correction" is set. Both are YYYY-MM-DD and bound the paydays
+            the report covers. Optional "additional_columns" is a list of extra
+            columns: both reports accept "employee.id" and "contractor.id", and
+            "payroll_journal" also accepts "payroll.id". Optional "payroll" is
+            one payroll ID that limits the report to that payroll. Optional
+            "correction" is a correction ID (e.g. "cor_xxxxx") that reports on
+            that correction's payrolls; it requires top-level `company` and
+            needs no payday range, and a payday range sent with it adds that
+            range's payrolls to the report. The correction must have a
+            succeeded preview, or the run ends "failed" with no reason given.
         company: Company ID to scope the report to. Omit to cover every company
-            the API key can reach.
+            the API key can reach. Required with parameters "correction".
         metadata: Arbitrary key-value object stored on the report run.
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """

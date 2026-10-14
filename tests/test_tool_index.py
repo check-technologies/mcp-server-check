@@ -256,6 +256,12 @@ class TestToolIndexSearch:
         }
         assert "create_report_run" in names
         assert "list_report_runs" in names
+        corrections = ToolFilter(preview_toolsets=frozenset({"corrections"}))
+        names = [
+            r["name"]
+            for r in self.index.search("correction payroll journal", corrections)
+        ]
+        assert names[0] == "create_correction_payroll_journal_run"
 
     def test_report_search_excludes_document_downloads(self):
         """A report query returns report tools, not document downloads.

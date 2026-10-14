@@ -12,6 +12,8 @@ from mcp_server_check.tools.corrections import (
     add_payroll_to_correction,
     approve_correction,
     create_correction,
+    create_correction_payroll_journal_run,
+    create_correction_payroll_summary_run,
     delete_correction,
     get_correction,
     get_correction_receipt,
@@ -308,3 +310,48 @@ async def test_get_correction_receipt_download(mock_api, ctx):
     )
     result = await get_correction_receipt_download(ctx, correction_id="cor_001")
     assert result == download
+
+
+CORRECTION_REPORT_TOOLS = pytest.mark.parametrize(
+    ("tool", "report"),
+    [
+        (create_correction_payroll_journal_run, "payroll_journal"),
+        (create_correction_payroll_summary_run, "payroll_summary"),
+    ],
+)
+
+
+@pytest.mark.anyio
+@CORRECTION_REPORT_TOOLS
+async def test_correction_report_run_uses_correction_company(
+    mock_api, ctx, tool, report
+):
+    correction_route = mock_api.get("/corrections/cor_001").mock(
+        return_value=httpx.Response(200, json={"id": "cor_001", "company": "com_001"})
+    )
+    run_route = mock_api.post("/report_runs").mock(
+        return_value=httpx.Response(201, json={"id": "run_001", "status": "generating"})
+    )
+    result = await tool(ctx, correction_id="cor_001")
+    assert result == {"id": "run_001", "status": "generating"}
+    assert correction_route.called
+    assert json.loads(run_route.calls.last.request.content) == {
+        "report": report,
+        "company": "com_001",
+        "parameters": {"correction": "cor_001"},
+    }
+
+
+@pytest.mark.anyio
+@CORRECTION_REPORT_TOOLS
+async def test_correction_report_run_failed_read_creates_no_run(
+    mock_api, ctx, tool, report
+):
+    mock_api.get("/corrections/cor_missing").mock(
+        return_value=httpx.Response(404, json={"error": {"type": "not_found"}})
+    )
+    run_route = mock_api.post("/report_runs")
+    result = await tool(ctx, correction_id="cor_missing")
+    assert result["error"] is True
+    assert result["status_code"] == 404
+    assert not run_route.called

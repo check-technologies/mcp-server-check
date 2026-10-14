@@ -111,7 +111,10 @@ _TOOLSET_DESCRIPTIONS: dict[str, str] = {
         "company and tax year → void_payroll and/or add_payroll_to_correction "
         "and/or add_external_payroll → "
         "preview_correction and poll get_correction until preview.status is succeeded → "
-        "review totals → approve_correction (moves money) and poll until approval.status "
+        "review totals; for the payroll journal or payroll summary, call "
+        "create_correction_payroll_journal_run or create_correction_payroll_summary_run, "
+        "poll get_report_run until completed, then download_report_run → "
+        "approve_correction (moves money) and poll until approval.status "
         'is succeeded. In sandbox, set simulation_mode to "manual" on create or '
         "update_correction to step money movement with simulate_correction_* tools. "
         "reopen_correction cancels a pending approval before its reopen_deadline."
