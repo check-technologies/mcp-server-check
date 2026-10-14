@@ -442,12 +442,13 @@ async def _create_correction_report_run(
 async def create_correction_payroll_journal_run(ctx: Ctx, correction_id: str) -> dict:
     """Start a payroll journal report run for a previewed correction.
 
-    Call this after preview_correction succeeds (get_correction shows
-    "preview.status" as "succeeded"). Reads the correction for its company,
+    Available any time after preview_correction succeeds (get_correction
+    shows "preview.status" as "succeeded"); the report is optional and not a
+    step required before approve_correction. Reads the correction for its company,
     then starts a report run covering the correction's payrolls. Poll
     get_report_run until "status" is "completed", then call
-    download_report_run for the file. A run on a correction that has not been
-    previewed ends "failed", and the report run gives no reason.
+    download_report_run for the file. A run on a correction without a succeeded
+    preview ends "failed", and the report run gives no reason.
 
     Args:
         correction_id: The Check correction ID (e.g. "cor_xxxxx").
@@ -458,12 +459,13 @@ async def create_correction_payroll_journal_run(ctx: Ctx, correction_id: str) ->
 async def create_correction_payroll_summary_run(ctx: Ctx, correction_id: str) -> dict:
     """Start a payroll summary report run for a previewed correction.
 
-    Call this after preview_correction succeeds (get_correction shows
-    "preview.status" as "succeeded"). Reads the correction for its company,
+    Available any time after preview_correction succeeds (get_correction
+    shows "preview.status" as "succeeded"); the report is optional and not a
+    step required before approve_correction. Reads the correction for its company,
     then starts a report run covering the correction's payrolls. Poll
     get_report_run until "status" is "completed", then call
-    download_report_run for the file. A run on a correction that has not been
-    previewed ends "failed", and the report run gives no reason.
+    download_report_run for the file. A run on a correction without a succeeded
+    preview ends "failed", and the report run gives no reason.
 
     Args:
         correction_id: The Check correction ID (e.g. "cor_xxxxx").
