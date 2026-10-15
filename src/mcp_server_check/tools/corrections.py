@@ -420,6 +420,59 @@ async def get_correction_receipt_download(ctx: Ctx, correction_id: str) -> dict:
     return await check_api_get(ctx, f"/corrections/{correction_id}/receipt_download")
 
 
+async def _create_correction_report_run(
+    ctx: Ctx, correction_id: str, report: str
+) -> dict:
+    # Check API requires top-level company with a correction, and a payday range
+    # would add that range's payrolls to the report rather than narrow it.
+    correction = await check_api_get(ctx, f"/corrections/{correction_id}")
+    if correction.get("error") is True:
+        return correction
+    return await check_api_post(
+        ctx,
+        "/report_runs",
+        data={
+            "report": report,
+            "company": correction["company"],
+            "parameters": {"correction": correction_id},
+        },
+    )
+
+
+async def create_correction_payroll_journal_run(ctx: Ctx, correction_id: str) -> dict:
+    """Start a payroll journal report run for a previewed correction.
+
+    Available any time after preview_correction succeeds (get_correction
+    shows "preview.status" as "succeeded"); the report is optional and not a
+    step required before approve_correction. Reads the correction for its company,
+    then starts a report run covering the correction's payrolls. Poll
+    get_report_run until "status" is "completed", then call
+    download_report_run for the file. A run on a correction without a succeeded
+    preview ends "failed", and the report run gives no reason.
+
+    Args:
+        correction_id: The Check correction ID (e.g. "cor_xxxxx").
+    """
+    return await _create_correction_report_run(ctx, correction_id, "payroll_journal")
+
+
+async def create_correction_payroll_summary_run(ctx: Ctx, correction_id: str) -> dict:
+    """Start a payroll summary report run for a previewed correction.
+
+    Available any time after preview_correction succeeds (get_correction
+    shows "preview.status" as "succeeded"); the report is optional and not a
+    step required before approve_correction. Reads the correction for its company,
+    then starts a report run covering the correction's payrolls. Poll
+    get_report_run until "status" is "completed", then call
+    download_report_run for the file. A run on a correction without a succeeded
+    preview ends "failed", and the report run gives no reason.
+
+    Args:
+        correction_id: The Check correction ID (e.g. "cor_xxxxx").
+    """
+    return await _create_correction_report_run(ctx, correction_id, "payroll_summary")
+
+
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, list_corrections)
     add_annotated_tool(mcp, get_correction)
@@ -433,6 +486,8 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
         add_annotated_tool(mcp, add_payroll_to_correction)
         add_annotated_tool(mcp, add_external_payroll)
         add_annotated_tool(mcp, preview_correction)
+        add_annotated_tool(mcp, create_correction_payroll_journal_run)
+        add_annotated_tool(mcp, create_correction_payroll_summary_run)
         add_annotated_tool(mcp, approve_correction)
         add_annotated_tool(mcp, reopen_correction)
         add_annotated_tool(mcp, simulate_correction_start_processing)
