@@ -17,6 +17,29 @@ from mcp_server_check.helpers import (
 )
 from mcp_server_check.types import VoidSubset
 
+# Console serves sandbox and production corrections from one host, so this does
+# not follow CHECK_ENV or CHECK_API_BASE_URL.
+CONSOLE_BASE_URL = "https://console.checkhq.com"
+
+
+def _with_console_url(correction: dict) -> dict:
+    """Swap Check API's Admin redirect_url for the Console link on a correction.
+
+    Error bodies and bodies that are not a correction pass through unchanged.
+    """
+    if correction.get("error") is True:
+        return correction
+    correction_id = correction.get("id")
+    if not (isinstance(correction_id, str) and correction_id.startswith("cor_")):
+        return correction
+    correction.pop("redirect_url", None)
+    company = correction.get("company")
+    if company:
+        correction["console_url"] = (
+            f"{CONSOLE_BASE_URL}/companies/{company}/corrections/{correction_id}"
+        )
+    return correction
+
 
 async def list_corrections(
     ctx: Ctx,
@@ -38,7 +61,7 @@ async def list_corrections(
         limit: Maximum number of results to return (default 25, max 100).
         cursor: Pagination cursor from a previous response.
     """
-    return await check_api_list(
+    result = await check_api_list(
         ctx,
         "/corrections",
         params=build_params(
@@ -50,6 +73,10 @@ async def list_corrections(
             cursor=cursor,
         ),
     )
+    if result.get("error") is True:
+        return result
+    result["results"] = [_with_console_url(item) for item in result["results"]]
+    return result
 
 
 async def get_correction(ctx: Ctx, correction_id: str) -> dict:
@@ -61,10 +88,15 @@ async def get_correction(ctx: Ctx, correction_id: str) -> dict:
     "preview.messages" lists calculation messages (severity, code, message); on
     approval failure, "approval.error_code" names the failure.
 
+    "console_url" is the link to share for the correction:
+    https://console.checkhq.com/companies/{company}/corrections/{correction_id}.
+    Build that URL from a company ID and correction ID when you have no
+    correction response. Never link to Check's internal Admin tool.
+
     Args:
         correction_id: The Check correction ID (e.g. "cor_xxxxx").
     """
-    return await check_api_get(ctx, f"/corrections/{correction_id}")
+    return _with_console_url(await check_api_get(ctx, f"/corrections/{correction_id}"))
 
 
 async def create_correction(
@@ -98,17 +130,19 @@ async def create_correction(
             (default) or "manual" (step with simulate_correction_* tools). Null
             omits the field and uses automatic.
     """
-    return await check_api_post(
-        ctx,
-        "/corrections",
-        data=build_body(
-            {"company": company, "year": year},
-            settlement_date=settlement_date,
-            bank_account=bank_account,
-            description=description,
-            metadata=metadata,
-            simulation_mode=simulation_mode,
-        ),
+    return _with_console_url(
+        await check_api_post(
+            ctx,
+            "/corrections",
+            data=build_body(
+                {"company": company, "year": year},
+                settlement_date=settlement_date,
+                bank_account=bank_account,
+                description=description,
+                metadata=metadata,
+                simulation_mode=simulation_mode,
+            ),
+        )
     )
 
 
@@ -135,17 +169,19 @@ async def update_correction(
         simulation_mode: Sandbox only. "automatic" or "manual". Settable while
             the correction is draft.
     """
-    return await check_api_patch(
-        ctx,
-        f"/corrections/{correction_id}",
-        data=build_body(
-            {},
-            settlement_date=settlement_date,
-            bank_account=bank_account,
-            description=description,
-            metadata=metadata,
-            simulation_mode=simulation_mode,
-        ),
+    return _with_console_url(
+        await check_api_patch(
+            ctx,
+            f"/corrections/{correction_id}",
+            data=build_body(
+                {},
+                settlement_date=settlement_date,
+                bank_account=bank_account,
+                description=description,
+                metadata=metadata,
+                simulation_mode=simulation_mode,
+            ),
+        )
     )
 
 
@@ -324,7 +360,9 @@ async def preview_correction(ctx: Ctx, correction_id: str) -> dict:
     Args:
         correction_id: The Check correction ID.
     """
-    return await check_api_post(ctx, f"/corrections/{correction_id}/preview")
+    return _with_console_url(
+        await check_api_post(ctx, f"/corrections/{correction_id}/preview")
+    )
 
 
 async def approve_correction(ctx: Ctx, correction_id: str) -> dict:
@@ -338,7 +376,9 @@ async def approve_correction(ctx: Ctx, correction_id: str) -> dict:
     Args:
         correction_id: The Check correction ID.
     """
-    return await check_api_post(ctx, f"/corrections/{correction_id}/approve")
+    return _with_console_url(
+        await check_api_post(ctx, f"/corrections/{correction_id}/approve")
+    )
 
 
 async def reopen_correction(ctx: Ctx, correction_id: str) -> dict:
@@ -349,7 +389,9 @@ async def reopen_correction(ctx: Ctx, correction_id: str) -> dict:
     Args:
         correction_id: The Check correction ID.
     """
-    return await check_api_post(ctx, f"/corrections/{correction_id}/reopen")
+    return _with_console_url(
+        await check_api_post(ctx, f"/corrections/{correction_id}/reopen")
+    )
 
 
 async def simulate_correction_start_processing(ctx: Ctx, correction_id: str) -> dict:

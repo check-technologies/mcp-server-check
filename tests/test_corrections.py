@@ -56,13 +56,66 @@ async def test_list_corrections_with_filters(mock_api, ctx):
     assert params["cursor"] == "abc"
 
 
+ADMIN_URL = "https://admin.example.com/corrections/cor_001"
+CONSOLE_URL = "https://console.checkhq.com/companies/com_001/corrections/cor_001"
+
+
 @pytest.mark.anyio
-async def test_get_correction(mock_api, ctx):
+async def test_get_correction_replaces_redirect_url_with_console_url(mock_api, ctx):
     mock_api.get("/corrections/cor_001").mock(
-        return_value=httpx.Response(200, json={"id": "cor_001", "status": "draft"})
+        return_value=httpx.Response(
+            200,
+            json={
+                "id": "cor_001",
+                "company": "com_001",
+                "status": "draft",
+                "redirect_url": ADMIN_URL,
+            },
+        )
     )
     result = await get_correction(ctx, correction_id="cor_001")
-    assert result == {"id": "cor_001", "status": "draft"}
+    assert result == {
+        "id": "cor_001",
+        "company": "com_001",
+        "status": "draft",
+        "console_url": CONSOLE_URL,
+    }
+
+
+@pytest.mark.anyio
+async def test_get_correction_error_passes_through(mock_api, ctx):
+    error = {"error": {"type": "not_found", "message": "Not found."}}
+    mock_api.get("/corrections/cor_missing").mock(
+        return_value=httpx.Response(404, json=error)
+    )
+    result = await get_correction(ctx, correction_id="cor_missing")
+    assert result == {"error": True, "status_code": 404, "detail": error}
+
+
+@pytest.mark.anyio
+async def test_list_corrections_sets_console_url_on_each_result(mock_api, ctx):
+    mock_api.get("/corrections").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "next": None,
+                "previous": None,
+                "results": [
+                    {"id": "cor_001", "company": "com_001", "redirect_url": ADMIN_URL},
+                    {"id": "cor_002", "company": "com_002", "redirect_url": ADMIN_URL},
+                ],
+            },
+        )
+    )
+    result = await list_corrections(ctx)
+    assert result["results"] == [
+        {"id": "cor_001", "company": "com_001", "console_url": CONSOLE_URL},
+        {
+            "id": "cor_002",
+            "company": "com_002",
+            "console_url": "https://console.checkhq.com/companies/com_002/corrections/cor_002",
+        },
+    ]
 
 
 @pytest.mark.anyio
