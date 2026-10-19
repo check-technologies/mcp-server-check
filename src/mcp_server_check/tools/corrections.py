@@ -216,8 +216,7 @@ async def add_payroll_to_correction(
         period_start: Pay period start date (YYYY-MM-DD).
         period_end: Pay period end date (YYYY-MM-DD).
         payday: Payday date (YYYY-MM-DD). Must be before today, on or after the
-            company's start_date, in the correction's tax year, and in the
-            company's open quarter.
+            company's start_date, and in the correction's tax year.
         pay_frequency: Pay frequency — "weekly", "biweekly", "semimonthly", "monthly",
             "quarterly", or "annually".
         pay_schedule: ID of the pay schedule this payroll relates to.
