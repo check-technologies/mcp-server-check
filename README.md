@@ -4,7 +4,7 @@
 
 > **Terms of Service** — By using this MCP server to access the Check API, you agree to the [MCP Usage Terms](TERMS_OF_SERVICE.md), which are in addition to your existing agreement with Check.
 
-An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 263 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
+An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 268 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
 
@@ -165,7 +165,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 ## Available Tools
 
-263 tools organized across 17 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
+268 tools organized across 17 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
 
 ### Companies (26 tools)
 
@@ -453,6 +453,12 @@ Tax parameters, elections (including tax exemptions), filings, statements, packa
 | **Employee Tax Statements** | | |
 | `list_employee_tax_statements` | GET | List employee tax statements |
 | `get_employee_tax_statement` | GET | Get a specific tax statement |
+| **Employee Tax Statement Overrides** | | |
+| `list_employee_tax_statement_overrides` | GET | List W-2 supplement overrides (requires company or employee filter) |
+| `get_employee_tax_statement_override` | GET | Get a specific override |
+| `create_employee_tax_statement_overrides` | POST | Upsert overrides by employee and year |
+| `update_employee_tax_statement_override` | PATCH | Update override values |
+| `delete_employee_tax_statement_override` | DELETE | Delete an override |
 | **Tax Packages** | | |
 | `request_tax_package` | POST | Request a tax package |
 | `get_tax_package` | GET | Get a specific tax package |

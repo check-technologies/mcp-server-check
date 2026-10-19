@@ -10,6 +10,7 @@ from mcp_server_check.helpers import (
     Ctx,
     build_body,
     build_params,
+    check_api_delete,
     check_api_get,
     check_api_list,
     check_api_patch,
@@ -553,6 +554,122 @@ async def get_employee_tax_statement(ctx: Ctx, statement_id: str) -> dict:
     return await check_api_get(ctx, f"/employee_tax_statements/{statement_id}")
 
 
+# --- Employee Tax Statement Overrides ---
+
+
+async def list_employee_tax_statement_overrides(
+    ctx: Ctx,
+    company: str | None = None,
+    employee: str | None = None,
+    year: int | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
+) -> dict:
+    """List employee tax statement overrides (W-2 supplement line values).
+
+    Either company or employee is required. Overrides adjust values such as
+    qualified overtime compensation and other labeled lines on an employee's
+    tax statement for a given year.
+
+    Args:
+        company: Filter to overrides for this Check company ID (e.g. "com_xxxxx").
+        employee: Filter to overrides for this Check employee ID (e.g. "emp_xxxxx").
+        year: Filter by tax year.
+        limit: Maximum number of results to return (max 500).
+        cursor: Pagination cursor.
+    """
+    return await check_api_list(
+        ctx,
+        "/employee_tax_statement_overrides",
+        params=build_params(
+            company=company,
+            employee=employee,
+            year=year,
+            limit=limit,
+            cursor=cursor,
+        ),
+    )
+
+
+async def get_employee_tax_statement_override(ctx: Ctx, override_id: str) -> dict:
+    """Get a specific employee tax statement override.
+
+    Args:
+        override_id: The override ID (e.g. "etso_xxxxx").
+    """
+    return await check_api_get(ctx, f"/employee_tax_statement_overrides/{override_id}")
+
+
+async def create_employee_tax_statement_overrides(
+    ctx: Ctx,
+    company: str,
+    overrides: list[dict],
+    idempotency_key: str | None = None,
+) -> dict:
+    """Create or update employee tax statement overrides (upsert by employee and year).
+
+    The request body requires company and a non-empty overrides array (max 500
+    rows). Each row requires employee and year, and may include
+    qualified_overtime_compensation (money string or null), other_lines (list
+    of objects with label and amount money strings), and metadata. Every row
+    applies atomically or none do.
+
+    Args:
+        company: The Check company ID (e.g. "com_xxxxx").
+        overrides: Override rows to upsert, e.g. [{"employee": "emp_xxxxx",
+            "year": 2026, "qualified_overtime_compensation": "900.00",
+            "other_lines": [{"label": "PUCC", "amount": "4200.00"}]}].
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
+    """
+    return await check_api_post(
+        ctx,
+        "/employee_tax_statement_overrides",
+        data={"company": company, "overrides": overrides},
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
+    )
+
+
+async def update_employee_tax_statement_override(
+    ctx: Ctx,
+    override_id: str,
+    qualified_overtime_compensation: str | None = None,
+    other_lines: list[dict] | None = None,
+    metadata: dict | None = None,
+) -> dict:
+    """Update an employee tax statement override.
+
+    employee and year cannot be changed; delete and create a new override instead.
+
+    Args:
+        override_id: The override ID (e.g. "etso_xxxxx").
+        qualified_overtime_compensation: Money string (e.g. "900.00") or null to clear.
+        other_lines: List of line objects, each with label (string) and amount
+            (money string).
+        metadata: Arbitrary key-value metadata for the override.
+    """
+    return await check_api_patch(
+        ctx,
+        f"/employee_tax_statement_overrides/{override_id}",
+        data=build_body(
+            {},
+            qualified_overtime_compensation=qualified_overtime_compensation,
+            other_lines=other_lines,
+            metadata=metadata,
+        ),
+    )
+
+
+async def delete_employee_tax_statement_override(ctx: Ctx, override_id: str) -> dict:
+    """Delete an employee tax statement override.
+
+    Args:
+        override_id: The override ID (e.g. "etso_xxxxx").
+    """
+    return await check_api_delete(
+        ctx, f"/employee_tax_statement_overrides/{override_id}"
+    )
+
+
 # --- Tax Packages ---
 
 
@@ -675,6 +792,9 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     # Employee Tax Statements
     add_annotated_tool(mcp, list_employee_tax_statements)
     add_annotated_tool(mcp, get_employee_tax_statement)
+    # Employee Tax Statement Overrides
+    add_annotated_tool(mcp, list_employee_tax_statement_overrides)
+    add_annotated_tool(mcp, get_employee_tax_statement_override)
     # Tax Packages
     add_annotated_tool(mcp, get_tax_package)
     # Taxes (reference data)
@@ -689,4 +809,7 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
         add_annotated_tool(mcp, update_employee_tax_elections)
         add_annotated_tool(mcp, add_filing_blockers)
         add_annotated_tool(mcp, remove_filing_blockers)
+        add_annotated_tool(mcp, create_employee_tax_statement_overrides)
+        add_annotated_tool(mcp, update_employee_tax_statement_override)
+        add_annotated_tool(mcp, delete_employee_tax_statement_override)
         add_annotated_tool(mcp, request_tax_package)
