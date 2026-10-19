@@ -129,7 +129,7 @@ _TOOLSET_DESCRIPTIONS: dict[str, str] = {
     "payrolls": "Create, preview, approve, and manage payroll runs. Includes sandbox simulation tools.",
     "platform": "Platform-level tools: notifications, communications, usage, integrations, accounting, setups, and requirements.",
     "report_runs": "Asynchronous report generation — start a payroll journal or payroll summary run, poll its status, and download the result.",
-    "tax": "Manage company and employee tax parameters, filings, and tax statements. Tax exemptions (e.g. a minister exempt from Social Security/Medicare, a company exempt from unemployment tax) are tax elections: list_/update_employee_tax_elections and list_/update_company_tax_elections. Includes tax reference data (list_taxes/get_tax).",
+    "tax": "Manage company and employee tax parameters, filings, tax statements, and employee tax statement overrides (W-2 supplement line values). Tax exemptions (e.g. a minister exempt from Social Security/Medicare, a company exempt from unemployment tax) are tax elections: list_/update_employee_tax_elections and list_/update_company_tax_elections. Includes tax reference data (list_taxes/get_tax).",
     "webhooks": "Create, update, delete, and test webhook configurations; inspect and retry webhook deliveries.",
     "workflows": "Composite tools that combine multiple API calls: company overview, employee snapshot, contractor snapshot, payroll details, payment diagnostics, tax overview, onboarding status.",
     "workplaces": "Create, update, and view company workplace locations.",
