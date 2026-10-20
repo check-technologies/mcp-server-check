@@ -288,8 +288,10 @@ async def add_external_payroll(
             the company's start_date, and in the correction's tax year.
         pay_frequency: Frequency at which the external payroll was paid.
         items: List of external payroll item dicts. Each may include "employee",
-            "earnings" (list), "reimbursements" (list), "taxes" (list),
-            "benefits" (list), "post_tax_deductions" (list).
+            "earnings" (list), "reimbursements" (list), "taxes" (list of dicts
+            with "tax" and "amount"; optionally "taxable_wages" and
+            "gross_taxable_wages" as monetary strings — both must be set
+            together), "benefits" (list), "post_tax_deductions" (list).
         contractor_payments: List of contractor payment dicts. Each may include
             "contractor", "amount", "reimbursement_amount".
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
