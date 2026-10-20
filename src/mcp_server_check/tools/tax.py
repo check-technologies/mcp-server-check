@@ -560,6 +560,7 @@ async def request_tax_package(
     ctx: Ctx,
     company: str,
     employee_tax_statements: list[str] | None = None,
+    contractor_tax_statements: list[str] | None = None,
     filings: list[str] | None = None,
 ) -> dict:
     """Request a tax package.
@@ -568,12 +569,16 @@ async def request_tax_package(
         company: The Check company ID (e.g. "com_xxxxx").
         employee_tax_statements: Employee tax statement IDs to include
             (e.g. ["ets_xxxxx"]).
+        contractor_tax_statements: Contractor tax statement IDs to include
+            (e.g. ["cts_xxxxx"]).
         filings: Company filing IDs to include employer copies for
             (e.g. ["com_fil_xxxxx"]).
     """
     contents: dict[str, list[str]] = {}
     if employee_tax_statements is not None:
         contents["employee_tax_statements"] = employee_tax_statements
+    if contractor_tax_statements is not None:
+        contents["contractor_tax_statements"] = contractor_tax_statements
     if filings is not None:
         contents["filings"] = filings
 
