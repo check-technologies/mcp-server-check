@@ -97,6 +97,7 @@ def test_path_detection_finds_known_money_tools():
         "retry_payment",
         "refund_payment",
         "cancel_payment",
+        "reverse_payment",
         "create_bank_account",
         "update_bank_account",
         "delete_bank_account",

@@ -558,6 +558,7 @@ class TestDirectorySafeProfile:
             ("cancel_payment", "payments"),
             ("refund_payment", "payments"),
             ("retry_payment", "payments"),
+            ("reverse_payment", "payments"),
             ("create_bank_account", "bank_accounts"),
             ("update_bank_account", "bank_accounts"),
             ("delete_bank_account", "bank_accounts"),

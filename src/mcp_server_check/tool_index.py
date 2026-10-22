@@ -124,7 +124,7 @@ _TOOLSET_DESCRIPTIONS: dict[str, str] = {
     "external_payrolls": "Create and manage external (imported) payrolls for historical data.",
     "forms": "List and render tax forms (W-4, state withholding, etc.).",
     "logs": "Search and retrieve your API request logs for debugging — filter by path, method, status code/class, idempotency key, and time range.",
-    "payments": "View payments, payment attempts, and retry/refund/cancel payments.",
+    "payments": "View payments, payment attempts, and retry/refund/cancel/reverse payments.",
     "payroll_items": "Create, update, and delete individual payroll line items within a payroll.",
     "payrolls": "Create, preview, approve, and manage payroll runs. Includes sandbox simulation tools.",
     "platform": "Platform-level tools: notifications, communications, usage, integrations, accounting, setups, and requirements.",
