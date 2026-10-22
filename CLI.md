@@ -77,7 +77,7 @@ There are 21 resource groups, each with multiple commands:
 | `compensation` | `list-pay-schedules`, `create-benefit`, `list-earning-codes` |
 | `tax` | `get-company-params`, `list-employee-elections`, `list-filings`, `list-taxes` |
 | `agencies` | `list`, `get` |
-| `payments` | `list`, `get`, `retry`, `refund`, `cancel` |
+| `payments` | `list`, `get`, `retry`, `refund`, `cancel`, `reverse` |
 | `payroll-items` | `list`, `get`, `create`, `update`, `delete` |
 | `contractor-payments` | `list`, `get`, `create`, `delete` |
 | `external-payrolls` | `list`, `get`, `create`, `approve` |
