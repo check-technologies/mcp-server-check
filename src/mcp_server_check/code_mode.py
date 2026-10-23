@@ -14,6 +14,8 @@ import asyncio
 import inspect
 import json
 import os
+import random
+import re
 import time
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
@@ -38,9 +40,10 @@ _STUB_HEADER = f'''\
 Every function is async: `await {MODULE_NAME}.list_companies(limit=100)`. Use
 asyncio.gather for independent calls. A failed Check API call raises
 RuntimeError whose message is a JSON object with "status_code" and "detail".
-List results carry "results", "result_count" and "next_cursor"; pass the
-cursor back to page. Write tools are marked below and must be named in
-run_code's `writes` argument before a program can call them.
+Throttled calls are retried for you. List results carry "results",
+"result_count" and "next_cursor"; pass the cursor back to page. Write tools
+are marked below and must be named in run_code's `writes` argument before a
+program can call them. Generator expressions evaluate eagerly to lists here.
 """
 
 from typing import Any
@@ -111,7 +114,10 @@ def render_signature(entry: ToolEntry) -> str:
         if p.default is not inspect.Parameter.empty:
             text += f" = {p.default!r}"
         params.append(text)
-    return f"async def {entry.name}({', '.join(params)}) -> dict"
+    # Results are untyped JSON; `Any` keeps the type checker on names and
+    # arguments, where it catches real mistakes, and off result shapes, where a
+    # strict `dict` produced false positives on mixed asyncio.gather results.
+    return f"async def {entry.name}({', '.join(params)}) -> Any"
 
 
 def render_stub(entry: ToolEntry, *, mark_writes: bool = False) -> str:
@@ -167,6 +173,7 @@ class CodeModeSettings:
     max_calls: int = 200
     max_memory_bytes: int = 256 * 1024 * 1024
     concurrency: int = 8
+    max_retries: int = 4
 
     @classmethod
     def from_env(cls) -> CodeModeSettings:
@@ -178,6 +185,7 @@ class CodeModeSettings:
                 float(env.get("CHECK_CODE_MAX_MEMORY_MB", 256)) * 1024 * 1024
             ),
             concurrency=int(env.get("CHECK_CODE_CONCURRENCY", cls.concurrency)),
+            max_retries=int(env.get("CHECK_CODE_MAX_RETRIES", cls.max_retries)),
         )
 
 
@@ -189,6 +197,7 @@ class CallRecord:
     arguments: dict[str, Any]
     status: str = "ok"
     duration_ms: int = 0
+    retries: int = 0
     error: Any = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -198,9 +207,30 @@ class CallRecord:
             "status": self.status,
             "duration_ms": self.duration_ms,
         }
+        if self.retries:
+            record["retries"] = self.retries
         if self.error is not None:
             record["error"] = self.error
         return record
+
+
+_THROTTLE_HINT = re.compile(r"available in (\d+(?:\.\d+)?) second")
+
+
+def _is_throttled(payload: dict[str, Any]) -> bool:
+    return payload.get("status_code") == 429
+
+
+def _retry_delay(payload: dict[str, Any], attempt: int) -> float:
+    """Seconds to wait before retrying a throttled call.
+
+    Honors the wait the Check API names ("Expected available in N second"),
+    otherwise backs off exponentially from one second; jitter spreads a
+    gather's retries apart.
+    """
+    match = _THROTTLE_HINT.search(json.dumps(payload.get("detail")))
+    base = float(match.group(1)) if match else float(min(2**attempt, 8))
+    return base + random.uniform(0, 0.25 * base)
 
 
 @dataclass
@@ -298,6 +328,7 @@ class CodeRunner:
     ):
         names = [p.name for p in tool_parameters(entry.tool.fn)]
         max_calls = self._settings.max_calls
+        max_retries = self._settings.max_retries
 
         async def call(*args: Any, **kwargs: Any) -> Any:
             if len(args) > len(names):
@@ -319,8 +350,25 @@ class CodeRunner:
             run.calls.append(record)
             started = time.monotonic()
             try:
-                async with semaphore:
-                    result = await self._index.run(entry.name, arguments, tool_filter)
+                while True:
+                    try:
+                        async with semaphore:
+                            result = await self._index.run(
+                                entry.name, arguments, tool_filter
+                            )
+                        break
+                    except CheckToolError as e:
+                        # A throttled call is retried here, outside the
+                        # semaphore, so a program's gather does not have to
+                        # know about rate limits.
+                        if (
+                            not _is_throttled(e.payload)
+                            or record.retries >= max_retries
+                        ):
+                            raise
+                        delay = _retry_delay(e.payload, record.retries)
+                        record.retries += 1
+                        await asyncio.sleep(delay)
             except CheckToolError as e:
                 record.status = "error"
                 record.error = e.payload

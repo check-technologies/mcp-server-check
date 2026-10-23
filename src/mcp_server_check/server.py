@@ -113,7 +113,11 @@ argument fails before any API call is made.
 - Paginate with next_cursor until it is null. List results are summaries (key \
 fields only); call the get_* tool for a full record.
 - A failed API call raises RuntimeError whose message is a JSON object with \
-status_code and detail; catch it to continue.
+status_code and detail; catch it to continue. Throttled calls are retried for \
+you.
+- The sandbox is a Python subset: generator expressions evaluate eagerly to \
+lists (use `next(iter(...))`, not `next(genexpr)`), and there are no \
+third-party packages.
 - Write tools (create_*, update_*, approve_*, ...) are absent from `check` \
 unless named in run_code's writes argument. Confirm with the user before \
 running a program that declares writes, and keep reads and writes in separate \

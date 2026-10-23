@@ -24,7 +24,7 @@ when a session starts. Run all commands through `uv run` (they execute inside `.
   all-tools), `CHECK_TOOL_MODE=code` or `CHECK_CODE_MODE=1` (adds `get_stubs` and `run_code`,
   which runs model-written Python in a Pydantic Monty sandbox; needs `uv sync --extra code`;
   budgets via `CHECK_CODE_TIMEOUT_SECS`, `CHECK_CODE_MAX_CALLS`, `CHECK_CODE_CONCURRENCY`,
-  `CHECK_CODE_MAX_MEMORY_MB`), `CHECK_TRANSPORT`, `CHECK_ENV` / `CHECK_API_BASE_URL`, `CHECK_READ_ONLY`,
+  `CHECK_CODE_MAX_MEMORY_MB`, `CHECK_CODE_MAX_RETRIES`), `CHECK_TRANSPORT`, `CHECK_ENV` / `CHECK_API_BASE_URL`, `CHECK_READ_ONLY`,
   `CHECK_TOOLSETS`, `CHECK_TOOLS`, `CHECK_EXCLUDE_TOOLS`, `CHECK_EXCLUDE_MONEY_MOVEMENT`,
   `CHECK_EXCLUDE_DESTRUCTIVE`, `CHECK_PREVIEW_TOOLSETS`.
 - Preview toolsets are hidden unless opted into via

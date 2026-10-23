@@ -27,6 +27,7 @@ CHECK_API_KEY=your-key uv run mcp-server-check
 | `CHECK_CODE_MAX_CALLS` | No | `200` | Code mode: most tool calls one program may make |
 | `CHECK_CODE_CONCURRENCY` | No | `8` | Code mode: most tool calls one program runs at once |
 | `CHECK_CODE_MAX_MEMORY_MB` | No | `256` | Code mode: sandbox heap limit |
+| `CHECK_CODE_MAX_RETRIES` | No | `4` | Code mode: retries of a throttled (HTTP 429) call before the program sees the error |
 | `CHECK_TOOLSETS` | No | — | Comma-separated list of toolsets to enable (e.g. `companies,employees`) |
 | `CHECK_TOOLS` | No | — | Comma-separated allowlist of individual tool names |
 | `CHECK_EXCLUDE_TOOLS` | No | — | Comma-separated list of tool names to hide |
@@ -197,7 +198,7 @@ Guardrails:
 
 - The sandbox has no network, filesystem, or environment access and never sees the API key; every `check.*` call proxies to the same tool function `run_tool` would run, through the same `ToolFilter`, so `CHECK_READ_ONLY`, toolsets, and category exclusions apply unchanged.
 - Write tools are absent from `check` unless the program names them in `run_code`'s `writes` argument, which keeps every write visible in the client's tool-call stream before it runs. A declared write that the filter hides is an error.
-- Each program gets its own sandbox process with a time budget, a call budget, a concurrency cap on API calls, and a heap limit (see the `CHECK_CODE_*` variables above).
+- Each program gets its own sandbox process with a time budget, a call budget, a concurrency cap on API calls, and a heap limit (see the `CHECK_CODE_*` variables above). Throttled calls (HTTP 429) are retried by the host with the wait the API asks for, so a program's `asyncio.gather` needs no rate-limit handling; the trace records the retries.
 
 ## Usage with Claude Desktop
 
