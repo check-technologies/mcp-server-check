@@ -14,6 +14,7 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError, ValidationError
 from fastmcp.tools import FunctionTool, ToolResult
 
+from mcp_server_check.code_mode import CodeRunner, render_stub, render_stubs
 from mcp_server_check.errors import CheckToolError
 from mcp_server_check.helpers import CheckContext
 from mcp_server_check.middleware import (
@@ -95,6 +96,41 @@ Prefer the workflow tools when they fit — they combine multiple API calls in o
 - A report that times out or is too large to return fails with "alternatives" (complete calls that can still get it, such as response_format="csv" or a report run) and "hints" (advice that needs input only you have)
 """
 
+CODE_MODE_INSTRUCTIONS = """\
+
+## Code Mode
+This server runs in code mode. For anything that needs more than one API call, \
+write a program and run it with run_code instead of chaining run_tool calls:
+- `import check` gives one async function per tool, with the same names \
+search_tools and run_tool use. Call them with keyword arguments and `await` \
+them; use asyncio.gather for independent calls.
+- Only the program's last expression, what it prints, and a trace of the tool \
+calls it made come back. Filter, join, and aggregate inside the program and \
+return a small result.
+- Look up signatures first with get_stubs(toolset=...) or search_tools. A \
+program is type-checked against them before it runs, so a wrong name or \
+argument fails before any API call is made.
+- Paginate with next_cursor until it is null. List results are summaries (key \
+fields only); call the get_* tool for a full record.
+- A failed API call raises RuntimeError whose message is a JSON object with \
+status_code and detail; catch it to continue.
+- Write tools (create_*, update_*, approve_*, ...) are absent from `check` \
+unless named in run_code's writes argument. Confirm with the user before \
+running a program that declares writes, and keep reads and writes in separate \
+programs where you can.
+- run_tool still works for a single call.
+"""
+
+
+def resolve_tool_mode() -> str:
+    """The tool mode the environment asks for: all, dynamic, or code.
+
+    CHECK_TOOL_MODE names it; CHECK_CODE_MODE=1 is shorthand for code.
+    """
+    if os.environ.get("CHECK_CODE_MODE", "").lower() in ("1", "true", "yes"):
+        return "code"
+    return os.environ.get("CHECK_TOOL_MODE", "dynamic").lower()
+
 
 @asynccontextmanager
 async def lifespan(server: FastMCP) -> AsyncIterator[CheckContext]:
@@ -116,6 +152,7 @@ class CheckMCP(FastMCP):
         self._registry: dict[str, str] = {}
         self._static_filter: ToolFilter = ToolFilter.from_env()
         self._tool_index: ToolIndex | None = None
+        self._code_runner: CodeRunner | None = None
         self.add_middleware(RecoveryMiddleware(self.is_tool_available))
         self.add_middleware(ToolErrorLogMiddleware())
         response_size_limit = ResponseSizeLimitMiddleware.from_env()
@@ -186,8 +223,12 @@ class CheckMCP(FastMCP):
         return await super().call_tool(name, arguments, **kwargs)
 
 
-def _setup_dynamic_mode(server: CheckMCP) -> None:
-    """Configure the server with 3 meta-tools instead of individual tools."""
+def _setup_dynamic_mode(server: CheckMCP, *, code_mode: bool = False) -> None:
+    """Configure the server with 3 meta-tools instead of individual tools.
+
+    In code mode, search results are typed stubs for run_code rather than
+    JSON schemas for run_tool.
+    """
     index = ToolIndex()
     index.build()
     server._tool_index = index
@@ -209,7 +250,8 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         """Search for available API tools by keyword.
 
         Returns matching tools with their full parameter schemas, ready for use
-        with run_tool. Call with an empty query to see all available toolsets.
+        with run_tool (in code mode, their typed stubs for run_code instead).
+        Call with an empty query to see all available toolsets.
         Supports synonym matching (e.g. "pay employees" finds payroll tools).
 
         query: Search keywords (e.g. "list companies", "create employee", "payroll").
@@ -218,6 +260,15 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         """
         tf = server.active_tool_filter()
         results = index.search(query, tool_filter=tf, toolset=toolset, limit=limit)
+        if code_mode and query.strip():
+            results = [
+                {
+                    "name": r["name"],
+                    "toolset": r["toolset"],
+                    "stub": render_stub(index.get_entry(r["name"]), mark_writes=True),
+                }
+                for r in results
+            ]
         return json.dumps(results, indent=2)
 
     @server.tool(
@@ -282,6 +333,77 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
             raise CheckToolError({"error": str(e)}) from e
 
         return ToolResult(content=result.content)
+
+
+def _setup_code_mode(server: CheckMCP) -> None:
+    """Dynamic mode plus get_stubs and run_code, backed by a sandbox."""
+    _setup_dynamic_mode(server, code_mode=True)
+    index = server._tool_index
+    assert index is not None
+    runner = CodeRunner(index)
+    server._code_runner = runner
+
+    @server.tool(
+        title="Get Stubs",
+        annotations={
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
+    )
+    def get_stubs(
+        toolset: str | None = None,
+        tools: list[str] | None = None,
+    ) -> str:
+        """Typed Python signatures of the `check` module that run_code programs call.
+
+        Returns a stub file: one `async def` per tool with its docstring, grouped
+        by toolset. Fetch one toolset at a time (the whole catalog is large).
+        Tools marked as write tools must be named in run_code's writes argument.
+
+        toolset: Restrict to one toolset (e.g. "employees"); see list_toolsets.
+        tools: Restrict to specific tool names.
+        """
+        tf = server.active_tool_filter()
+        entries = runner.visible_entries(tf, toolset=toolset, tools=tools)
+        return render_stubs(entries, mark_writes=True)
+
+    @server.tool(
+        title="Run Code",
+        output_schema=None,
+        annotations={
+            "readOnlyHint": False,
+            "destructiveHint": True,
+            "openWorldHint": False,
+        },
+    )
+    async def run_code(code: str, writes: list[str] | None = None) -> str:
+        """Run a Python program against the Check API in a sandbox.
+
+        Write ordinary async Python. `import check` gives one async function
+        per Check tool (the names search_tools and run_tool use); call them
+        with keyword arguments and `await` them, and use asyncio.gather for
+        independent calls. The value of the program's last expression is
+        returned along with anything it printed and a trace of every tool call
+        it made. Only what you return or print reaches the conversation, so
+        filter and aggregate in the program.
+
+        Check the signatures first with get_stubs or search_tools: the program
+        is type-checked against them before it runs, so a wrong name or
+        argument fails fast without touching the API. A failed Check API call
+        raises RuntimeError whose message is a JSON object with status_code
+        and detail; catch it to continue. There is no network or filesystem
+        access; only `check.*` calls leave the sandbox.
+
+        code: The Python source to run.
+        writes: Names of write tools (create_*, update_*, approve_*, ...) the
+            program may call. Write tools not listed here are absent from
+            `check`. Read tools never need listing.
+        """
+        tf = server.active_tool_filter()
+        result = await runner.run(code, tf, writes or [])
+        return json.dumps(result, indent=2, default=str)
 
 
 def _register_resources(server: CheckMCP) -> None:
@@ -414,6 +536,8 @@ def setup_tools(server: CheckMCP, tool_mode: str = "dynamic") -> None:
     """
     if tool_mode == "all":
         register_all(server, registry=server._registry)
+    elif tool_mode == "code":
+        _setup_code_mode(server)
     else:
         _setup_dynamic_mode(server)
     _register_resources(server)
@@ -421,10 +545,11 @@ def setup_tools(server: CheckMCP, tool_mode: str = "dynamic") -> None:
 
 def _create_server() -> CheckMCP:
     """Create and configure the MCP server based on CHECK_TOOL_MODE."""
-    server = CheckMCP(
-        "Check Payroll API", instructions=SERVER_INSTRUCTIONS, lifespan=lifespan
-    )
-    tool_mode = os.environ.get("CHECK_TOOL_MODE", "dynamic").lower()
+    tool_mode = resolve_tool_mode()
+    instructions = SERVER_INSTRUCTIONS
+    if tool_mode == "code":
+        instructions += CODE_MODE_INSTRUCTIONS
+    server = CheckMCP("Check Payroll API", instructions=instructions, lifespan=lifespan)
     setup_tools(server, tool_mode)
     return server
 
@@ -436,8 +561,13 @@ def main():
     if not os.environ.get("CHECK_API_KEY"):
         print("Error: CHECK_API_KEY environment variable is required", file=sys.stderr)
         sys.exit(1)
-    tool_mode = os.environ.get("CHECK_TOOL_MODE", "dynamic").lower()
-    if tool_mode != "all":
+    tool_mode = resolve_tool_mode()
+    if tool_mode == "code":
+        print(
+            "Running in code mode (run_code + get_stubs + 3 meta-tools)",
+            file=sys.stderr,
+        )
+    elif tool_mode != "all":
         print("Running in dynamic tool mode (3 meta-tools)", file=sys.stderr)
     else:
         print("Running in all-tools mode (legacy)", file=sys.stderr)
