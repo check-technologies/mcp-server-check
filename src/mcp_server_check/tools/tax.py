@@ -525,6 +525,7 @@ async def list_employee_tax_statements(
     cursor: str | None = None,
     company: str | None = None,
     year: int | None = None,
+    form: str | None = None,
 ) -> dict:
     """List employee tax statements, optionally filtered by employee.
 
@@ -534,12 +535,18 @@ async def list_employee_tax_statements(
         cursor: Pagination cursor.
         company: Filter by company ID.
         year: Filter by tax year.
+        form: Filter by tax form ("fed_w2" or "vi_w2vi").
     """
     return await check_api_list(
         ctx,
         "/employee_tax_statements",
         params=build_params(
-            employee=employee, limit=limit, cursor=cursor, company=company, year=year
+            employee=employee,
+            limit=limit,
+            cursor=cursor,
+            company=company,
+            year=year,
+            form=form,
         ),
     )
 
