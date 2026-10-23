@@ -21,7 +21,13 @@ CHECK_API_KEY=your-key uv run mcp-server-check
 |---|---|---|---|
 | `CHECK_API_KEY` | Yes | — | Your Check API key (Bearer token) |
 | `CHECK_API_BASE_URL` | No | `https://sandbox.checkhq.com` | API base URL |
-| `CHECK_TOOL_MODE` | No | `dynamic` | Tool mode: `dynamic` (3 meta-tools) or `all` (all tools individually) |
+| `CHECK_TOOL_MODE` | No | `dynamic` | Tool mode: `dynamic` (3 meta-tools), `code` (dynamic plus `run_code`, see [Code Mode](#code-mode-experimental)), or `all` (all tools individually) |
+| `CHECK_CODE_MODE` | No | — | Set to `1`, `true`, or `yes` as shorthand for `CHECK_TOOL_MODE=code` |
+| `CHECK_CODE_TIMEOUT_SECS` | No | `60` | Code mode: wall-clock budget for one `run_code` program |
+| `CHECK_CODE_MAX_CALLS` | No | `200` | Code mode: most tool calls one program may make |
+| `CHECK_CODE_CONCURRENCY` | No | `8` | Code mode: most tool calls one program runs at once |
+| `CHECK_CODE_MAX_MEMORY_MB` | No | `256` | Code mode: sandbox heap limit |
+| `CHECK_CODE_MAX_RETRIES` | No | `4` | Code mode: retries of a throttled (HTTP 429) call before the program sees the error |
 | `CHECK_TOOLSETS` | No | — | Comma-separated list of toolsets to enable (e.g. `companies,employees`) |
 | `CHECK_TOOLS` | No | — | Comma-separated allowlist of individual tool names |
 | `CHECK_EXCLUDE_TOOLS` | No | — | Comma-separated list of tool names to hide |
@@ -154,6 +160,45 @@ Set `CHECK_TOOL_MODE=all` to expose all tools individually (legacy mode):
 ```bash
 CHECK_TOOL_MODE=all CHECK_API_KEY=your-key uv run mcp-server-check
 ```
+
+### Code Mode (experimental)
+
+Code mode follows the pattern described by [Cloudflare](https://blog.cloudflare.com/code-mode/) and [Rippling](https://www.rippling.com/blog/building-mcp-server): instead of one tool call per API request, the model writes a short Python program that calls many tools and returns only the answer. Intermediate results never pass through the model's context.
+
+It needs the `code` extra, which installs [Pydantic Monty](https://pydantic.dev/articles/pydantic-monty), a sandboxed Python interpreter:
+
+```bash
+uv sync --extra code
+CHECK_TOOL_MODE=code CHECK_API_KEY=your-key uv run mcp-server-check
+```
+
+Code mode keeps the three dynamic-mode tools and adds two:
+
+- **`get_stubs(toolset?, tools?)`** — Typed Python signatures (with docstrings) for the `check` module, one `async def` per tool. `search_tools` returns the same stubs instead of JSON schemas.
+- **`run_code(code, writes?)`** — Run a program. The `check` module is pre-imported and exposes every allowed tool as an async function; the program's last expression is returned along with anything it printed and a trace of every tool call it made (tool, arguments, status, duration). The program is type-checked against the stubs before it runs, so a wrong name or argument fails without touching the API.
+
+```python
+import asyncio
+
+page = await check.list_employees(company="com_xxx", limit=100)
+snapshots = await asyncio.gather(
+    *[check.get_employee(employee_id=e["id"]) for e in page["results"]]
+)
+[e["id"] for e in snapshots if not e.get("bank_accounts")]
+```
+
+How it works:
+
+1. **Stubs come from the tool functions.** `code_mode.render_stubs` introspects the same functions `run_tool` runs (signature, defaults, docstring) and renders a `.pyi`-style stub file for the `check` module. There is no second catalog to keep in sync; a new tool gets a stub automatically.
+2. **Each program gets a fresh sandbox.** `run_code` starts a Monty worker process (about 10ms), registers one host function per allowed tool as the `check` module, imports it, and feeds the program in. Monty type-checks the program against the stubs first, so mistakes surface as `type_check_failed` before any API call.
+3. **Calls proxy back to the host.** When the program awaits `check.list_employees(...)`, the sandbox suspends and the host runs the tool through `ToolIndex.run`, so validation, the `ToolFilter`, error conversion, and the recovery middleware all apply exactly as they do for `run_tool`. Only the tool's result crosses back into the sandbox; the API key never does.
+4. **The result is the program's last expression** plus captured `print` output and a call trace (tool, arguments, status, duration). A failed API call raises `RuntimeError` inside the sandbox with the usual JSON error payload, so a program can catch it and continue; an uncaught error returns the trace so far.
+
+Guardrails:
+
+- The sandbox has no network, filesystem, or environment access and never sees the API key; every `check.*` call proxies to the same tool function `run_tool` would run, through the same `ToolFilter`, so `CHECK_READ_ONLY`, toolsets, and category exclusions apply unchanged.
+- Write tools are absent from `check` unless the program names them in `run_code`'s `writes` argument, which keeps every write visible in the client's tool-call stream before it runs. A declared write that the filter hides is an error.
+- Each program gets its own sandbox process with a time budget, a call budget, a concurrency cap on API calls, and a heap limit (see the `CHECK_CODE_*` variables above). Throttled calls (HTTP 429) are retried by the host with the wait the API asks for, so a program's `asyncio.gather` needs no rate-limit handling; the trace records the retries.
 
 ## Usage with Claude Desktop
 
