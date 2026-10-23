@@ -101,9 +101,9 @@ CODE_MODE_INSTRUCTIONS = """\
 ## Code Mode
 This server runs in code mode. For anything that needs more than one API call, \
 write a program and run it with run_code instead of chaining run_tool calls:
-- `import check` gives one async function per tool, with the same names \
-search_tools and run_tool use. Call them with keyword arguments and `await` \
-them; use asyncio.gather for independent calls.
+- The `check` module is already imported. It has one async function per \
+tool, with the same names search_tools and run_tool use. Call them with \
+keyword arguments and `await` them; use asyncio.gather for independent calls.
 - Only the program's last expression, what it prints, and a trace of the tool \
 calls it made come back. Filter, join, and aggregate inside the program and \
 return a small result.
@@ -381,10 +381,11 @@ def _setup_code_mode(server: CheckMCP) -> None:
     async def run_code(code: str, writes: list[str] | None = None) -> str:
         """Run a Python program against the Check API in a sandbox.
 
-        Write ordinary async Python. `import check` gives one async function
-        per Check tool (the names search_tools and run_tool use); call them
-        with keyword arguments and `await` them, and use asyncio.gather for
-        independent calls. The value of the program's last expression is
+        Write ordinary async Python. The `check` module is already imported
+        and has one async function per Check tool (the names search_tools and
+        run_tool use); call them with keyword arguments and `await` them, and
+        use asyncio.gather for independent calls. Top-level `await` is
+        allowed. The value of the program's last expression is
         returned along with anything it printed and a trace of every tool call
         it made. Only what you return or print reaches the conversation, so
         filter and aggregate in the program.

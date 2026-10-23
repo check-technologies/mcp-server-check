@@ -33,7 +33,7 @@ MODULE_NAME = "check"
 _CTX_ANNOTATIONS = frozenset({"Ctx", "Context"})
 
 _STUB_HEADER = f'''\
-"""The `{MODULE_NAME}` module available to programs run with run_code.
+"""The `{MODULE_NAME}` module, already imported in programs run with run_code.
 
 Every function is async: `await {MODULE_NAME}.list_companies(limit=100)`. Use
 asyncio.gather for independent calls. A failed Check API call raises
@@ -385,6 +385,10 @@ class CodeRunner:
                     external_modules={MODULE_NAME: module},
                 )
                 async with session:
+                    # Bind the module up front so programs need no import and
+                    # the type checker knows the name; a program's own
+                    # `import check` is then a harmless repeat.
+                    await session.feed_run(f"import {MODULE_NAME}")
                     value = await asyncio.wait_for(
                         session.feed_run(code, print_callback=printed),
                         timeout=self._settings.timeout_secs,

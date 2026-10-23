@@ -174,11 +174,10 @@ CHECK_TOOL_MODE=code CHECK_API_KEY=your-key uv run mcp-server-check
 Code mode keeps the three dynamic-mode tools and adds two:
 
 - **`get_stubs(toolset?, tools?)`** — Typed Python signatures (with docstrings) for the `check` module, one `async def` per tool. `search_tools` returns the same stubs instead of JSON schemas.
-- **`run_code(code, writes?)`** — Run a program. `import check` exposes every allowed tool as an async function; the program's last expression is returned along with anything it printed and a trace of every tool call it made (tool, arguments, status, duration). The program is type-checked against the stubs before it runs, so a wrong name or argument fails without touching the API.
+- **`run_code(code, writes?)`** — Run a program. The `check` module is pre-imported and exposes every allowed tool as an async function; the program's last expression is returned along with anything it printed and a trace of every tool call it made (tool, arguments, status, duration). The program is type-checked against the stubs before it runs, so a wrong name or argument fails without touching the API.
 
 ```python
 import asyncio
-import check
 
 page = await check.list_employees(company="com_xxx", limit=100)
 snapshots = await asyncio.gather(
@@ -190,7 +189,7 @@ snapshots = await asyncio.gather(
 How it works:
 
 1. **Stubs come from the tool functions.** `code_mode.render_stubs` introspects the same functions `run_tool` runs (signature, defaults, docstring) and renders a `.pyi`-style stub file for the `check` module. There is no second catalog to keep in sync; a new tool gets a stub automatically.
-2. **Each program gets a fresh sandbox.** `run_code` starts a Monty worker process (about 10ms), registers one host function per allowed tool as the `check` module, and feeds the program in. Monty type-checks it against the stubs first, so mistakes surface as `type_check_failed` before any API call.
+2. **Each program gets a fresh sandbox.** `run_code` starts a Monty worker process (about 10ms), registers one host function per allowed tool as the `check` module, imports it, and feeds the program in. Monty type-checks the program against the stubs first, so mistakes surface as `type_check_failed` before any API call.
 3. **Calls proxy back to the host.** When the program awaits `check.list_employees(...)`, the sandbox suspends and the host runs the tool through `ToolIndex.run`, so validation, the `ToolFilter`, error conversion, and the recovery middleware all apply exactly as they do for `run_tool`. Only the tool's result crosses back into the sandbox; the API key never does.
 4. **The result is the program's last expression** plus captured `print` output and a call trace (tool, arguments, status, duration). A failed API call raises `RuntimeError` inside the sandbox with the usual JSON error payload, so a program can catch it and continue; an uncaught error returns the trace so far.
 

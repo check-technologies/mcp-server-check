@@ -201,6 +201,30 @@ print("fetched", len(details))
 
 
 @pytest.mark.anyio
+async def test_run_code_needs_no_import(mock_api, code_server):
+    mock_api.get("/companies/com_1").mock(
+        return_value=httpx.Response(200, json={"id": "com_1"})
+    )
+    is_error, payload = await _run(
+        code_server, '(await check.get_company(company_id="com_1"))["id"]'
+    )
+    assert not is_error, payload
+    assert payload["result"] == "com_1"
+
+
+@pytest.mark.anyio
+async def test_run_code_type_error_line_numbers_match_the_program(
+    mock_api, code_server
+):
+    is_error, payload = await _run(
+        code_server, "x = 1\nawait check.get_compny(company_id='com_1')"
+    )
+    assert is_error
+    assert payload["kind"] == "type_check_failed"
+    assert "main.py:2:" in payload["detail"]
+
+
+@pytest.mark.anyio
 async def test_run_code_accepts_positional_arguments(mock_api, code_server):
     mock_api.get("/companies/com_1").mock(
         return_value=httpx.Response(200, json={"id": "com_1"})
