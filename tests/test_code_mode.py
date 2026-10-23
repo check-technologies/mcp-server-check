@@ -258,6 +258,39 @@ async def test_run_code_type_error_runs_nothing(mock_api, code_server):
 
 
 @pytest.mark.anyio
+async def test_run_code_ignores_type_errors_about_its_own_data(mock_api, code_server):
+    """Only diagnostics about the check module block a program."""
+    mock_api.get("/companies/com_1").mock(
+        return_value=httpx.Response(200, json={"id": "com_1"})
+    )
+    code = """
+x: int = "not an int"
+(await check.get_company(company_id="com_1"))["id"]
+"""
+    is_error, payload = await _run(code_server, code)
+    assert not is_error, payload
+    assert payload["result"] == "com_1"
+
+
+def test_signature_errors_keep_only_check_module_lines():
+    from mcp_server_check.code_mode import signature_errors
+
+    diagnostics = (
+        "main.py:1:7: error[unresolved-attribute] Module `check` has no member `x`\n"
+        "main.py:2:1: error[invalid-assignment] Object of type `str` is not assignable\n"
+        "main.py:3:1: error[unknown-argument] Argument `foo` does not match any known "
+        "parameter of function `get_company`\n"
+        "main.py:4:1: error[missing-argument] No argument provided for required "
+        "parameter `x` of function `page_all`\n"
+    )
+    errors = signature_errors(diagnostics, ["get_company"])
+    assert [e.split("error")[1][:22] for e in errors] == [
+        "[unresolved-attribute]",
+        "[unknown-argument] Arg",
+    ]
+
+
+@pytest.mark.anyio
 async def test_run_code_api_error_is_catchable(mock_api, code_server):
     mock_api.get("/companies/com_missing").mock(
         return_value=httpx.Response(404, json={"error": "Not found"})

@@ -44,11 +44,25 @@ Throttled calls are retried for you. List results carry "results",
 "result_count" and "next_cursor"; pass the cursor back to page. Write tools
 are marked below and must be named in run_code's `writes` argument before a
 program can call them. Generator expressions evaluate eagerly to lists here.
+
+List results are summaries: each record keeps only the fields below, by ID
+prefix. Call the matching get_* tool for a full record.
+{{summary_fields}}
 """
 
 from typing import Any
 from typing_extensions import TypedDict
 '''
+
+
+def _summary_field_lines() -> str:
+    from mcp_server_check.helpers import _SUMMARY_FIELDS
+
+    return "\n".join(
+        f"  {prefix}* -> {', '.join(fields)}"
+        for prefix, fields in sorted(_SUMMARY_FIELDS.items())
+    )
+
 
 _WRITE_NOTE = "# write tool: name it in run_code(writes=[...]) to call it"
 
@@ -153,7 +167,8 @@ def render_stubs(entries: Iterable[ToolEntry], *, mark_writes: bool = False) -> 
     by_toolset: dict[str, list[ToolEntry]] = {}
     for entry in entries:
         by_toolset.setdefault(entry.toolset, []).append(entry)
-    parts = [_STUB_HEADER, _render_typed_dicts()]
+    header = _STUB_HEADER.replace("{summary_fields}", _summary_field_lines())
+    parts = [header, _render_typed_dicts()]
     for toolset, toolset_entries in by_toolset.items():
         parts.append(f"# ---- {toolset} ----\n")
         parts.extend(render_stub(e, mark_writes=mark_writes) for e in toolset_entries)
@@ -215,6 +230,27 @@ class CallRecord:
 
 
 _THROTTLE_HINT = re.compile(r"available in (\d+(?:\.\d+)?) second")
+_FUNCTION_DIAGNOSTIC = re.compile(r"function `(\w+)`")
+
+
+def signature_errors(diagnostics: str, tool_names: Iterable[str]) -> list[str]:
+    """The type-check diagnostics that are about the check module itself.
+
+    Type checking exists to catch a wrong tool name or argument before any API
+    call. Diagnostics about the program's own handling of untyped results
+    (unions the checker infers from JSON) are not reliable enough to block on,
+    so only lines naming the module or one of its functions count.
+    """
+    names = set(tool_names)
+    errors = []
+    for line in diagnostics.splitlines():
+        if "Module `" + MODULE_NAME + "`" in line:
+            errors.append(line)
+            continue
+        match = _FUNCTION_DIAGNOSTIC.search(line)
+        if match and match.group(1) in names:
+            errors.append(line)
+    return errors
 
 
 def _is_throttled(payload: dict[str, Any]) -> bool:
@@ -429,6 +465,7 @@ class CodeRunner:
             async with pm.AsyncMonty(min_processes=1, max_processes=1) as pool:
                 session = pool.checkout(
                     type_check=True,
+                    type_check_format="concise",
                     limits=limits,
                     external_modules={MODULE_NAME: module},
                 )
@@ -437,17 +474,28 @@ class CodeRunner:
                     # the type checker knows the name; a program's own
                     # `import check` is then a harmless repeat.
                     await session.feed_run(f"import {MODULE_NAME}")
-                    value = await asyncio.wait_for(
-                        session.feed_run(code, print_callback=printed),
-                        timeout=self._settings.timeout_secs,
-                    )
-        except pm.MontyTypingError as e:
-            raise failure(
-                "type_check_failed",
-                "The program does not match the check module's signatures; "
-                "nothing ran. Use get_stubs or search_tools to see them.\n"
-                + e.display(),
-            ) from e
+                    try:
+                        value = await asyncio.wait_for(
+                            session.feed_run(code, print_callback=printed),
+                            timeout=self._settings.timeout_secs,
+                        )
+                    except pm.MontyTypingError as e:
+                        errors = signature_errors(e.display(), module.attrs)
+                        if errors:
+                            raise failure(
+                                "type_check_failed",
+                                "The program does not match the check module's "
+                                "signatures; nothing ran. Use get_stubs or "
+                                "search_tools to see them.\n" + "\n".join(errors),
+                            ) from e
+                        # Diagnostics about the program's own data handling:
+                        # run it anyway.
+                        value = await asyncio.wait_for(
+                            session.feed_run(
+                                code, print_callback=printed, skip_type_check=True
+                            ),
+                            timeout=self._settings.timeout_secs,
+                        )
         except pm.MontySyntaxError as e:
             raise failure("syntax_error", e.display()) from e
         except pm.MontyRuntimeError as e:
