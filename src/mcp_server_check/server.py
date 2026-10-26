@@ -7,6 +7,7 @@ import os
 import sys
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from typing import Any
 
 import httpx
@@ -126,10 +127,18 @@ programs where you can.
 """
 
 
+# Meta-tools that dynamic mode registers but shows only when the active
+# filter has code_mode set (CHECK_CODE_MODE, CHECK_TOOL_MODE=code, the
+# X-MCP-Code-Mode header, or the code_mode query parameter).
+CODE_MODE_TOOLS: frozenset[str] = frozenset({"get_stubs", "run_code"})
+
+
 def resolve_tool_mode() -> str:
     """The tool mode the environment asks for: all, dynamic, or code.
 
-    CHECK_TOOL_MODE names it; CHECK_CODE_MODE=1 is shorthand for code.
+    CHECK_TOOL_MODE names it; CHECK_CODE_MODE=1 is shorthand for code. Code
+    mode is dynamic mode with code_mode on for every request; a dynamic-mode
+    server also turns it on per request from the X-MCP-Code-Mode header.
     """
     if os.environ.get("CHECK_CODE_MODE", "").lower() in ("1", "true", "yes"):
         return "code"
@@ -203,9 +212,11 @@ class CheckMCP(FastMCP):
     async def list_tools(self, **kwargs: Any) -> Sequence[FunctionTool]:
         """List tools, filtered by the active configuration."""
         all_tools = await super().list_tools(**kwargs)
-        if self._tool_index is not None:
-            return all_tools
         tf = self.active_tool_filter()
+        if self._tool_index is not None:
+            if tf.code_mode:
+                return all_tools
+            return [t for t in all_tools if t.name not in CODE_MODE_TOOLS]
         return [
             t
             for t in all_tools
@@ -216,9 +227,15 @@ class CheckMCP(FastMCP):
         self, name: str, arguments: dict[str, Any] | None = None, **kwargs: Any
     ) -> Any:
         """Call a tool, blocking if it's filtered out."""
-        if self._tool_index is not None:
-            return await super().call_tool(name, arguments, **kwargs)
         tf = self.active_tool_filter()
+        if self._tool_index is not None:
+            if name in CODE_MODE_TOOLS and not tf.code_mode:
+                raise ToolError(
+                    f"Tool '{name}' is not available in the current configuration: "
+                    "code mode is off. Enable it with CHECK_CODE_MODE=1, the "
+                    "X-MCP-Code-Mode: 1 header, or the code_mode=1 query parameter."
+                )
+            return await super().call_tool(name, arguments, **kwargs)
         toolset = self._registry.get(name, "")
         if not tf.is_tool_allowed(name, toolset):
             raise ToolError(
@@ -227,15 +244,19 @@ class CheckMCP(FastMCP):
         return await super().call_tool(name, arguments, **kwargs)
 
 
-def _setup_dynamic_mode(server: CheckMCP, *, code_mode: bool = False) -> None:
-    """Configure the server with 3 meta-tools instead of individual tools.
+def _setup_dynamic_mode(server: CheckMCP) -> None:
+    """Configure the server with meta-tools instead of individual tools.
 
-    In code mode, search results are typed stubs for run_code rather than
-    JSON schemas for run_tool.
+    Registers search_tools, list_toolsets, and run_tool, plus get_stubs and
+    run_code, which CheckMCP hides unless the request's filter has code_mode
+    on. When it is on, search results are typed stubs for run_code rather
+    than JSON schemas for run_tool.
     """
     index = ToolIndex()
     index.build()
     server._tool_index = index
+    runner = CodeRunner(index)
+    server._code_runner = runner
 
     @server.tool(
         title="Search Tools",
@@ -264,7 +285,7 @@ def _setup_dynamic_mode(server: CheckMCP, *, code_mode: bool = False) -> None:
         """
         tf = server.active_tool_filter()
         results = index.search(query, tool_filter=tf, toolset=toolset, limit=limit)
-        if code_mode and query.strip():
+        if tf.code_mode and query.strip():
             results = [
                 {
                     "name": r["name"],
@@ -338,15 +359,6 @@ def _setup_dynamic_mode(server: CheckMCP, *, code_mode: bool = False) -> None:
 
         return ToolResult(content=result.content)
 
-
-def _setup_code_mode(server: CheckMCP) -> None:
-    """Dynamic mode plus get_stubs and run_code, backed by a sandbox."""
-    _setup_dynamic_mode(server, code_mode=True)
-    index = server._tool_index
-    assert index is not None
-    runner = CodeRunner(index)
-    server._code_runner = runner
-
     @server.tool(
         title="Get Stubs",
         annotations={
@@ -409,6 +421,12 @@ def _setup_code_mode(server: CheckMCP) -> None:
         tf = server.active_tool_filter()
         result = await runner.run(code, tf, writes or [])
         return json.dumps(result, indent=2, default=str)
+
+
+def _setup_code_mode(server: CheckMCP) -> None:
+    """Dynamic mode with code_mode on for every request."""
+    _setup_dynamic_mode(server)
+    server._static_filter = replace(server._static_filter, code_mode=True)
 
 
 def _register_resources(server: CheckMCP) -> None:
@@ -573,7 +591,11 @@ def main():
             file=sys.stderr,
         )
     elif tool_mode != "all":
-        print("Running in dynamic tool mode (3 meta-tools)", file=sys.stderr)
+        print(
+            "Running in dynamic tool mode (3 meta-tools; the X-MCP-Code-Mode "
+            "header adds run_code + get_stubs)",
+            file=sys.stderr,
+        )
     else:
         print("Running in all-tools mode (legacy)", file=sys.stderr)
     if mcp._static_filter.read_only:

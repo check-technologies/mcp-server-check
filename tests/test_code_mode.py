@@ -7,6 +7,7 @@ import json
 import httpx
 import pytest
 from fastmcp import Client
+from mcp.server.lowlevel.server import Server
 from mcp_server_check.code_mode import (
     CodeModeSettings,
     render_signature,
@@ -47,6 +48,49 @@ def code_server(monkeypatch):
     server = CheckMCP("Test Code", lifespan=lifespan)
     setup_tools(server, tool_mode="code")
     return server
+
+
+@pytest.fixture
+def dynamic_server(monkeypatch):
+    """A plain dynamic-mode server: code mode is off unless a request opts in."""
+    monkeypatch.setenv("CHECK_API_KEY", "test-key")
+    monkeypatch.delenv("CHECK_API_BASE_URL", raising=False)
+    monkeypatch.delenv("CHECK_CODE_MODE", raising=False)
+    monkeypatch.delenv("CHECK_TOOL_MODE", raising=False)
+    monkeypatch.setenv("CHECK_CODE_TIMEOUT_SECS", "20")
+    server = CheckMCP("Test Dynamic", lifespan=lifespan)
+    setup_tools(server, tool_mode="dynamic")
+    return server
+
+
+class _FakeRequest:
+    """The parts of a Starlette request the server and fastmcp read."""
+
+    def __init__(self, headers=None, query_params=None):
+        self.headers = headers or {}
+        self.query_params = query_params or {}
+        self.scope: dict = {}
+
+
+class _WithRequest:
+    """A real request context whose request is replaced."""
+
+    def __init__(self, real, request):
+        self._real = real
+        self.request = request
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+
+def _attach_request(monkeypatch, request: _FakeRequest) -> None:
+    """Make every request context in this test carry the given HTTP request."""
+    real = Server.request_context
+    monkeypatch.setattr(
+        Server,
+        "request_context",
+        property(lambda self: _WithRequest(real.fget(self), request)),
+    )
 
 
 async def _run(server: CheckMCP, code: str, writes: list[str] | None = None):
@@ -145,6 +189,105 @@ async def test_code_mode_exposes_meta_tools(code_server):
         "get_stubs",
         "run_code",
     }
+
+
+# --- enabling code mode per request ---
+
+
+class TestCodeModeFlag:
+    def test_header(self):
+        assert ToolFilter.from_headers({"x-mcp-code-mode": "1"}).code_mode is True
+        assert ToolFilter.from_headers({"x-mcp-code-mode": "0"}).code_mode is False
+        assert ToolFilter.from_headers({}).code_mode is False
+
+    def test_query_param(self):
+        assert ToolFilter.from_query_params({"code_mode": "true"}).code_mode is True
+        assert ToolFilter.from_query_params({}).code_mode is False
+
+    def test_env_shorthand_and_tool_mode(self, monkeypatch):
+        monkeypatch.delenv("CHECK_CODE_MODE", raising=False)
+        monkeypatch.delenv("CHECK_TOOL_MODE", raising=False)
+        assert ToolFilter.from_env().code_mode is False
+        monkeypatch.setenv("CHECK_CODE_MODE", "1")
+        assert ToolFilter.from_env().code_mode is True
+        monkeypatch.delenv("CHECK_CODE_MODE")
+        monkeypatch.setenv("CHECK_TOOL_MODE", "code")
+        assert ToolFilter.from_env().code_mode is True
+
+    def test_either_side_can_opt_in(self):
+        on = ToolFilter(code_mode=True)
+        off = ToolFilter()
+        assert off.merge(on).code_mode is True
+        assert on.merge(off).code_mode is True
+        assert off.merge(off).code_mode is False
+
+    def test_opt_in_does_not_relax_policy(self):
+        policy = ToolFilter(read_only=True)
+        merged = policy.merge(ToolFilter(code_mode=True))
+        assert merged.read_only is True
+        assert merged.code_mode is True
+
+
+@pytest.mark.anyio
+async def test_dynamic_mode_hides_code_tools_by_default(dynamic_server):
+    async with Client(dynamic_server) as client:
+        names = {t.name for t in await client.list_tools()}
+        assert names == {"search_tools", "list_toolsets", "run_tool"}
+        result = await client.call_tool("run_code", {"code": "1"}, raise_on_error=False)
+        assert result.is_error
+        assert "X-MCP-Code-Mode" in result.content[0].text
+        result = await client.call_tool("get_stubs", {}, raise_on_error=False)
+        assert result.is_error
+        # Without the flag, search results are schemas, not stubs.
+        result = await client.call_tool("search_tools", {"query": "list companies"})
+        assert "parameters" in json.loads(result.content[0].text)[0]
+
+
+@pytest.mark.anyio
+async def test_header_enables_code_tools_per_request(
+    mock_api, monkeypatch, dynamic_server
+):
+    mock_api.get("/companies").mock(return_value=httpx.Response(200, json=COMPANIES))
+    _attach_request(monkeypatch, _FakeRequest(headers={"x-mcp-code-mode": "1"}))
+    async with Client(dynamic_server) as client:
+        names = {t.name for t in await client.list_tools()}
+        assert {"get_stubs", "run_code"} <= names
+        result = await client.call_tool(
+            "run_code",
+            {"code": "page = await check.list_companies()\nlen(page['results'])"},
+        )
+        assert json.loads(result.content[0].text)["result"] == 2
+        result = await client.call_tool("search_tools", {"query": "list companies"})
+        assert "stub" in json.loads(result.content[0].text)[0]
+
+
+@pytest.mark.anyio
+async def test_query_param_enables_code_tools_per_request(monkeypatch, dynamic_server):
+    _attach_request(monkeypatch, _FakeRequest(query_params={"code_mode": "1"}))
+    async with Client(dynamic_server) as client:
+        result = await client.call_tool("get_stubs", {"toolset": "workplaces"})
+    assert "async def list_workplaces(" in result.content[0].text
+
+
+@pytest.mark.anyio
+async def test_other_headers_leave_code_mode_off(monkeypatch, dynamic_server):
+    _attach_request(monkeypatch, _FakeRequest(headers={"x-mcp-readonly": "1"}))
+    async with Client(dynamic_server) as client:
+        names = {t.name for t in await client.list_tools()}
+        assert names == {"search_tools", "list_toolsets", "run_tool"}
+        result = await client.call_tool("run_code", {"code": "1"}, raise_on_error=False)
+    assert result.is_error
+    assert "code mode is off" in result.content[0].text
+
+
+@pytest.mark.anyio
+async def test_header_cannot_relax_server_policy(monkeypatch, dynamic_server):
+    """Opting into code mode by header still runs under the env filter."""
+    dynamic_server._static_filter = ToolFilter(read_only=True)
+    _attach_request(monkeypatch, _FakeRequest(headers={"x-mcp-code-mode": "1"}))
+    is_error, payload = await _run(dynamic_server, "1", writes=["create_workplace"])
+    assert is_error
+    assert "not available" in payload["detail"]
 
 
 @pytest.mark.anyio
@@ -403,7 +546,7 @@ await check.create_workplace(
 
 @pytest.mark.anyio
 async def test_run_code_read_only_blocks_declared_write(code_server):
-    code_server._static_filter = ToolFilter(read_only=True)
+    code_server._static_filter = ToolFilter(read_only=True, code_mode=True)
     is_error, payload = await _run(
         code_server, "import check\n1", writes=["create_workplace"]
     )

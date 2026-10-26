@@ -22,7 +22,7 @@ CHECK_API_KEY=your-key uv run mcp-server-check
 | `CHECK_API_KEY` | Yes | — | Your Check API key (Bearer token) |
 | `CHECK_API_BASE_URL` | No | `https://sandbox.checkhq.com` | API base URL |
 | `CHECK_TOOL_MODE` | No | `dynamic` | Tool mode: `dynamic` (3 meta-tools), `code` (dynamic plus `run_code`, see [Code Mode](#code-mode-experimental)), or `all` (all tools individually) |
-| `CHECK_CODE_MODE` | No | — | Set to `1`, `true`, or `yes` as shorthand for `CHECK_TOOL_MODE=code` |
+| `CHECK_CODE_MODE` | No | — | Set to `1`, `true`, or `yes` as shorthand for `CHECK_TOOL_MODE=code`; a remote client can opt in per request with the `X-MCP-Code-Mode` header instead |
 | `CHECK_CODE_TIMEOUT_SECS` | No | `60` | Code mode: wall-clock budget for one `run_code` program |
 | `CHECK_CODE_MAX_CALLS` | No | `200` | Code mode: most tool calls one program may make |
 | `CHECK_CODE_CONCURRENCY` | No | `8` | Code mode: most tool calls one program runs at once |
@@ -61,6 +61,7 @@ The server supports fine-grained tool filtering, configurable via environment va
 | Exclude money movement | `CHECK_EXCLUDE_MONEY_MOVEMENT` | `X-MCP-Exclude-Money-Movement` |
 | Exclude destructive | `CHECK_EXCLUDE_DESTRUCTIVE` | `X-MCP-Exclude-Destructive` |
 | Preview toolsets | `CHECK_PREVIEW_TOOLSETS` | `X-MCP-Preview-Toolsets` (or the `preview_toolsets` query parameter) |
+| Code mode | `CHECK_CODE_MODE` | `X-MCP-Code-Mode` (or the `code_mode` query parameter) |
 
 **Filtering precedence:** `exclude_tools` > category exclusions (money movement, destructive) > `preview_toolsets` > `read_only` > `tools` > `toolsets`. Exclude always wins; category exclusions apply even to tools named in the `tools` allowlist; a preview toolset stays hidden until it is opted into, even if `tools` or `toolsets` names it; if `tools` is set it acts as an allowlist independent of toolsets.
 
@@ -143,7 +144,7 @@ X-MCP-Exclude-Money-Movement: true
 X-MCP-Exclude-Destructive: true
 ```
 
-Header and environment settings are merged, taking the most restrictive value for each. A client can narrow what the server exposes but never widen it: if the server sets `CHECK_READ_ONLY=1` or a category exclusion, no header can turn it off. Preview toolsets are the exception: either side can opt in.
+Header and environment settings are merged, taking the most restrictive value for each. A client can narrow what the server exposes but never widen it: if the server sets `CHECK_READ_ONLY=1` or a category exclusion, no header can turn it off. Preview toolsets and [code mode](#code-mode-experimental) are the exceptions: either side can opt in.
 
 ### Dynamic Tool Mode (Default)
 
@@ -171,6 +172,18 @@ It needs the `code` extra, which installs [Pydantic Monty](https://pydantic.dev/
 uv sync --extra code
 CHECK_TOOL_MODE=code CHECK_API_KEY=your-key uv run mcp-server-check
 ```
+
+A dynamic-mode server can also switch it on per request, which lets a remote deployment roll it out client by client:
+
+```
+# Remote: header
+X-MCP-Code-Mode: 1
+
+# Remote: query parameter, for clients that can only be configured with a URL
+https://<server>/mcp?code_mode=1
+```
+
+Without the header, a dynamic-mode server lists only the three meta-tools and refuses calls to `run_code` and `get_stubs`. The code-mode server instructions are only sent when the server itself runs in code mode; a client enabling it by header relies on the tool descriptions.
 
 Code mode keeps the three dynamic-mode tools and adds two:
 
