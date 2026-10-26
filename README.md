@@ -22,6 +22,13 @@ CHECK_API_KEY=your-key uv run mcp-server-check
 | `CHECK_API_KEY` | Yes | — | Your Check API key (Bearer token) |
 | `CHECK_API_BASE_URL` | No | `https://sandbox.checkhq.com` | API base URL |
 | `CHECK_TOOL_MODE` | No | `dynamic` | Tool mode: `dynamic` (3 meta-tools) or `all` (all tools individually) |
+| `CHECK_CODE_MODE` | No | — | Set to `1`, `true`, or `yes` to add `run_code` and `get_stubs` to dynamic mode (see [Code Mode](#code-mode-experimental)); a remote client can opt in per request with the `X-MCP-Code-Mode` header instead |
+| `CHECK_CODE_TIMEOUT_SECS` | No | `60` | Code mode: wall-clock budget for one `run_code` program |
+| `CHECK_CODE_MAX_CALLS` | No | `200` | Code mode: most tool calls one program may make |
+| `CHECK_CODE_CONCURRENCY` | No | `8` | Code mode: most tool calls one program runs at once |
+| `CHECK_CODE_MAX_MEMORY_MB` | No | `256` | Code mode: sandbox heap limit |
+| `CHECK_CODE_MAX_RETRIES` | No | `4` | Code mode: retries of a throttled (HTTP 429) call before the program sees the error |
+| `CHECK_CODE_MAX_PROGRAMS` | No | `4` | Code mode: most programs (each a sandbox process) one server runs at once; more wait their turn |
 | `CHECK_TOOLSETS` | No | — | Comma-separated list of toolsets to enable (e.g. `companies,employees`) |
 | `CHECK_TOOLS` | No | — | Comma-separated allowlist of individual tool names |
 | `CHECK_EXCLUDE_TOOLS` | No | — | Comma-separated list of tool names to hide |
@@ -55,6 +62,7 @@ The server supports fine-grained tool filtering, configurable via environment va
 | Exclude money movement | `CHECK_EXCLUDE_MONEY_MOVEMENT` | `X-MCP-Exclude-Money-Movement` |
 | Exclude destructive | `CHECK_EXCLUDE_DESTRUCTIVE` | `X-MCP-Exclude-Destructive` |
 | Preview toolsets | `CHECK_PREVIEW_TOOLSETS` | `X-MCP-Preview-Toolsets` (or the `preview_toolsets` query parameter) |
+| Code mode | `CHECK_CODE_MODE` | `X-MCP-Code-Mode` (or the `code_mode` query parameter) |
 
 **Filtering precedence:** `exclude_tools` > category exclusions (money movement, destructive) > `preview_toolsets` > `read_only` > `tools` > `toolsets`. Exclude always wins; category exclusions apply even to tools named in the `tools` allowlist; a preview toolset stays hidden until it is opted into, even if `tools` or `toolsets` names it; if `tools` is set it acts as an allowlist independent of toolsets.
 
@@ -137,7 +145,7 @@ X-MCP-Exclude-Money-Movement: true
 X-MCP-Exclude-Destructive: true
 ```
 
-Header and environment settings are merged, taking the most restrictive value for each. A client can narrow what the server exposes but never widen it: if the server sets `CHECK_READ_ONLY=1` or a category exclusion, no header can turn it off. Preview toolsets are the exception: either side can opt in.
+Header and environment settings are merged, taking the most restrictive value for each. A client can narrow what the server exposes but never widen it: if the server sets `CHECK_READ_ONLY=1` or a category exclusion, no header can turn it off. Preview toolsets and [code mode](#code-mode-experimental) are the exceptions: either side can opt in.
 
 ### Dynamic Tool Mode (Default)
 
@@ -154,6 +162,57 @@ Set `CHECK_TOOL_MODE=all` to expose all tools individually (legacy mode):
 ```bash
 CHECK_TOOL_MODE=all CHECK_API_KEY=your-key uv run mcp-server-check
 ```
+
+### Code Mode (experimental)
+
+Code mode follows the pattern described by [Cloudflare](https://blog.cloudflare.com/code-mode/) and [Rippling](https://www.rippling.com/blog/building-mcp-server): instead of one tool call per API request, the model writes a short Python program that calls many tools and returns only the answer. Intermediate results never pass through the model's context.
+
+It needs the `code` extra, which installs [Pydantic Monty](https://pydantic.dev/articles/pydantic-monty), a sandboxed Python interpreter:
+
+```bash
+uv sync --extra code
+CHECK_CODE_MODE=1 CHECK_API_KEY=your-key uv run mcp-server-check
+```
+
+A dynamic-mode server can also switch it on per request, which lets a remote deployment roll it out client by client:
+
+```
+# Remote: header
+X-MCP-Code-Mode: 1
+
+# Remote: query parameter, for clients that can only be configured with a URL
+https://<server>/mcp?code_mode=1
+```
+
+Without the header, a dynamic-mode server lists only the three meta-tools and refuses calls to `run_code` and `get_stubs`. To refuse the opt-in, set `CHECK_EXCLUDE_TOOLS=run_code,get_stubs` on the server. The code-mode server instructions are only sent when the server itself sets `CHECK_CODE_MODE`; a client enabling it by header relies on the tool descriptions. Code mode is part of dynamic mode, so it has no effect under `CHECK_TOOL_MODE=all`.
+
+Code mode keeps the three dynamic-mode tools and adds two:
+
+- **`get_stubs(toolset?, tools?)`** — Typed Python signatures (with docstrings) for the `check` module, one `async def` per tool. `search_tools` returns the same stubs instead of JSON schemas.
+- **`run_code(code, writes?)`** — Run a program. The `check` module is pre-imported and exposes every allowed tool as an async function; the program's last expression is returned along with anything it printed and a trace of every tool call it made (tool, arguments, status, duration). The program is type-checked against the stubs before it runs, so a wrong name or argument fails without touching the API.
+
+```python
+import asyncio
+
+page = await check.list_employees(company="com_xxx", limit=100)
+snapshots = await asyncio.gather(
+    *[check.get_employee(employee_id=e["id"]) for e in page["results"]]
+)
+[e["id"] for e in snapshots if not e.get("bank_accounts")]
+```
+
+How it works:
+
+1. **Stubs come from the tool functions.** `code_mode.render_stubs` introspects the same functions `run_tool` runs (signature, defaults, docstring) and renders a `.pyi`-style stub file for the `check` module. There is no second catalog to keep in sync; a new tool gets a stub automatically.
+2. **Each program gets a fresh sandbox.** `run_code` starts a Monty worker process (about 10ms), registers one host function per allowed tool as the `check` module, imports it, and feeds the program in. Monty type-checks the program against the stubs first, so mistakes surface as `type_check_failed` before any API call.
+3. **Calls proxy back to the host.** When the program awaits `check.list_employees(...)`, the sandbox suspends and the host runs the tool through `ToolIndex.run`, so validation, the `ToolFilter`, and error conversion apply as they do for `run_tool`. MCP middleware runs once, around `run_code` itself, so failed reports inside a program don't get recovery `alternatives` or `hints`, and the server logs a failed program's call trace without its arguments, output, or source. Only the tool's result crosses back into the sandbox; the API key never does.
+4. **The result is the program's last expression** plus captured `print` output and a call trace (tool, arguments, status, duration). A failed API call raises `RuntimeError` inside the sandbox with the usual JSON error payload, so a program can catch it and continue; an uncaught error returns the trace so far.
+
+Guardrails:
+
+- The sandbox has no network, filesystem, or environment access and never sees the API key; every `check.*` call proxies to the same tool function `run_tool` would run, through the same `ToolFilter`, so `CHECK_READ_ONLY`, toolsets, and category exclusions apply unchanged.
+- Write tools are absent from `check` unless the program names them in `run_code`'s `writes` argument, which keeps every write visible in the client's tool-call stream before it runs. A declared write that the filter hides is an error.
+- Each program gets its own sandbox process with a time budget, a call budget, a concurrency cap on API calls, and a heap limit, and the server runs at most `CHECK_CODE_MAX_PROGRAMS` of them at once (see the `CHECK_CODE_*` variables in the configuration table). If a program times out, calls still in flight show `"status": "pending"` in the trace; a pending write may still complete. Throttled calls (HTTP 429) are retried by the host with the wait the API asks for, so a program's `asyncio.gather` needs no rate-limit handling; the trace records the retries.
 
 ## Usage with Claude Desktop
 
