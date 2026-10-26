@@ -189,6 +189,7 @@ class CodeModeSettings:
     max_memory_bytes: int = 256 * 1024 * 1024
     concurrency: int = 8
     max_retries: int = 4
+    max_programs: int = 4
 
     @classmethod
     def from_env(cls) -> CodeModeSettings:
@@ -201,6 +202,7 @@ class CodeModeSettings:
             ),
             concurrency=int(env.get("CHECK_CODE_CONCURRENCY", cls.concurrency)),
             max_retries=int(env.get("CHECK_CODE_MAX_RETRIES", cls.max_retries)),
+            max_programs=int(env.get("CHECK_CODE_MAX_PROGRAMS", cls.max_programs)),
         )
 
 
@@ -210,7 +212,9 @@ class CallRecord:
 
     tool: str
     arguments: dict[str, Any]
-    status: str = "ok"
+    # "pending" until the tool returns, so a timeout trace shows calls that
+    # had not finished (and, for writes, may still land).
+    status: str = "pending"
     duration_ms: int = 0
     retries: int = 0
     error: Any = None
@@ -301,6 +305,8 @@ class CodeRunner:
     ) -> None:
         self._index = index
         self._settings = settings or CodeModeSettings.from_env()
+        # Each program holds a Monty worker process; cap them across requests.
+        self._programs = asyncio.Semaphore(self._settings.max_programs)
 
     @property
     def settings(self) -> CodeModeSettings:
@@ -415,6 +421,7 @@ class CodeRunner:
                 raise ValueError(str(e)) from e
             finally:
                 record.duration_ms = int((time.monotonic() - started) * 1000)
+            record.status = "ok"
             return _decode(result)
 
         call.__name__ = entry.name
@@ -427,8 +434,15 @@ class CodeRunner:
         """Run a program and return its value, printed output, and call trace.
 
         Raises CheckToolError, with the trace so far, when the program does not
-        type-check, raises, or exhausts a budget.
+        type-check, raises, or exhausts a budget. Waiting for a free program
+        slot does not count against the time budget.
         """
+        async with self._programs:
+            return await self._run(code, tool_filter, writes)
+
+    async def _run(
+        self, code: str, tool_filter: ToolFilter, writes: Sequence[str] = ()
+    ) -> dict[str, Any]:
         pm = _monty()
         entries = self.callable_entries(tool_filter, writes)
         program = ProgramRun()
@@ -448,7 +462,9 @@ class CodeRunner:
             # gathers and name lookups count here too.
             max_suspensions=self._settings.max_calls * 4 + 64,
         )
+        timeout = self._settings.timeout_secs
         started = time.monotonic()
+        deadline = started + timeout
 
         def failure(kind: str, detail: str) -> CheckToolError:
             return CheckToolError(
@@ -459,6 +475,14 @@ class CodeRunner:
                     "logs": printed.output,
                     "calls": [c.to_dict() for c in program.calls],
                 }
+            )
+
+        async def feed(session: Any, source: str, **kwargs: Any) -> Any:
+            # One deadline across every feed, so a type-check rerun cannot
+            # double the budget.
+            remaining = max(deadline - time.monotonic(), 0)
+            return await asyncio.wait_for(
+                session.feed_run(source, **kwargs), timeout=remaining
             )
 
         try:
@@ -473,12 +497,9 @@ class CodeRunner:
                     # Bind the module up front so programs need no import and
                     # the type checker knows the name; a program's own
                     # `import check` is then a harmless repeat.
-                    await session.feed_run(f"import {MODULE_NAME}")
+                    await feed(session, f"import {MODULE_NAME}")
                     try:
-                        value = await asyncio.wait_for(
-                            session.feed_run(code, print_callback=printed),
-                            timeout=self._settings.timeout_secs,
-                        )
+                        value = await feed(session, code, print_callback=printed)
                     except pm.MontyTypingError as e:
                         errors = signature_errors(e.display(), module.attrs)
                         if errors:
@@ -490,11 +511,8 @@ class CodeRunner:
                             ) from e
                         # Diagnostics about the program's own data handling:
                         # run it anyway.
-                        value = await asyncio.wait_for(
-                            session.feed_run(
-                                code, print_callback=printed, skip_type_check=True
-                            ),
-                            timeout=self._settings.timeout_secs,
+                        value = await feed(
+                            session, code, print_callback=printed, skip_type_check=True
                         )
         except pm.MontySyntaxError as e:
             raise failure("syntax_error", e.display()) from e
@@ -506,11 +524,16 @@ class CodeRunner:
             )
             raise failure(kind, e.display()) from e
         except asyncio.TimeoutError as e:
-            raise failure(
-                "timeout",
-                f"The program did not finish within {self._settings.timeout_secs:g} "
-                "seconds. Make fewer or more parallel calls.",
-            ) from e
+            detail = (
+                f"The program did not finish within {timeout:g} seconds. "
+                "Make fewer or more parallel calls."
+            )
+            if any(c.status == "pending" for c in program.calls):
+                detail += (
+                    " Calls marked pending were still running and may complete;"
+                    " check whether a pending write landed before retrying it."
+                )
+            raise failure("timeout", detail) from e
         except pm.MontyError as e:
             raise failure("sandbox_error", str(e)) from e
 

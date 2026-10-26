@@ -127,6 +127,30 @@ class ResponseSizeLimitMiddleware(Middleware):
         raise ResponseTooLargeError(tool, size, self.max_bytes)
 
 
+def _loggable(tool: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """The part of an error payload that is safe to log.
+
+    A run_code failure carries the program's printed output, every call's
+    arguments, and a traceback quoting the source, any of which can hold
+    employee PII. Log its shape only; the client still gets the full payload.
+    """
+    if tool != "run_code":
+        return payload
+    calls = []
+    for call in payload.get("calls") or []:
+        error = call.get("error")
+        calls.append(
+            {
+                "tool": call.get("tool"),
+                "status": call.get("status"),
+                "status_code": error.get("status_code")
+                if isinstance(error, dict)
+                else None,
+            }
+        )
+    return {"kind": payload.get("kind"), "calls": calls}
+
+
 class ToolErrorLogMiddleware(Middleware):
     """Log each CheckToolError once, with the Check tool it came from.
 
@@ -143,13 +167,14 @@ class ToolErrorLogMiddleware(Middleware):
             return await call_next(context)
         except CheckToolError as error:
             tool = ToolCall.from_request(context.message).name
+            logged = _loggable(tool, error.payload)
             # Formatted now: RecoveryMiddleware adds remedies to the error later.
-            payload = json.dumps(error.payload)
+            payload = json.dumps(logged)
             logger.warning(
                 "Tool call failed: tool=%s error=%s",
                 tool,
                 payload,
-                extra={"tool": tool, "error": error.payload},
+                extra={"tool": tool, "error": logged},
             )
             raise
 

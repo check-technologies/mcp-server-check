@@ -261,7 +261,8 @@ class ToolFilter:
 
         preview_toolsets and code_mode are the exceptions: they are opt-ins,
         so either side can enable them. A server that must keep a preview
-        toolset hidden can still do so with toolsets or exclude_tools.
+        toolset hidden can still do so with toolsets or exclude_tools, and one
+        that must keep code mode off can exclude run_code and get_stubs.
         """
         # toolsets: intersect when both set; keep the one that's set if only one is
         if self.toolsets is not None and other.toolsets is not None:

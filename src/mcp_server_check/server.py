@@ -129,7 +129,12 @@ programs where you can.
 # Meta-tools that dynamic mode registers but shows only when the active
 # filter has code_mode set: CHECK_CODE_MODE=1 for every request, or the
 # X-MCP-Code-Mode header / code_mode query parameter for one request.
+# CHECK_EXCLUDE_TOOLS still hides them, so a server can refuse the opt-in.
 CODE_MODE_TOOLS: frozenset[str] = frozenset({"get_stubs", "run_code"})
+
+
+def _code_mode_tool_allowed(tf: ToolFilter, name: str) -> bool:
+    return tf.code_mode and name not in tf.exclude_tools
 
 
 @asynccontextmanager
@@ -201,9 +206,11 @@ class CheckMCP(FastMCP):
         all_tools = await super().list_tools(**kwargs)
         tf = self.active_tool_filter()
         if self._tool_index is not None:
-            if tf.code_mode:
-                return all_tools
-            return [t for t in all_tools if t.name not in CODE_MODE_TOOLS]
+            return [
+                t
+                for t in all_tools
+                if t.name not in CODE_MODE_TOOLS or _code_mode_tool_allowed(tf, t.name)
+            ]
         return [
             t
             for t in all_tools
@@ -221,6 +228,10 @@ class CheckMCP(FastMCP):
                     f"Tool '{name}' is not available in the current configuration: "
                     "code mode is off. Enable it with CHECK_CODE_MODE=1, the "
                     "X-MCP-Code-Mode: 1 header, or the code_mode=1 query parameter."
+                )
+            if name in CODE_MODE_TOOLS and not _code_mode_tool_allowed(tf, name):
+                raise ToolError(
+                    f"Tool '{name}' is not available in the current configuration"
                 )
             return await super().call_tool(name, arguments, **kwargs)
         toolset = self._registry.get(name, "")
@@ -272,7 +283,8 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         """
         tf = server.active_tool_filter()
         results = index.search(query, tool_filter=tf, toolset=toolset, limit=limit)
-        if tf.code_mode and query.strip():
+        # Toolset-overview rows (no "name") stay as they are.
+        if tf.code_mode and results and "name" in results[0]:
             results = [
                 {
                     "name": r["name"],

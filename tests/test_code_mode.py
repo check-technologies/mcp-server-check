@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 
 import httpx
 import pytest
@@ -144,6 +146,7 @@ def test_settings_from_env(monkeypatch):
     monkeypatch.setenv("CHECK_CODE_MAX_MEMORY_MB", "1")
     monkeypatch.setenv("CHECK_CODE_CONCURRENCY", "2")
     monkeypatch.setenv("CHECK_CODE_MAX_RETRIES", "1")
+    monkeypatch.setenv("CHECK_CODE_MAX_PROGRAMS", "3")
     settings = CodeModeSettings.from_env()
     assert settings == CodeModeSettings(
         timeout_secs=5,
@@ -151,6 +154,7 @@ def test_settings_from_env(monkeypatch):
         max_memory_bytes=1024 * 1024,
         concurrency=2,
         max_retries=1,
+        max_programs=3,
     )
 
 
@@ -268,6 +272,20 @@ async def test_header_cannot_relax_server_policy(monkeypatch, dynamic_server):
 
 
 @pytest.mark.anyio
+async def test_server_can_refuse_code_mode_opt_in(monkeypatch, dynamic_server):
+    dynamic_server._static_filter = ToolFilter(
+        exclude_tools=frozenset({"run_code", "get_stubs"})
+    )
+    _attach_request(monkeypatch, _FakeRequest(headers={"x-mcp-code-mode": "1"}))
+    async with Client(dynamic_server) as client:
+        names = {t.name for t in await client.list_tools()}
+        assert names == {"search_tools", "list_toolsets", "run_tool"}
+        result = await client.call_tool("run_code", {"code": "1"}, raise_on_error=False)
+    assert result.is_error
+    assert "not available" in result.content[0].text
+
+
+@pytest.mark.anyio
 async def test_get_stubs_by_toolset(code_server):
     async with Client(code_server) as client:
         result = await client.call_tool("get_stubs", {"toolset": "workplaces"})
@@ -285,6 +303,16 @@ async def test_search_tools_returns_stubs_in_code_mode(code_server):
     assert results[0]["name"] == "list_companies"
     assert results[0]["stub"].startswith("async def list_companies(")
     assert "parameters" not in results[0]
+
+
+@pytest.mark.anyio
+async def test_search_tools_without_keywords_returns_toolsets_in_code_mode(
+    code_server,
+):
+    async with Client(code_server) as client:
+        result = await client.call_tool("search_tools", {"query": "---"})
+    results = json.loads(result.content[0].text)
+    assert "tool_count" in results[0]
 
 
 # --- run_code ---
@@ -579,3 +607,51 @@ for _ in range(3):
     assert payload["kind"] == "runtime_error"
     assert "budget" in payload["detail"]
     assert mock_api.calls.call_count == 2
+
+
+@pytest.mark.anyio
+async def test_run_code_timeout_marks_unfinished_calls_pending(mock_api, monkeypatch):
+    monkeypatch.setenv("CHECK_API_KEY", "test-key")
+    monkeypatch.setenv("CHECK_CODE_TIMEOUT_SECS", "1")
+    monkeypatch.setenv("CHECK_CODE_MODE", "1")
+
+    async def slow(request):
+        await asyncio.sleep(3)
+        return httpx.Response(201, json={"id": "wrk_1"})
+
+    mock_api.post("/workplaces").mock(side_effect=slow)
+    server = CheckMCP("Test Code", lifespan=lifespan)
+    setup_tools(server)
+    code = """
+await check.create_workplace(
+    company="com_1", name="HQ", address={"line1": "1 Main St", "city": "SF", "state": "CA", "postal_code": "94105"}
+)
+"""
+    is_error, payload = await _run(server, code, writes=["create_workplace"])
+    assert is_error
+    assert payload["kind"] == "timeout"
+    assert payload["calls"][0]["status"] == "pending"
+    assert "pending write" in payload["detail"]
+
+
+@pytest.mark.anyio
+async def test_run_code_failure_log_leaves_out_program_data(
+    mock_api, code_server, caplog
+):
+    mock_api.get("/companies/com_1").mock(
+        return_value=httpx.Response(400, json={"error": {"message": "bad"}})
+    )
+    code = """
+print("SSN 123-45-6789")
+await check.get_company(company_id="com_1")
+"""
+    with caplog.at_level(logging.WARNING, logger="mcp_server_check.middleware"):
+        is_error, payload = await _run(code_server, code)
+    assert is_error
+    assert "123-45-6789" in payload["logs"]
+    [record] = caplog.records
+    assert "123-45-6789" not in record.getMessage()
+    assert "com_1" not in record.getMessage()
+    assert record.error["calls"] == [
+        {"tool": "get_company", "status": "error", "status_code": 400}
+    ]
