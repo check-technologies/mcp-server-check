@@ -526,6 +526,7 @@ async def list_employee_tax_statements(
     company: str | None = None,
     year: int | None = None,
     form: str | None = None,
+    published_from: str | None = None,
 ) -> dict:
     """List employee tax statements, optionally filtered by employee.
 
@@ -536,6 +537,8 @@ async def list_employee_tax_statements(
         company: Filter by company ID.
         year: Filter by tax year.
         form: Filter by tax form ("fed_w2" or "vi_w2vi").
+        published_from: ISO-8601 datetime lower bound on published_at (inclusive),
+            e.g. "2026-01-15T00:00:00Z".
     """
     return await check_api_list(
         ctx,
@@ -547,6 +550,7 @@ async def list_employee_tax_statements(
             company=company,
             year=year,
             form=form,
+            published_from=published_from,
         ),
     )
 
