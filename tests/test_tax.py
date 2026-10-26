@@ -266,6 +266,7 @@ async def test_list_employee_tax_statements_with_filters(mock_api, ctx):
         company="com_456",
         year=2025,
         form="vi_w2vi",
+        published_from="2026-01-15T00:00:00Z",
     )
     assert result["results"] == [{"id": "ets_001"}]
     req = mock_api.get("/employee_tax_statements").calls.last.request
@@ -273,6 +274,7 @@ async def test_list_employee_tax_statements_with_filters(mock_api, ctx):
     assert req.url.params["company"] == "com_456"
     assert req.url.params["year"] == "2025"
     assert req.url.params["form"] == "vi_w2vi"
+    assert req.url.params["published_from"] == "2026-01-15T00:00:00Z"
 
 
 @pytest.mark.anyio
