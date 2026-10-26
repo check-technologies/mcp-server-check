@@ -312,8 +312,7 @@ class ToolFilter:
             ),
             preview_toolsets=_parse_comma_set(os.environ.get("CHECK_PREVIEW_TOOLSETS"))
             or frozenset(),
-            code_mode=_parse_bool(os.environ.get("CHECK_CODE_MODE"))
-            or os.environ.get("CHECK_TOOL_MODE", "").lower() == "code",
+            code_mode=_parse_bool(os.environ.get("CHECK_CODE_MODE")),
         )
 
     @classmethod

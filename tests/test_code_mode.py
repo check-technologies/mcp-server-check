@@ -14,12 +14,7 @@ from mcp_server_check.code_mode import (
     render_stub,
     render_stubs,
 )
-from mcp_server_check.server import (
-    CheckMCP,
-    lifespan,
-    resolve_tool_mode,
-    setup_tools,
-)
+from mcp_server_check.server import CheckMCP, lifespan, setup_tools
 from mcp_server_check.tool_filter import ToolFilter
 from mcp_server_check.tool_index import ToolIndex
 
@@ -45,8 +40,9 @@ def code_server(monkeypatch):
     monkeypatch.setenv("CHECK_API_KEY", "test-key")
     monkeypatch.delenv("CHECK_API_BASE_URL", raising=False)
     monkeypatch.setenv("CHECK_CODE_TIMEOUT_SECS", "20")
+    monkeypatch.setenv("CHECK_CODE_MODE", "1")
     server = CheckMCP("Test Code", lifespan=lifespan)
-    setup_tools(server, tool_mode="code")
+    setup_tools(server)
     return server
 
 
@@ -142,23 +138,6 @@ class TestStubs:
 # --- mode resolution ---
 
 
-class TestResolveToolMode:
-    def test_default_is_dynamic(self, monkeypatch):
-        monkeypatch.delenv("CHECK_TOOL_MODE", raising=False)
-        monkeypatch.delenv("CHECK_CODE_MODE", raising=False)
-        assert resolve_tool_mode() == "dynamic"
-
-    def test_tool_mode_code(self, monkeypatch):
-        monkeypatch.setenv("CHECK_TOOL_MODE", "code")
-        monkeypatch.delenv("CHECK_CODE_MODE", raising=False)
-        assert resolve_tool_mode() == "code"
-
-    def test_code_mode_flag_wins(self, monkeypatch):
-        monkeypatch.setenv("CHECK_TOOL_MODE", "all")
-        monkeypatch.setenv("CHECK_CODE_MODE", "1")
-        assert resolve_tool_mode() == "code"
-
-
 def test_settings_from_env(monkeypatch):
     monkeypatch.setenv("CHECK_CODE_TIMEOUT_SECS", "5")
     monkeypatch.setenv("CHECK_CODE_MAX_CALLS", "7")
@@ -204,15 +183,13 @@ class TestCodeModeFlag:
         assert ToolFilter.from_query_params({"code_mode": "true"}).code_mode is True
         assert ToolFilter.from_query_params({}).code_mode is False
 
-    def test_env_shorthand_and_tool_mode(self, monkeypatch):
+    def test_env(self, monkeypatch):
         monkeypatch.delenv("CHECK_CODE_MODE", raising=False)
-        monkeypatch.delenv("CHECK_TOOL_MODE", raising=False)
         assert ToolFilter.from_env().code_mode is False
         monkeypatch.setenv("CHECK_CODE_MODE", "1")
         assert ToolFilter.from_env().code_mode is True
-        monkeypatch.delenv("CHECK_CODE_MODE")
-        monkeypatch.setenv("CHECK_TOOL_MODE", "code")
-        assert ToolFilter.from_env().code_mode is True
+        monkeypatch.setenv("CHECK_CODE_MODE", "0")
+        assert ToolFilter.from_env().code_mode is False
 
     def test_either_side_can_opt_in(self):
         on = ToolFilter(code_mode=True)
@@ -492,9 +469,10 @@ async def test_run_code_retries_throttled_calls(mock_api, code_server):
 async def test_run_code_gives_up_after_max_retries(mock_api, monkeypatch):
     monkeypatch.setenv("CHECK_API_KEY", "test-key")
     monkeypatch.setenv("CHECK_CODE_MAX_RETRIES", "1")
+    monkeypatch.setenv("CHECK_CODE_MODE", "1")
     mock_api.get("/companies/com_1").mock(return_value=THROTTLED)
     server = CheckMCP("Test Code", lifespan=lifespan)
-    setup_tools(server, tool_mode="code")
+    setup_tools(server)
     is_error, payload = await _run(
         server, 'await check.get_company(company_id="com_1")'
     )
@@ -573,8 +551,9 @@ async def test_run_code_has_no_filesystem_or_network(code_server):
 async def test_run_code_times_out(monkeypatch):
     monkeypatch.setenv("CHECK_API_KEY", "test-key")
     monkeypatch.setenv("CHECK_CODE_TIMEOUT_SECS", "1")
+    monkeypatch.setenv("CHECK_CODE_MODE", "1")
     server = CheckMCP("Test Code", lifespan=lifespan)
-    setup_tools(server, tool_mode="code")
+    setup_tools(server)
     is_error, payload = await _run(server, "i = 0\nwhile True:\n    i += 1\n")
     assert is_error
     assert payload["kind"] == "timeout"
@@ -587,8 +566,9 @@ async def test_run_code_enforces_call_budget(mock_api, monkeypatch):
     mock_api.get("/companies/com_1").mock(
         return_value=httpx.Response(200, json={"id": "com_1"})
     )
+    monkeypatch.setenv("CHECK_CODE_MODE", "1")
     server = CheckMCP("Test Code", lifespan=lifespan)
-    setup_tools(server, tool_mode="code")
+    setup_tools(server)
     code = """
 import check
 for _ in range(3):

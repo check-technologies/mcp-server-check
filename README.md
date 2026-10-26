@@ -21,8 +21,8 @@ CHECK_API_KEY=your-key uv run mcp-server-check
 |---|---|---|---|
 | `CHECK_API_KEY` | Yes | — | Your Check API key (Bearer token) |
 | `CHECK_API_BASE_URL` | No | `https://sandbox.checkhq.com` | API base URL |
-| `CHECK_TOOL_MODE` | No | `dynamic` | Tool mode: `dynamic` (3 meta-tools), `code` (dynamic plus `run_code`, see [Code Mode](#code-mode-experimental)), or `all` (all tools individually) |
-| `CHECK_CODE_MODE` | No | — | Set to `1`, `true`, or `yes` as shorthand for `CHECK_TOOL_MODE=code`; a remote client can opt in per request with the `X-MCP-Code-Mode` header instead |
+| `CHECK_TOOL_MODE` | No | `dynamic` | Tool mode: `dynamic` (3 meta-tools) or `all` (all tools individually) |
+| `CHECK_CODE_MODE` | No | — | Set to `1`, `true`, or `yes` to add `run_code` and `get_stubs` to dynamic mode (see [Code Mode](#code-mode-experimental)); a remote client can opt in per request with the `X-MCP-Code-Mode` header instead |
 | `CHECK_CODE_TIMEOUT_SECS` | No | `60` | Code mode: wall-clock budget for one `run_code` program |
 | `CHECK_CODE_MAX_CALLS` | No | `200` | Code mode: most tool calls one program may make |
 | `CHECK_CODE_CONCURRENCY` | No | `8` | Code mode: most tool calls one program runs at once |
@@ -170,7 +170,7 @@ It needs the `code` extra, which installs [Pydantic Monty](https://pydantic.dev/
 
 ```bash
 uv sync --extra code
-CHECK_TOOL_MODE=code CHECK_API_KEY=your-key uv run mcp-server-check
+CHECK_CODE_MODE=1 CHECK_API_KEY=your-key uv run mcp-server-check
 ```
 
 A dynamic-mode server can also switch it on per request, which lets a remote deployment roll it out client by client:
@@ -183,7 +183,7 @@ X-MCP-Code-Mode: 1
 https://<server>/mcp?code_mode=1
 ```
 
-Without the header, a dynamic-mode server lists only the three meta-tools and refuses calls to `run_code` and `get_stubs`. The code-mode server instructions are only sent when the server itself runs in code mode; a client enabling it by header relies on the tool descriptions.
+Without the header, a dynamic-mode server lists only the three meta-tools and refuses calls to `run_code` and `get_stubs`. The code-mode server instructions are only sent when the server itself sets `CHECK_CODE_MODE`; a client enabling it by header relies on the tool descriptions. Code mode is part of dynamic mode, so it has no effect under `CHECK_TOOL_MODE=all`.
 
 Code mode keeps the three dynamic-mode tools and adds two:
 

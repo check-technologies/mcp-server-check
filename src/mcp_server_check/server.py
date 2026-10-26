@@ -7,7 +7,6 @@ import os
 import sys
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
-from dataclasses import replace
 from typing import Any
 
 import httpx
@@ -128,21 +127,9 @@ programs where you can.
 
 
 # Meta-tools that dynamic mode registers but shows only when the active
-# filter has code_mode set (CHECK_CODE_MODE, CHECK_TOOL_MODE=code, the
-# X-MCP-Code-Mode header, or the code_mode query parameter).
+# filter has code_mode set: CHECK_CODE_MODE=1 for every request, or the
+# X-MCP-Code-Mode header / code_mode query parameter for one request.
 CODE_MODE_TOOLS: frozenset[str] = frozenset({"get_stubs", "run_code"})
-
-
-def resolve_tool_mode() -> str:
-    """The tool mode the environment asks for: all, dynamic, or code.
-
-    CHECK_TOOL_MODE names it; CHECK_CODE_MODE=1 is shorthand for code. Code
-    mode is dynamic mode with code_mode on for every request; a dynamic-mode
-    server also turns it on per request from the X-MCP-Code-Mode header.
-    """
-    if os.environ.get("CHECK_CODE_MODE", "").lower() in ("1", "true", "yes"):
-        return "code"
-    return os.environ.get("CHECK_TOOL_MODE", "dynamic").lower()
 
 
 @asynccontextmanager
@@ -423,12 +410,6 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         return json.dumps(result, indent=2, default=str)
 
 
-def _setup_code_mode(server: CheckMCP) -> None:
-    """Dynamic mode with code_mode on for every request."""
-    _setup_dynamic_mode(server)
-    server._static_filter = replace(server._static_filter, code_mode=True)
-
-
 def _register_resources(server: CheckMCP) -> None:
     """Register MCP resources for enum values and reference data."""
     from mcp_server_check.tool_index import _TOOLSET_DESCRIPTIONS
@@ -559,18 +540,16 @@ def setup_tools(server: CheckMCP, tool_mode: str = "dynamic") -> None:
     """
     if tool_mode == "all":
         register_all(server, registry=server._registry)
-    elif tool_mode == "code":
-        _setup_code_mode(server)
     else:
         _setup_dynamic_mode(server)
     _register_resources(server)
 
 
 def _create_server() -> CheckMCP:
-    """Create and configure the MCP server based on CHECK_TOOL_MODE."""
-    tool_mode = resolve_tool_mode()
+    """Create and configure the MCP server from CHECK_TOOL_MODE and CHECK_CODE_MODE."""
+    tool_mode = os.environ.get("CHECK_TOOL_MODE", "dynamic").lower()
     instructions = SERVER_INSTRUCTIONS
-    if tool_mode == "code":
+    if tool_mode != "all" and ToolFilter.from_env().code_mode:
         instructions += CODE_MODE_INSTRUCTIONS
     server = CheckMCP("Check Payroll API", instructions=instructions, lifespan=lifespan)
     setup_tools(server, tool_mode)
@@ -584,20 +563,26 @@ def main():
     if not os.environ.get("CHECK_API_KEY"):
         print("Error: CHECK_API_KEY environment variable is required", file=sys.stderr)
         sys.exit(1)
-    tool_mode = resolve_tool_mode()
-    if tool_mode == "code":
+    tool_mode = os.environ.get("CHECK_TOOL_MODE", "dynamic").lower()
+    if tool_mode == "all":
+        print("Running in all-tools mode (legacy)", file=sys.stderr)
+        if mcp._static_filter.code_mode:
+            print(
+                "CHECK_CODE_MODE is ignored in all-tools mode (run_code needs "
+                "CHECK_TOOL_MODE=dynamic)",
+                file=sys.stderr,
+            )
+    elif mcp._static_filter.code_mode:
         print(
             "Running in code mode (run_code + get_stubs + 3 meta-tools)",
             file=sys.stderr,
         )
-    elif tool_mode != "all":
+    else:
         print(
-            "Running in dynamic tool mode (3 meta-tools; the X-MCP-Code-Mode "
-            "header adds run_code + get_stubs)",
+            "Running in dynamic tool mode (3 meta-tools; CHECK_CODE_MODE=1 or the "
+            "X-MCP-Code-Mode header adds run_code + get_stubs)",
             file=sys.stderr,
         )
-    else:
-        print("Running in all-tools mode (legacy)", file=sys.stderr)
     if mcp._static_filter.read_only:
         print("Running in read-only mode (CHECK_READ_ONLY is set)", file=sys.stderr)
     if mcp._static_filter.toolsets:
