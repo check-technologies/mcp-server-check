@@ -21,7 +21,7 @@ when a session starts. Run all commands through `uv run` (they execute inside `.
 - MCP server: `uv run mcp-server-check`. **Requires `CHECK_API_KEY`** (exits with an error
   otherwise). Defaults to stdio transport and "dynamic" tool mode (exposes 3 meta-tools:
   `search_tools`, `list_toolsets`, `run_tool`). Env knobs: `CHECK_TOOL_MODE=all` (legacy
-  all-tools), `CHECK_CODE_MODE=1` (adds `get_stubs` and `run_code` to dynamic mode for every
+  all-tools), `CHECK_CODE_MODE=1` (replaces the 3 meta-tools with `get_stubs` and `run_code` for every
   request; `run_code` runs model-written Python in a Pydantic Monty sandbox and needs
   `uv sync --extra code`; the `x-mcp-code-mode` header or `code_mode` query parameter adds
   the same two tools per request;

@@ -18,7 +18,7 @@ import os
 import random
 import re
 import time
-from collections.abc import Awaitable, Callable, Iterable, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -37,6 +37,30 @@ MODULE_NAME = "check"
 
 _CTX_ANNOTATIONS = frozenset({"Ctx", "Context"})
 
+# Standard-library modules the sandbox provides (checked against
+# pydantic-monty 1.3). Filesystem and network modules are left out: they
+# import but every access is denied.
+SANDBOX_MODULES: tuple[str, ...] = (
+    "asyncio",
+    "base64",
+    "bisect",
+    "collections",
+    "copy",
+    "csv",
+    "dataclasses",
+    "datetime",
+    "functools",
+    "hashlib",
+    "itertools",
+    "json",
+    "math",
+    "random",
+    "re",
+    "time",
+    "typing",
+    "unicodedata",
+)
+
 _STUB_HEADER = f'''\
 """The `{MODULE_NAME}` module, already imported in programs run with run_code.
 
@@ -46,7 +70,12 @@ RuntimeError whose message is a JSON object with "status_code" and "detail".
 Throttled calls are retried for you. List results carry "results",
 "result_count" and "next_cursor"; pass the cursor back to page. Write tools
 are marked below and must be named in run_code's `writes` argument before a
-program can call them. Generator expressions evaluate eagerly to lists here.
+program can call them.
+
+Make the answer the program's last expression; the server serializes it. The
+sandbox's modules are {", ".join(SANDBOX_MODULES)}; json.dumps takes indent
+and sort_keys but not default. Generator expressions evaluate eagerly to
+lists here (use next(iter(...))).
 
 List results are summaries: each record keeps only the fields below, by ID
 prefix. Call the matching get_* tool for a full record.
@@ -163,6 +192,34 @@ def _render_typed_dicts() -> str:
             out.append(f"    {field_name}: {_annotation_text(hint)}")
         out.append("")
     return "\n".join(out)
+
+
+def render_catalog(
+    entries: Iterable[ToolEntry], descriptions: Mapping[str, str]
+) -> str:
+    """The toolsets of the `check` module and their tool names, for get_stubs().
+
+    A few hundred names cost far fewer tokens than their stubs, so this is the
+    starting point: pick names, then fetch signatures for just those.
+    """
+    by_toolset: dict[str, list[ToolEntry]] = {}
+    for entry in entries:
+        by_toolset.setdefault(entry.toolset, []).append(entry)
+    lines = [
+        f'"""Toolsets of the `{MODULE_NAME}` module. `*` marks a write tool, which',
+        "run_code's writes argument must name. For signatures call",
+        "get_stubs(tools=[...]), get_stubs(toolset=...), or get_stubs(query=...).",
+        '"""',
+    ]
+    for toolset, group in sorted(by_toolset.items()):
+        lines.append("")
+        lines.append(f"# ---- {toolset} ({len(group)} tools) ----")
+        description = descriptions.get(toolset)
+        if description:
+            lines.append(f"# {description}")
+        names = ", ".join(e.name + ("*" if e.is_write else "") for e in group)
+        lines.append(f"# {names}")
+    return "\n".join(lines) + "\n"
 
 
 def render_stubs(entries: Iterable[ToolEntry], *, mark_writes: bool = False) -> str:
@@ -289,23 +346,59 @@ _FUNCTION_DIAGNOSTIC = re.compile(r"function `(\w+)`")
 
 
 def signature_errors(diagnostics: str, tool_names: Iterable[str]) -> list[str]:
-    """The type-check diagnostics that are about the check module itself.
+    """The type-check diagnostics worth blocking on.
 
     Type checking exists to catch a wrong tool name or argument before any API
     call. Diagnostics about the program's own handling of untyped results
     (unions the checker infers from JSON) are not reliable enough to block on,
-    so only lines naming the module or one of its functions count.
+    so only lines naming the module or one of its functions count, plus an
+    import the sandbox cannot resolve, which would fail at runtime anyway.
     """
     names = set(tool_names)
     errors = []
     for line in diagnostics.splitlines():
-        if "Module `" + MODULE_NAME + "`" in line:
+        if "Module `" + MODULE_NAME + "`" in line or "[unresolved-import]" in line:
             errors.append(line)
             continue
         match = _FUNCTION_DIAGNOSTIC.search(line)
         if match and match.group(1) in names:
             errors.append(line)
     return errors
+
+
+_MODULE_LIST = ", ".join(SANDBOX_MODULES)
+_SANDBOX_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (
+        re.compile(r"JSONEncoder\.__init__\(\) got an unexpected keyword argument"),
+        "The sandbox's json.dumps takes indent, sort_keys, and ensure_ascii but "
+        "not default. Make the data the program's last expression instead of "
+        "serializing it: the server turns it into JSON and renders dates and "
+        "other objects as strings.",
+    ),
+    (
+        re.compile(
+            r"No module named '([^']+)'|Cannot resolve imported module `([^`]+)`"
+        ),
+        "The sandbox has no {name} module and no third-party packages. Its "
+        f"modules are {_MODULE_LIST}.",
+    ),
+    (
+        re.compile(r"'list' object is not an iterator"),
+        "Generator expressions evaluate eagerly to lists in the sandbox, so "
+        "next() cannot consume one. Use next(iter(...)), index the list, or a "
+        "for loop.",
+    ),
+)
+
+
+def sandbox_hint(detail: str) -> str | None:
+    """Advice for a failure caused by a known limit of the sandbox."""
+    for pattern, hint in _SANDBOX_HINTS:
+        match = pattern.search(detail)
+        if match:
+            name = next((g for g in match.groups() if g), "")
+            return hint.format(name=name)
+    return None
 
 
 def _is_throttled(payload: dict[str, Any]) -> bool:
@@ -545,15 +638,17 @@ class CodeRunner:
         deadline = started + timeout
 
         def failure(kind: str, detail: str) -> CheckToolError:
-            return CheckToolError(
-                {
-                    "error": True,
-                    "kind": kind,
-                    "detail": detail,
-                    "logs": printed.output,
-                    "calls": [c.to_dict() for c in program.calls],
-                }
-            )
+            payload: dict[str, Any] = {
+                "error": True,
+                "kind": kind,
+                "detail": detail,
+                "logs": printed.output,
+                "calls": [c.to_dict() for c in program.calls],
+            }
+            hint = sandbox_hint(detail)
+            if hint:
+                payload["hint"] = hint
+            return CheckToolError(payload)
 
         async def feed(session: Any, source: str, **kwargs: Any) -> Any:
             # One deadline across every feed, so a type-check rerun cannot
@@ -581,11 +676,19 @@ class CodeRunner:
                     except pm.MontyTypingError as e:
                         errors = signature_errors(e.display(), module.attrs)
                         if errors:
+                            if all("[unresolved-import]" in line for line in errors):
+                                what = (
+                                    "The program imports a module the sandbox "
+                                    "does not have; nothing ran.\n"
+                                )
+                            else:
+                                what = (
+                                    "The program does not match the check module's "
+                                    "signatures; nothing ran. Use get_stubs or "
+                                    "search_tools to see them.\n"
+                                )
                             raise failure(
-                                "type_check_failed",
-                                "The program does not match the check module's "
-                                "signatures; nothing ran. Use get_stubs or "
-                                "search_tools to see them.\n" + "\n".join(errors),
+                                "type_check_failed", what + "\n".join(errors)
                             ) from e
                         # Diagnostics about the program's own data handling:
                         # run it anyway.
