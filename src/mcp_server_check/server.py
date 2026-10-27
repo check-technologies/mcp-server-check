@@ -13,8 +13,15 @@ import httpx
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError, ValidationError
 from fastmcp.tools import FunctionTool, ToolResult
+from mcp.types import TextContent
 
-from mcp_server_check.code_mode import CodeRunner, render_stub, render_stubs
+from mcp_server_check.code_mode import (
+    CallRecord,
+    CodeRunner,
+    render_stub,
+    render_stubs,
+    render_trace,
+)
 from mcp_server_check.errors import CheckToolError
 from mcp_server_check.helpers import CheckContext
 from mcp_server_check.middleware import (
@@ -107,6 +114,10 @@ keyword arguments and `await` them; use asyncio.gather for independent calls.
 - Only the program's last expression, what it prints, and a trace of the tool \
 calls it made come back. Filter, join, and aggregate inside the program and \
 return a small result.
+- A run_code result has two parts: the JSON result, then the list of tool \
+calls the program made. When you report the result, tell the user which calls \
+ran (tool, key arguments, and any failures), always for writes, so they can \
+see what touched their account.
 - Look up signatures first with get_stubs(toolset=...) or search_tools. A \
 program is type-checked against them before it runs, so a wrong name or \
 argument fails before any API call is made.
@@ -393,7 +404,9 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
             "openWorldHint": False,
         },
     )
-    async def run_code(code: str, writes: list[str] | None = None) -> str:
+    async def run_code(
+        ctx: Context, code: str, writes: list[str] | None = None
+    ) -> ToolResult:
         """Run a Python program against the Check API in a sandbox.
 
         Write ordinary async Python. The `check` module is already imported
@@ -404,6 +417,11 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         returned along with anything it printed and a trace of every tool call
         it made. Only what you return or print reaches the conversation, so
         filter and aggregate in the program.
+
+        The result has two content blocks: the JSON result (result, logs,
+        calls, duration_ms) and a readable list of the tool calls the program
+        made. Each call is also sent as a progress notification as it
+        finishes. Tell the user which calls ran when you report the result.
 
         Check the signatures first with get_stubs or search_tools: the program
         is type-checked against them before it runs, so a wrong name or
@@ -418,8 +436,22 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
             `check`. Read tools never need listing.
         """
         tf = server.active_tool_filter()
-        result = await runner.run(code, tf, writes or [])
-        return json.dumps(result, indent=2, default=str)
+
+        async def report(record: CallRecord, finished: int) -> None:
+            await ctx.report_progress(progress=finished, message=record.summary())
+
+        result = await runner.run(code, tf, writes or [], on_call=report)
+        trace = render_trace(
+            [CallRecord.from_dict(c) for c in result["calls"]], result["duration_ms"]
+        )
+        return ToolResult(
+            content=[
+                TextContent(
+                    type="text", text=json.dumps(result, indent=2, default=str)
+                ),
+                TextContent(type="text", text=trace),
+            ]
+        )
 
 
 def _register_resources(server: CheckMCP) -> None:

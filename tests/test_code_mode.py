@@ -8,13 +8,15 @@ import logging
 
 import httpx
 import pytest
-from fastmcp import Client
+from fastmcp import Client, Context
 from mcp.server.lowlevel.server import Server
 from mcp_server_check.code_mode import (
+    CallRecord,
     CodeModeSettings,
     render_signature,
     render_stub,
     render_stubs,
+    render_trace,
 )
 from mcp_server_check.server import CheckMCP, lifespan, setup_tools
 from mcp_server_check.tool_filter import ToolFilter
@@ -351,6 +353,109 @@ print("fetched", len(details))
     assert all(c["status"] == "ok" for c in payload["calls"])
     assert payload["calls"][0]["arguments"] == {"limit": 2}
     assert mock_api.calls.call_count == 3
+
+
+# --- call trace and progress ---
+
+
+def test_call_summary_and_trace():
+    ok = CallRecord(
+        tool="list_employees",
+        arguments={"company": "com_1", "limit": 100},
+        status="ok",
+        duration_ms=340,
+    )
+    failed = CallRecord(
+        tool="get_employee",
+        arguments={"employee_id": "emp_9"},
+        status="error",
+        duration_ms=95,
+        retries=1,
+        error={"error": True, "status_code": 404, "detail": "Not found."},
+    )
+    pending = CallRecord(tool="get_company", arguments={"company_id": "com_1"})
+    assert ok.summary() == "list_employees(company='com_1', limit=100) ok 340ms"
+    assert failed.summary() == (
+        "get_employee(employee_id='emp_9') error 95ms after 1 retry: 404 Not found."
+    )
+    assert pending.summary() == "get_company(company_id='com_1') pending"
+    trace = render_trace([ok, failed, pending], 1912)
+    assert trace.splitlines() == [
+        "Tool calls: 3 in 1912ms",
+        "1. " + ok.summary(),
+        "2. " + failed.summary(),
+        "3. " + pending.summary(),
+    ]
+    assert render_trace([]) == "Tool calls: none"
+    long_args = CallRecord(tool="t", arguments={"ids": list(range(100))}).summary()
+    assert len(long_args) < 160 and long_args.endswith("…) pending")
+    assert CallRecord.from_dict(failed.to_dict()) == failed
+
+
+@pytest.mark.anyio
+async def test_run_code_returns_trace_block(mock_api, code_server):
+    mock_api.get("/companies").mock(return_value=httpx.Response(200, json=COMPANIES))
+    mock_api.get("/companies/com_1").mock(
+        return_value=httpx.Response(404, json={"error": "Not found."})
+    )
+    code = """
+page = await check.list_companies()
+try:
+    await check.get_company(company_id="com_1")
+except RuntimeError:
+    pass
+len(page["results"])
+"""
+    async with Client(code_server) as client:
+        result = await client.call_tool("run_code", {"code": code})
+    assert len(result.content) == 2
+    assert json.loads(result.content[0].text)["result"] == 2
+    trace = result.content[1].text.splitlines()
+    assert trace[0].startswith("Tool calls: 2 in ")
+    assert trace[1].startswith("1. list_companies() ok ")
+    assert trace[2].startswith("2. get_company(company_id='com_1') error ")
+    assert "404" in trace[2]
+
+
+@pytest.mark.anyio
+async def test_run_code_reports_each_call_as_progress(mock_api, code_server):
+    mock_api.get("/companies").mock(return_value=httpx.Response(200, json=COMPANIES))
+    mock_api.get("/companies/com_1").mock(
+        return_value=httpx.Response(200, json={"id": "com_1"})
+    )
+    seen: list[tuple[float, float | None, str | None]] = []
+
+    async def on_progress(progress, total, message):
+        seen.append((progress, total, message))
+
+    code = """
+await check.list_companies()
+await check.get_company(company_id="com_1")
+1
+"""
+    async with Client(code_server) as client:
+        await client.call_tool("run_code", {"code": code}, progress_handler=on_progress)
+    assert [p for p, _, _ in seen] == [1, 2]
+    assert seen[0][2].startswith("list_companies() ok ")
+    assert seen[1][2].startswith("get_company(company_id='com_1') ok ")
+
+
+@pytest.mark.anyio
+async def test_run_code_survives_a_failing_progress_report(
+    mock_api, monkeypatch, code_server
+):
+    mock_api.get("/companies").mock(return_value=httpx.Response(200, json=COMPANIES))
+
+    async def broken(self, *args, **kwargs):
+        raise RuntimeError("client went away")
+
+    monkeypatch.setattr(Context, "report_progress", broken)
+    is_error, payload = await _run(
+        code_server, "len((await check.list_companies())['results'])"
+    )
+    assert not is_error
+    assert payload["result"] == 2
+    assert payload["calls"][0]["status"] == "ok"
 
 
 @pytest.mark.anyio

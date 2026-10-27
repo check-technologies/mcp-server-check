@@ -13,11 +13,12 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import logging
 import os
 import random
 import re
 import time
-from collections.abc import Iterable, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -29,6 +30,8 @@ from mcp_server_check import types as check_types
 from mcp_server_check.errors import CheckToolError
 from mcp_server_check.tool_filter import ToolFilter
 from mcp_server_check.tool_index import ToolEntry, ToolIndex
+
+logger = logging.getLogger(__name__)
 
 MODULE_NAME = "check"
 
@@ -232,6 +235,54 @@ class CallRecord:
             record["error"] = self.error
         return record
 
+    @classmethod
+    def from_dict(cls, record: dict[str, Any]) -> CallRecord:
+        """The inverse of to_dict."""
+        return cls(**{k: v for k, v in record.items() if k in cls.__dataclass_fields__})
+
+    def summary(self, max_args_chars: int = 120) -> str:
+        """One line for a progress message or trace: the call and its outcome."""
+        args = ", ".join(f"{k}={v!r}" for k, v in self.arguments.items())
+        if len(args) > max_args_chars:
+            args = args[: max_args_chars - 1] + "…"
+        line = f"{self.tool}({args}) {self.status}"
+        if self.status != "pending":
+            line += f" {self.duration_ms}ms"
+        if self.retries:
+            line += f" after {self.retries} retr{'y' if self.retries == 1 else 'ies'}"
+        if self.error is not None:
+            line += f": {_error_summary(self.error)}"
+        return line
+
+
+def _error_summary(error: Any) -> str:
+    """The status code and detail of a call's error, on one short line."""
+    if isinstance(error, dict):
+        parts = [str(error[k]) for k in ("status_code", "detail") if k in error]
+        text = " ".join(parts) or json.dumps(error)
+    else:
+        text = str(error)
+    text = " ".join(text.split())
+    return text if len(text) <= 160 else text[:159] + "…"
+
+
+def render_trace(calls: Sequence[CallRecord], duration_ms: int | None = None) -> str:
+    """The calls a program made, as text for the client and the user.
+
+    Returned beside the JSON result so the record of what ran is not buried
+    inside it, and the model can repeat it to the user.
+    """
+    if not calls:
+        return "Tool calls: none"
+    header = f"Tool calls: {len(calls)}"
+    if duration_ms is not None:
+        header += f" in {duration_ms}ms"
+    lines = [f"{i}. {call.summary()}" for i, call in enumerate(calls, 1)]
+    return "\n".join([header, *lines])
+
+
+CallListener = Callable[[CallRecord, int], Awaitable[None]]
+
 
 _THROTTLE_HINT = re.compile(r"available in (\d+(?:\.\d+)?) second")
 _FUNCTION_DIAGNOSTIC = re.compile(r"function `(\w+)`")
@@ -278,6 +329,21 @@ class ProgramRun:
     """Bookkeeping shared by the host functions of one program."""
 
     calls: list[CallRecord] = field(default_factory=list)
+    # Told about each call as it finishes, with how many have finished. That
+    # count, not the call's position, keeps progress increasing when parallel
+    # calls finish out of order.
+    on_call: CallListener | None = None
+    finished_count: int = 0
+
+    async def finished(self, record: CallRecord) -> None:
+        self.finished_count += 1
+        if self.on_call is None:
+            return
+        try:
+            await self.on_call(record, self.finished_count)
+        except Exception:
+            # Reporting a call must never fail the program that made it.
+            logger.warning("run_code call listener failed", exc_info=True)
 
 
 def _decode(result: ToolResult) -> Any:
@@ -419,9 +485,11 @@ class CodeRunner:
                 record.status = "error"
                 record.error = str(e)
                 raise ValueError(str(e)) from e
+            else:
+                record.status = "ok"
             finally:
                 record.duration_ms = int((time.monotonic() - started) * 1000)
-            record.status = "ok"
+                await run.finished(record)
             return _decode(result)
 
         call.__name__ = entry.name
@@ -429,23 +497,33 @@ class CodeRunner:
         return call
 
     async def run(
-        self, code: str, tool_filter: ToolFilter, writes: Sequence[str] = ()
+        self,
+        code: str,
+        tool_filter: ToolFilter,
+        writes: Sequence[str] = (),
+        on_call: CallListener | None = None,
     ) -> dict[str, Any]:
         """Run a program and return its value, printed output, and call trace.
 
-        Raises CheckToolError, with the trace so far, when the program does not
-        type-check, raises, or exhausts a budget. Waiting for a free program
-        slot does not count against the time budget.
+        on_call is awaited after each tool call finishes, with its record and
+        the number of calls finished so far, so the caller can report progress
+        while the program runs. Raises CheckToolError, with the trace so far, when the program
+        does not type-check, raises, or exhausts a budget. Waiting for a free
+        program slot does not count against the time budget.
         """
         async with self._programs:
-            return await self._run(code, tool_filter, writes)
+            return await self._run(code, tool_filter, writes, on_call)
 
     async def _run(
-        self, code: str, tool_filter: ToolFilter, writes: Sequence[str] = ()
+        self,
+        code: str,
+        tool_filter: ToolFilter,
+        writes: Sequence[str] = (),
+        on_call: CallListener | None = None,
     ) -> dict[str, Any]:
         pm = _monty()
         entries = self.callable_entries(tool_filter, writes)
-        program = ProgramRun()
+        program = ProgramRun(on_call=on_call)
         semaphore = asyncio.Semaphore(self._settings.concurrency)
         module = pm.ExternalModule(
             {
