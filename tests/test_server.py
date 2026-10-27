@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from unittest import mock
 
 import httpx
 import pytest
@@ -564,10 +565,32 @@ CORRECTION_TOOLS = {
     "simulate_correction_complete_funding",
     "simulate_correction_fail_funding",
 }
-OPTED_IN = ToolFilter(preview_toolsets=frozenset({"corrections"}))
+
+
+@pytest.fixture
+def corrections_in_preview():
+    """Treat corrections as a preview toolset again, to exercise the opt-in."""
+    with mock.patch(
+        "mcp_server_check.tool_filter.PREVIEW_TOOLSETS", frozenset({"corrections"})
+    ):
+        yield
+
+
+def _opted_in() -> ToolFilter:
+    # Built inside a test, after the fixture above, or the unknown preview
+    # toolset would be stripped.
+    return ToolFilter(preview_toolsets=frozenset({"corrections"}))
 
 
 @pytest.mark.anyio
+async def test_correction_tools_listed_by_default():
+    server = _make_all_tools_server(ToolFilter())
+    tool_names = {t.name for t in await server.list_tools()}
+    assert CORRECTION_TOOLS <= tool_names
+
+
+@pytest.mark.anyio
+@pytest.mark.usefixtures("corrections_in_preview")
 async def test_preview_toolset_hidden_by_default():
     server = _make_all_tools_server(ToolFilter())
     tool_names = {t.name for t in await server.list_tools()}
@@ -578,15 +601,16 @@ async def test_preview_toolset_hidden_by_default():
 
 
 @pytest.mark.anyio
+@pytest.mark.usefixtures("corrections_in_preview")
 async def test_preview_toolset_listed_when_opted_in():
-    server = _make_all_tools_server(OPTED_IN)
+    server = _make_all_tools_server(_opted_in())
     tool_names = {t.name for t in await server.list_tools()}
     assert CORRECTION_TOOLS <= tool_names
 
 
 @pytest.mark.anyio
 async def test_destructive_correction_tools_annotated():
-    server = _make_all_tools_server(OPTED_IN)
+    server = _make_all_tools_server(ToolFilter())
     tools = {t.name: t for t in await server.list_tools()}
     for name in ("approve_correction", "reopen_correction", "delete_correction"):
         assert tools[name].annotations.destructiveHint is True, name
@@ -608,12 +632,13 @@ def _void_payroll_schema(tools) -> dict:
 
 @pytest.mark.anyio
 async def test_void_payroll_requires_subset():
-    server = _make_all_tools_server(OPTED_IN)
+    server = _make_all_tools_server(ToolFilter())
     schema = _void_payroll_schema(await server.list_tools())
     assert {"payroll_id", "correction", "subset"} <= set(schema["required"])
 
 
 @pytest.mark.anyio
+@pytest.mark.usefixtures("corrections_in_preview")
 async def test_dynamic_mode_hides_preview_toolset_by_default():
     server = _make_dynamic_server(ToolFilter())
     overview = json.loads((await server.call_tool("list_toolsets", {})).content[0].text)
@@ -632,13 +657,14 @@ async def test_dynamic_mode_hides_preview_toolset_by_default():
 
 
 @pytest.mark.anyio
+@pytest.mark.usefixtures("corrections_in_preview")
 async def test_dynamic_mode_runs_preview_tool_when_opted_in(mock_api, monkeypatch):
     monkeypatch.setenv("CHECK_API_KEY", "test-key")
     monkeypatch.delenv("CHECK_API_BASE_URL", raising=False)
     mock_api.get("/corrections/cor_1").mock(
         return_value=httpx.Response(200, json={"id": "cor_1", "status": "draft"})
     )
-    server = _make_dynamic_server(OPTED_IN)
+    server = _make_dynamic_server(_opted_in())
 
     async with Client(server) as client:
         overview = json.loads(
@@ -655,11 +681,7 @@ async def test_dynamic_mode_runs_preview_tool_when_opted_in(mock_api, monkeypatc
 
 @pytest.mark.anyio
 async def test_dynamic_mode_exclude_destructive_blocks_approve_correction():
-    server = _make_dynamic_server(
-        ToolFilter(
-            exclude_destructive=True, preview_toolsets=frozenset({"corrections"})
-        )
-    )
+    server = _make_dynamic_server(ToolFilter(exclude_destructive=True))
     with pytest.raises(ToolError, match="not available"):
         await server.call_tool(
             "run_tool",
@@ -671,14 +693,11 @@ async def test_dynamic_mode_exclude_destructive_blocks_approve_correction():
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize(
-    ("tool_filter", "visible"), [(ToolFilter(), False), (OPTED_IN, True)]
-)
-async def test_toolsets_resource_follows_preview_opt_in(
-    monkeypatch, tool_filter, visible
-):
+@pytest.mark.usefixtures("corrections_in_preview")
+@pytest.mark.parametrize("visible", [False, True])
+async def test_toolsets_resource_follows_preview_opt_in(monkeypatch, visible):
     monkeypatch.setenv("CHECK_API_KEY", "test-key")
-    server = _make_dynamic_server(tool_filter)
+    server = _make_dynamic_server(_opted_in() if visible else ToolFilter())
     _register_resources(server)
 
     async with Client(server) as client:

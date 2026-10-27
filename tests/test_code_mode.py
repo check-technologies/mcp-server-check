@@ -6,6 +6,7 @@ import asyncio
 import time
 import json
 import logging
+from unittest import mock
 
 import httpx
 import pytest
@@ -537,7 +538,25 @@ async def test_run_code_type_error_runs_nothing(mock_api, code_server):
     assert mock_api.calls.call_count == 0
 
 
+@pytest.fixture
+def corrections_in_preview():
+    """Treat corrections as a preview toolset again, to exercise the opt-in.
+
+    ``code_mode`` imports the constant by name, so it needs its own patch.
+    """
+    with (
+        mock.patch(
+            "mcp_server_check.tool_filter.PREVIEW_TOOLSETS", frozenset({"corrections"})
+        ),
+        mock.patch(
+            "mcp_server_check.code_mode.PREVIEW_TOOLSETS", frozenset({"corrections"})
+        ),
+    ):
+        yield
+
+
 @pytest.mark.anyio
+@pytest.mark.usefixtures("corrections_in_preview")
 async def test_run_code_says_why_a_tool_is_missing_from_check(mock_api, code_server):
     code = """
 await check.get_compny(company_id="com_1")
