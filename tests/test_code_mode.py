@@ -167,13 +167,21 @@ def test_settings_from_env(monkeypatch):
 async def test_code_mode_exposes_meta_tools(code_server):
     async with Client(code_server) as client:
         names = {t.name for t in await client.list_tools()}
-    assert names == {
-        "search_tools",
-        "list_toolsets",
-        "run_tool",
-        "get_stubs",
-        "run_code",
-    }
+    assert names == {"get_stubs", "run_code"}
+
+
+@pytest.mark.anyio
+async def test_code_mode_refuses_dynamic_tools(code_server):
+    async with Client(code_server) as client:
+        for name, arguments in (
+            ("search_tools", {"query": "companies"}),
+            ("list_toolsets", {}),
+            ("run_tool", {"tool_name": "list_companies"}),
+        ):
+            result = await client.call_tool(name, arguments, raise_on_error=False)
+            assert result.is_error
+            assert "not available in code mode" in result.content[0].text
+            assert "run_code" in result.content[0].text
 
 
 # --- enabling code mode per request ---
@@ -234,14 +242,16 @@ async def test_header_enables_code_tools_per_request(
     _attach_request(monkeypatch, _FakeRequest(headers={"x-mcp-code-mode": "1"}))
     async with Client(dynamic_server) as client:
         names = {t.name for t in await client.list_tools()}
-        assert {"get_stubs", "run_code"} <= names
+        assert names == {"get_stubs", "run_code"}
         result = await client.call_tool(
             "run_code",
             {"code": "page = await check.list_companies()\nlen(page['results'])"},
         )
         assert json.loads(result.content[0].text)["result"] == 2
-        result = await client.call_tool("search_tools", {"query": "list companies"})
-        assert "stub" in json.loads(result.content[0].text)[0]
+        result = await client.call_tool(
+            "search_tools", {"query": "list companies"}, raise_on_error=False
+        )
+        assert result.is_error
 
 
 @pytest.mark.anyio
@@ -298,23 +308,39 @@ async def test_get_stubs_by_toolset(code_server):
 
 
 @pytest.mark.anyio
-async def test_search_tools_returns_stubs_in_code_mode(code_server):
+async def test_get_stubs_without_arguments_returns_catalog(code_server):
     async with Client(code_server) as client:
-        result = await client.call_tool("search_tools", {"query": "list companies"})
-    results = json.loads(result.content[0].text)
-    assert results[0]["name"] == "list_companies"
-    assert results[0]["stub"].startswith("async def list_companies(")
-    assert "parameters" not in results[0]
+        result = await client.call_tool("get_stubs", {})
+    catalog = result.content[0].text
+    assert "# ---- workplaces (4 tools) ----" in catalog
+    assert "list_workplaces, " in catalog
+    assert "create_workplace*" in catalog  # write tools are marked
+    assert "async def" not in catalog  # names only, not signatures
+    assert len(catalog) < 20_000
 
 
 @pytest.mark.anyio
-async def test_search_tools_without_keywords_returns_toolsets_in_code_mode(
-    code_server,
-):
+async def test_get_stubs_query_returns_matching_stubs(code_server):
     async with Client(code_server) as client:
-        result = await client.call_tool("search_tools", {"query": "---"})
-    results = json.loads(result.content[0].text)
-    assert "tool_count" in results[0]
+        result = await client.call_tool("get_stubs", {"query": "list companies"})
+        stubs = result.content[0].text
+        assert "async def list_companies(" in stubs
+        assert "async def list_workplaces(" not in stubs
+        result = await client.call_tool(
+            "get_stubs", {"query": "list companies", "toolset": "workplaces"}
+        )
+        assert "async def list_companies(" not in result.content[0].text
+        result = await client.call_tool("get_stubs", {"query": "zzzz-nothing"})
+        assert result.content[0].text.startswith("# No tools match")
+
+
+@pytest.mark.anyio
+async def test_get_stubs_catalog_respects_filter(code_server):
+    code_server._static_filter = ToolFilter(read_only=True, code_mode=True)
+    async with Client(code_server) as client:
+        catalog = (await client.call_tool("get_stubs", {})).content[0].text
+    assert "list_workplaces" in catalog
+    assert "create_workplace" not in catalog
 
 
 # --- run_code ---
@@ -541,6 +567,81 @@ def test_signature_errors_keep_only_check_module_lines():
         "[unresolved-attribute]",
         "[unknown-argument] Arg",
     ]
+
+
+def test_signature_errors_keep_unresolved_imports():
+    from mcp_server_check.code_mode import signature_errors
+
+    diagnostics = (
+        "main.py:1:8: error[unresolved-import] Cannot resolve imported module "
+        "`statistics`\n"
+        "main.py:2:1: error[invalid-assignment] Object of type `str` is not assignable\n"
+    )
+    assert len(signature_errors(diagnostics, [])) == 1
+
+
+# --- sandbox limits ---
+
+
+def test_sandbox_hint():
+    from mcp_server_check.code_mode import SANDBOX_MODULES, sandbox_hint
+
+    assert "last expression" in sandbox_hint(
+        "TypeError: JSONEncoder.__init__() got an unexpected keyword argument 'default'"
+    )
+    missing = sandbox_hint("ModuleNotFoundError: No module named 'statistics'")
+    assert missing.startswith("The sandbox has no statistics module")
+    assert ", ".join(SANDBOX_MODULES) in missing
+    unresolved = sandbox_hint(
+        "main.py:1:8: error[unresolved-import] Cannot resolve imported module `decimal`"
+    )
+    assert unresolved.startswith("The sandbox has no decimal module")
+    assert "next(iter(...))" in sandbox_hint(
+        "TypeError: 'list' object is not an iterator"
+    )
+    assert sandbox_hint("KeyError: 'x'") is None
+
+
+@pytest.mark.anyio
+async def test_run_code_json_default_fails_with_hint(code_server):
+    is_error, payload = await _run(
+        code_server, "import json\njson.dumps({'a': 1}, indent=2, default=str)"
+    )
+    assert is_error
+    assert payload["kind"] == "runtime_error"
+    assert "last expression" in payload["hint"]
+
+
+@pytest.mark.anyio
+async def test_run_code_missing_module_fails_before_any_call(mock_api, code_server):
+    mock_api.get("/companies").mock(return_value=httpx.Response(200, json=COMPANIES))
+    is_error, payload = await _run(
+        code_server, "import statistics\nawait check.list_companies()\n1"
+    )
+    assert is_error
+    assert payload["kind"] == "type_check_failed"
+    assert "does not have" in payload["detail"]
+    assert payload["hint"].startswith("The sandbox has no statistics module")
+    assert mock_api.calls.call_count == 0
+
+
+@pytest.mark.anyio
+async def test_run_code_next_on_generator_fails_with_hint(code_server):
+    is_error, payload = await _run(code_server, "next(x for x in [1, 2])")
+    assert is_error
+    assert payload["kind"] == "runtime_error"
+    assert "next(iter(...))" in payload["hint"]
+
+
+@pytest.mark.anyio
+async def test_run_code_last_expression_needs_no_json(mock_api, code_server):
+    """Dates and other objects in the last expression are serialized by the server."""
+    is_error, payload = await _run(
+        code_server,
+        "from datetime import date\n{'day': date(2026, 1, 5), 'n': {1, 2}}",
+    )
+    assert not is_error
+    assert payload["result"]["day"] == "2026-01-05"
 
 
 @pytest.mark.anyio

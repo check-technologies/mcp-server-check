@@ -22,7 +22,7 @@ CHECK_API_KEY=your-key uv run mcp-server-check
 | `CHECK_API_KEY` | Yes | — | Your Check API key (Bearer token) |
 | `CHECK_API_BASE_URL` | No | `https://sandbox.checkhq.com` | API base URL |
 | `CHECK_TOOL_MODE` | No | `dynamic` | Tool mode: `dynamic` (3 meta-tools) or `all` (all tools individually) |
-| `CHECK_CODE_MODE` | No | — | Set to `1`, `true`, or `yes` to add `run_code` and `get_stubs` to dynamic mode (see [Code Mode](#code-mode-experimental)); a remote client can opt in per request with the `X-MCP-Code-Mode` header instead |
+| `CHECK_CODE_MODE` | No | — | Set to `1`, `true`, or `yes` to replace dynamic mode's three meta-tools with `get_stubs` and `run_code` (see [Code Mode](#code-mode-experimental)); a remote client can opt in per request with the `X-MCP-Code-Mode` header instead |
 | `CHECK_CODE_TIMEOUT_SECS` | No | `60` | Code mode: wall-clock budget for one `run_code` program |
 | `CHECK_CODE_MAX_CALLS` | No | `200` | Code mode: most tool calls one program may make |
 | `CHECK_CODE_CONCURRENCY` | No | `8` | Code mode: most tool calls one program runs at once |
@@ -184,11 +184,11 @@ X-MCP-Code-Mode: 1
 https://<server>/mcp?code_mode=1
 ```
 
-Without the header, a dynamic-mode server lists only the three meta-tools and refuses calls to `run_code` and `get_stubs`. To refuse the opt-in, set `CHECK_EXCLUDE_TOOLS=run_code,get_stubs` on the server. The code-mode server instructions are only sent when the server itself sets `CHECK_CODE_MODE`; a client enabling it by header relies on the tool descriptions. Code mode is part of dynamic mode, so it has no effect under `CHECK_TOOL_MODE=all`.
+Without the header, a dynamic-mode server lists only the three meta-tools and refuses calls to `run_code` and `get_stubs`. With it, only `get_stubs` and `run_code` are listed and the three meta-tools are refused, so every API call goes through a program. To refuse the opt-in, set `CHECK_EXCLUDE_TOOLS=run_code,get_stubs` on the server. The code-mode server instructions are only sent when the server itself sets `CHECK_CODE_MODE`; a client enabling it by header relies on the tool descriptions. Code mode is part of dynamic mode, so it has no effect under `CHECK_TOOL_MODE=all`.
 
-Code mode keeps the three dynamic-mode tools and adds two:
+Code mode replaces the three dynamic-mode tools with two, so every API call goes through a program:
 
-- **`get_stubs(toolset?, tools?)`** — Typed Python signatures (with docstrings) for the `check` module, one `async def` per tool. `search_tools` returns the same stubs instead of JSON schemas.
+- **`get_stubs(query?, toolset?, tools?)`** — With no arguments, the catalog: every toolset with its description and tool names, write tools marked with `*`. With a keyword `query`, a `toolset`, or a list of `tools`, typed Python signatures (with docstrings) for the `check` module, one `async def` per tool.
 - **`run_code(code, writes?)`** — Run a program. The `check` module is pre-imported and exposes every allowed tool as an async function; the program's last expression is returned along with anything it printed and a trace of every tool call it made (tool, arguments, status, duration). The program is type-checked against the stubs before it runs, so a wrong name or argument fails without touching the API.
 
 ```python
@@ -213,6 +213,7 @@ Guardrails:
 
 - The sandbox has no network, filesystem, or environment access and never sees the API key; every `check.*` call proxies to the same tool function `run_tool` would run, through the same `ToolFilter`, so `CHECK_READ_ONLY`, toolsets, and category exclusions apply unchanged.
 - Write tools are absent from `check` unless the program names them in `run_code`'s `writes` argument, which keeps every write visible in the client's tool-call stream before it runs. A declared write that the filter hides is an error.
+- The sandbox is a Python subset with a fixed set of standard-library modules (asyncio, base64, bisect, collections, copy, csv, dataclasses, datetime, functools, hashlib, itertools, json, math, random, re, time, typing, unicodedata) and no third-party packages; `json.dumps` takes `indent` and `sort_keys` but not `default`, and generator expressions evaluate eagerly to lists. The program's last expression is the answer, serialized by the server, so programs rarely need `json` at all. An import the sandbox cannot resolve fails type-checking before anything runs, and a failure caused by one of these limits carries a `hint` the model can act on.
 - Each program gets its own sandbox process with a time budget, a call budget, a concurrency cap on API calls, and a heap limit, and the server runs at most `CHECK_CODE_MAX_PROGRAMS` of them at once (see the `CHECK_CODE_*` variables in the configuration table). If a program times out, calls still in flight show `"status": "pending"` in the trace; a pending write may still complete. Throttled calls (HTTP 429) are retried by the host with the wait the API asks for, so a program's `asyncio.gather` needs no rate-limit handling; the trace records the retries.
 
 ## Usage with Claude Desktop
