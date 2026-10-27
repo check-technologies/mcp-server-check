@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 import json
 import logging
 
@@ -537,6 +538,67 @@ async def test_run_code_type_error_runs_nothing(mock_api, code_server):
 
 
 @pytest.mark.anyio
+async def test_run_code_says_why_a_tool_is_missing_from_check(mock_api, code_server):
+    code = """
+await check.get_compny(company_id="com_1")
+await check.create_workplace(company="com_1", name="HQ", address={})
+await check.create_correction(payroll="pay_1")
+"""
+    is_error, payload = await _run(code_server, code)
+    assert is_error
+    assert payload["kind"] == "type_check_failed"
+    assert payload["calls"] == []
+    detail = payload["detail"]
+    assert "get_compny: no such tool. Call get_stubs(query='get_compny')" in detail
+    assert "create_workplace: a write tool; name it in run_code's writes" in detail
+    assert "create_correction: in the preview toolset 'corrections'" in detail
+
+
+@pytest.mark.anyio
+async def test_run_code_says_when_a_tool_is_hidden_by_configuration(
+    mock_api, monkeypatch
+):
+    monkeypatch.setenv("CHECK_API_KEY", "test-key")
+    monkeypatch.setenv("CHECK_READ_ONLY", "1")
+    monkeypatch.setenv("CHECK_CODE_MODE", "1")
+    server = CheckMCP("Test Code", lifespan=lifespan)
+    setup_tools(server)
+    is_error, payload = await _run(
+        server, 'await check.create_workplace(company="com_1", name="HQ", address={})'
+    )
+    assert is_error
+    assert payload["kind"] == "type_check_failed"
+    assert "create_workplace: hidden by the server's configuration" in payload["detail"]
+
+
+@pytest.mark.anyio
+async def test_run_code_warns_instead_of_blocking_on_argument_types(
+    mock_api, code_server
+):
+    mock_api.get("/companies").mock(
+        return_value=httpx.Response(
+            200, json={"results": [{"id": "com_1"}], "next_cursor": None}
+        )
+    )
+    mock_api.get("/companies/com_1").mock(
+        return_value=httpx.Response(200, json={"id": "com_1"})
+    )
+    # The checker sees `str | None` here; the program is fine.
+    code = """
+cid = None
+for c in (await check.list_companies())["results"]:
+    cid = c["id"]
+(await check.get_company(company_id=cid))["id"]
+"""
+    is_error, payload = await _run(code_server, code)
+    assert not is_error, payload
+    assert payload["result"] == "com_1"
+    assert len(payload["warnings"]) == 1
+    assert "invalid-argument-type" in payload["warnings"][0]
+    assert "get_company" in payload["warnings"][0]
+
+
+@pytest.mark.anyio
 async def test_run_code_ignores_type_errors_about_its_own_data(mock_api, code_server):
     """Only diagnostics about the check module block a program."""
     mock_api.get("/companies/com_1").mock(
@@ -567,6 +629,25 @@ def test_signature_errors_keep_only_check_module_lines():
         "[unresolved-attribute]",
         "[unknown-argument] Arg",
     ]
+
+
+def test_signature_warnings_keep_argument_type_doubts():
+    from mcp_server_check.code_mode import signature_errors, signature_warnings
+
+    diagnostics = (
+        "main.py:4:30: error[invalid-argument-type] Argument to function "
+        "`get_company` is incorrect: Expected `str`, found `str | None`\n"
+        "main.py:5:1: error[invalid-argument-type] Argument to function "
+        "`sorted` is incorrect: Expected `Iterable`, found `int`\n"
+        "main.py:6:1: error[unknown-argument] Argument `foo` does not match any "
+        "known parameter of function `get_company`\n"
+    )
+    assert [
+        e.split("error")[1][:18] for e in signature_errors(diagnostics, ["get_company"])
+    ] == ["[unknown-argument]"]
+    warnings = signature_warnings(diagnostics, ["get_company"])
+    assert len(warnings) == 1
+    assert "main.py:4:30" in warnings[0]
 
 
 def test_signature_errors_keep_unresolved_imports():
@@ -749,6 +830,112 @@ async def test_run_code_retries_throttled_calls(mock_api, code_server):
 
 
 @pytest.mark.anyio
+async def test_run_code_pauses_every_call_when_one_is_throttled(mock_api, monkeypatch):
+    monkeypatch.setenv("CHECK_API_KEY", "test-key")
+    monkeypatch.setenv("CHECK_CODE_CONCURRENCY", "1")
+    monkeypatch.setenv("CHECK_CODE_MODE", "1")
+    arrivals: dict[str, list[float]] = {"com_1": [], "com_2": []}
+    throttled_once = httpx.Response(
+        429,
+        json={"error": {"message": "Throttled. Expected available in 1 second."}},
+    )
+
+    def company(request):
+        cid = request.url.path.rsplit("/", 1)[1]
+        arrivals[cid].append(time.monotonic())
+        if cid == "com_1" and len(arrivals[cid]) == 1:
+            return throttled_once
+        return httpx.Response(200, json={"id": cid})
+
+    mock_api.get(url__regex=r"/companies/com_\d").mock(side_effect=company)
+    server = CheckMCP("Test Code", lifespan=lifespan)
+    setup_tools(server)
+    code = """
+import asyncio
+rs = await asyncio.gather(
+    check.get_company(company_id="com_1"), check.get_company(company_id="com_2")
+)
+[r["id"] for r in rs]
+"""
+    is_error, payload = await _run(server, code)
+    assert not is_error, payload
+    assert payload["result"] == ["com_1", "com_2"]
+    # com_2 had not been sent when com_1 was throttled, so it waited out the
+    # second the API asked for instead of being sent into the same limit.
+    assert arrivals["com_2"][0] - arrivals["com_1"][0] >= 0.9
+    assert [c.get("retries", 0) for c in payload["calls"]] == [1, 0]
+
+
+@pytest.mark.anyio
+async def test_run_code_retries_a_read_whose_connection_dropped(mock_api, code_server):
+    mock_api.get("/companies/com_1").mock(
+        side_effect=[httpx.ReadError(""), httpx.Response(200, json={"id": "com_1"})]
+    )
+    is_error, payload = await _run(
+        code_server, '(await check.get_company(company_id="com_1"))["id"]'
+    )
+    assert not is_error, payload
+    assert payload["result"] == "com_1"
+    assert payload["calls"][0]["retries"] == 1
+    assert mock_api.calls.call_count == 2
+
+
+@pytest.mark.anyio
+async def test_run_code_reports_a_write_whose_connection_dropped(mock_api, code_server):
+    mock_api.post("/workplaces").mock(side_effect=httpx.ReadError(""))
+    code = """
+await check.create_workplace(
+    company="com_1", name="HQ", address={"line1": "1 Main St", "city": "SF", "state": "CA", "postal_code": "94105"}
+)
+"""
+    is_error, payload = await _run(code_server, code, writes=["create_workplace"])
+    assert is_error
+    assert payload["kind"] == "runtime_error"
+    assert payload["calls"][0]["status"] == "error"
+    assert "retries" not in payload["calls"][0]
+    assert payload["calls"][0]["error"] == {
+        "error": True,
+        "transport_error": "ReadError",
+        "detail": "ReadError",
+    }
+    assert mock_api.calls.call_count == 1
+
+
+@pytest.mark.anyio
+async def test_run_code_cancels_calls_in_flight_when_the_program_fails(
+    mock_api, code_server
+):
+    completed: list[str] = []
+
+    async def slow(request):
+        await asyncio.sleep(1.5)
+        completed.append(request.url.path)
+        return httpx.Response(200, json={"id": "wrk_1"})
+
+    mock_api.get("/workplaces/wrk_1").mock(side_effect=slow)
+    mock_api.get("/companies/com_missing").mock(
+        return_value=httpx.Response(404, json={"error": "nope"})
+    )
+    code = """
+import asyncio
+async def boom():
+    await asyncio.sleep(0.1)
+    return await check.get_company(company_id="com_missing")
+await asyncio.gather(check.get_workplace(workplace_id="wrk_1"), boom())
+"""
+    is_error, payload = await _run(code_server, code)
+    assert is_error
+    assert payload["kind"] == "runtime_error"
+    assert [(c["tool"], c["status"]) for c in payload["calls"]] == [
+        ("get_workplace", "pending"),
+        ("get_company", "error"),
+    ]
+    assert "pending" in payload["detail"]
+    await asyncio.sleep(2)
+    assert completed == []
+
+
+@pytest.mark.anyio
 async def test_run_code_gives_up_after_max_retries(mock_api, monkeypatch):
     monkeypatch.setenv("CHECK_API_KEY", "test-key")
     monkeypatch.setenv("CHECK_CODE_MAX_RETRIES", "1")
@@ -861,6 +1048,7 @@ for _ in range(3):
     assert is_error
     assert payload["kind"] == "runtime_error"
     assert "budget" in payload["detail"]
+    assert "Split the work" in payload["hint"]
     assert mock_api.calls.call_count == 2
 
 

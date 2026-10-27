@@ -254,7 +254,14 @@ async def _check_api_request(
         # instead of reporting an opaque transport error.
         return {"error": True, Failure.TIMED_OUT.value: True, "detail": str(e)}
     except httpx.RequestError as e:
-        return {"error": True, "detail": str(e)}
+        # A dropped connection or similar. httpx often leaves the message
+        # empty, so the class name stands in; transport_error lets code mode
+        # retry a read without parsing the message.
+        return {
+            "error": True,
+            "transport_error": type(e).__name__,
+            "detail": str(e) or type(e).__name__,
+        }
 
 
 async def check_api_get(ctx: Ctx, path: str, params: dict | None = None) -> dict:
