@@ -188,3 +188,11 @@ async def test_list_earning_codes(mock_api, ctx):
     )
     result = await list_earning_codes(ctx)
     assert result["results"] == [{"id": "ec_001"}]
+
+
+@pytest.mark.parametrize("tool", [list_benefits, list_post_tax_deductions])
+def test_exclusive_list_filters_are_documented(tool):
+    """The API rejects company and employee together; the docstring must say so."""
+    first_line = tool.__doc__.strip().splitlines()[0]
+    assert "not both" in first_line
+    assert "company:" in tool.__doc__ and "employee:" in tool.__doc__
