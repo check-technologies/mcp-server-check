@@ -119,7 +119,8 @@ async def create_contractor(
         ssn: Contractor's Social Security Number.
         ein: Contractor's Employer Identification Number (for businesses).
         default_net_pay_split: ID of contractor's default net pay split.
-        payment_method_preference: "direct_deposit" or "manual".
+        payment_method_preference: "direct_deposit", "manual", or "cash_app"
+            (requires ENABLE_CASH_APP_PAYOUTS for the partner).
         address: Address with keys: line1, line2, city, state, postal_code, country.
         metadata: Arbitrary key-value object stored on the contractor.
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
@@ -190,7 +191,8 @@ async def update_contractor(
         ssn: Contractor's Social Security Number.
         ein: Contractor's Employer Identification Number (for businesses).
         default_net_pay_split: ID of contractor's default net pay split.
-        payment_method_preference: "direct_deposit" or "manual".
+        payment_method_preference: "direct_deposit", "manual", or "cash_app"
+            (requires ENABLE_CASH_APP_PAYOUTS for the partner).
         address: Address with keys: line1, line2, city, state, postal_code, country.
         metadata: Arbitrary key-value object stored on the contractor.
     """

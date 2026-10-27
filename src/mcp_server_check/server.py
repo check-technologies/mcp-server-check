@@ -538,8 +538,8 @@ def _register_resources(server: CheckMCP) -> None:
             "values": ["four_day", "three_day", "two_day", "one_day"],
         },
         "payment_method_preference": {
-            "description": "Valid values for payment_method_preference on employees.",
-            "values": ["direct_deposit", "manual"],
+            "description": "Valid values for payment_method_preference on employees and contractors.",
+            "values": ["direct_deposit", "manual", "cash_app"],
         },
         "payroll_type": {
             "description": "Valid values for the type field on payrolls.",
