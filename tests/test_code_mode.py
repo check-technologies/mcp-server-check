@@ -599,7 +599,56 @@ def test_sandbox_hint():
     assert "next(iter(...))" in sandbox_hint(
         "TypeError: 'list' object is not an iterator"
     )
+    for detail in (
+        "NotImplementedError: The monty syntax parser does not yet support async "
+        "context managers (async with)",
+        "AttributeError: module 'asyncio' has no attribute 'Semaphore'",
+        "NotImplementedError: gather() does not yet support keyword arguments",
+    ):
+        assert "gather(*coros) and sleep()" in sandbox_hint(detail), detail
+    assert "no generators" in sandbox_hint(
+        "NotImplementedError: The monty syntax parser does not yet support yield "
+        "expressions"
+    )
+    assert "no class inheritance" in sandbox_hint(
+        "NotImplementedError: The monty syntax parser does not yet support class "
+        "inheritance and metaclasses"
+    )
+    assert "dict.pop" in sandbox_hint(
+        "NotImplementedError: The monty syntax parser does not yet support the "
+        "'del' statement"
+    )
+    assert "one string argument" in sandbox_hint(
+        "RuntimeError: Internal error in monty: exceptions can only be called with "
+        "zero or one string argument"
+    )
+    assert sandbox_hint(
+        "NotImplementedError: The monty syntax parser does not yet support walrus "
+        "in lambdas"
+    ) == (
+        "The sandbox does not support walrus in lambdas. Rewrite the program "
+        "without it."
+    )
     assert sandbox_hint("KeyError: 'x'") is None
+
+
+@pytest.mark.anyio
+async def test_run_code_async_with_semaphore_fails_with_hint(mock_api, code_server):
+    """The program from testing: a semaphore around each call."""
+    mock_api.get("/companies").mock(return_value=httpx.Response(200, json=COMPANIES))
+    code = """
+import asyncio
+sem = asyncio.Semaphore(4)
+async def fetch(cid):
+    async with sem:
+        return await check.get_company(company_id=cid)
+page = await check.list_companies()
+await asyncio.gather(*[fetch(c["id"]) for c in page["results"]])
+"""
+    is_error, payload = await _run(code_server, code)
+    assert is_error
+    assert "gather(*coros) and sleep()" in payload["hint"]
+    assert "Drop the throttling" in payload["hint"]
 
 
 @pytest.mark.anyio

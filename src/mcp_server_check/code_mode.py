@@ -74,8 +74,11 @@ program can call them.
 
 Make the answer the program's last expression; the server serializes it. The
 sandbox's modules are {", ".join(SANDBOX_MODULES)}; json.dumps takes indent
-and sort_keys but not default. Generator expressions evaluate eagerly to
-lists here (use next(iter(...))).
+and sort_keys but not default. asyncio has only gather(*coros) and sleep():
+no Semaphore, wait_for, or create_task, and the server already caps
+concurrent calls and retries throttled ones, so do not throttle. No async
+with, async for, generators, class inheritance, or del. Generator
+expressions evaluate eagerly to lists here (use next(iter(...))).
 
 List results are summaries: each record keeps only the fields below, by ID
 prefix. Call the matching get_* tool for a full record.
@@ -387,6 +390,43 @@ _SANDBOX_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
         "Generator expressions evaluate eagerly to lists in the sandbox, so "
         "next() cannot consume one. Use next(iter(...)), index the list, or a "
         "for loop.",
+    ),
+    (
+        re.compile(
+            r"does not yet support async context managers"
+            r"|module 'asyncio' has no attribute"
+            r"|gather\(\) does not yet support keyword arguments"
+        ),
+        "The sandbox's asyncio has only gather(*coros) and sleep(): no "
+        "Semaphore, wait_for, create_task, async with, or gather keyword "
+        "arguments. Drop the throttling; the server already caps concurrent "
+        "calls and retries throttled ones. For partial failures, catch "
+        "RuntimeError inside a helper coroutine instead of "
+        "gather(return_exceptions=True).",
+    ),
+    (
+        re.compile(r"does not yet support yield expressions"),
+        "The sandbox has no generators, so no yield or async for. Build and "
+        "return lists instead.",
+    ),
+    (
+        re.compile(r"does not yet support class inheritance"),
+        "The sandbox has no class inheritance: no subclassing, custom "
+        "exception classes, TypedDict, or NamedTuple. Use plain classes, "
+        "dicts, or dataclasses, and raise built-in exceptions.",
+    ),
+    (
+        re.compile(r"does not yet support the 'del' statement"),
+        "The sandbox has no del statement. Use dict.pop(key) or list.pop(i).",
+    ),
+    (
+        re.compile(r"exceptions can only be called with zero or one string argument"),
+        "Exceptions in the sandbox take at most one string argument.",
+    ),
+    (
+        # Anything else Monty's parser or runtime reports as unsupported.
+        re.compile(r"does not yet support (.+?)(?:\.|$)"),
+        "The sandbox does not support {name}. Rewrite the program without it.",
     ),
 )
 
