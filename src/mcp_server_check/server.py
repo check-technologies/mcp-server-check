@@ -133,8 +133,13 @@ you.
 it; do not json.dumps or print it. The sandbox is a Python subset: its only \
 modules are {", ".join(SANDBOX_MODULES)} (json.dumps takes indent and \
 sort_keys, not default); generator expressions evaluate eagerly to lists (use \
-`next(iter(...))`); there are no third-party packages. When a program hits one \
-of these limits, the error carries a hint; fix the program and rerun it.
+`next(iter(...))`); there are no third-party packages.
+- Its asyncio has only gather(*coros) and sleep(): no Semaphore, wait_for, \
+create_task, async with, or gather keyword arguments. Do not throttle or time \
+out calls yourself; the server caps concurrent calls and retries throttled \
+ones. There is also no async for, yield, class inheritance (so no custom \
+exceptions, TypedDict, or NamedTuple), or del. When a program hits one of \
+these limits, the error carries a hint; fix the program and rerun it.
 - Write tools (create_*, update_*, approve_*, ...) are absent from `check` \
 unless named in run_code's writes argument. Confirm with the user before \
 running a program that declares writes, and keep reads and writes in separate \
