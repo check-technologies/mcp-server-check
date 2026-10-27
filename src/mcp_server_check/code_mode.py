@@ -28,7 +28,7 @@ from typing_extensions import is_typeddict
 
 from mcp_server_check import types as check_types
 from mcp_server_check.errors import CheckToolError
-from mcp_server_check.tool_filter import ToolFilter
+from mcp_server_check.tool_filter import PREVIEW_TOOLSETS, ToolFilter
 from mcp_server_check.tool_index import ToolEntry, ToolIndex
 
 logger = logging.getLogger(__name__)
@@ -67,7 +67,8 @@ _STUB_HEADER = f'''\
 Every function is async: `await {MODULE_NAME}.list_companies(limit=100)`. Use
 asyncio.gather for independent calls. A failed Check API call raises
 RuntimeError whose message is a JSON object with "status_code" and "detail".
-Throttled calls are retried for you. List results carry "results",
+Throttled calls, and reads whose connection dropped, are retried for you. List
+results carry "results",
 "result_count" and "next_cursor"; pass the cursor back to page. Write tools
 are marked below and must be named in run_code's `writes` argument before a
 program can call them.
@@ -251,7 +252,7 @@ class CodeModeSettings:
     max_calls: int = 200
     max_memory_bytes: int = 256 * 1024 * 1024
     concurrency: int = 8
-    max_retries: int = 4
+    max_retries: int = 8
     max_programs: int = 4
 
     @classmethod
@@ -346,27 +347,102 @@ CallListener = Callable[[CallRecord, int], Awaitable[None]]
 
 _THROTTLE_HINT = re.compile(r"available in (\d+(?:\.\d+)?) second")
 _FUNCTION_DIAGNOSTIC = re.compile(r"function `(\w+)`")
+_MISSING_MEMBER = re.compile(r"Module `" + MODULE_NAME + r"` has no member `(\w+)`")
 
 
-def signature_errors(diagnostics: str, tool_names: Iterable[str]) -> list[str]:
-    """The type-check diagnostics worth blocking on.
+def missing_member_notes(
+    errors: Iterable[str],
+    entries: Mapping[str, ToolEntry],
+    tool_filter: ToolFilter,
+    writes: Iterable[str],
+) -> list[str]:
+    """Why each tool the type checker could not find is absent from `check`.
+
+    "Module `check` has no member `create_correction`" is true for a tool
+    that does not exist, one hidden by the server's configuration, and a
+    write the program did not declare, and the fix is different for each.
+    """
+    declared = set(writes)
+    notes: list[str] = []
+    seen: set[str] = set()
+    for line in errors:
+        match = _MISSING_MEMBER.search(line)
+        if not match or match.group(1) in seen:
+            continue
+        name = match.group(1)
+        seen.add(name)
+        entry = entries.get(name)
+        if entry is None:
+            notes.append(
+                f"{name}: no such tool. Call get_stubs(query='{name}') to find "
+                "the right name."
+            )
+        elif not tool_filter.is_tool_allowed(name, entry.toolset):
+            if (
+                entry.toolset in PREVIEW_TOOLSETS
+                and entry.toolset not in tool_filter.preview_toolsets
+            ):
+                notes.append(
+                    f"{name}: in the preview toolset '{entry.toolset}', which "
+                    "this connection has not opted into."
+                )
+            else:
+                notes.append(
+                    f"{name}: hidden by the server's configuration (read-only "
+                    "mode, toolset selection, or an exclusion)."
+                )
+        elif entry.is_write and name not in declared:
+            notes.append(
+                f"{name}: a write tool; name it in run_code's writes argument "
+                "to call it."
+            )
+    return notes
+
+
+# Diagnostics that name a tool but judge the type of an argument rather than
+# its name. The checker infers those types from untyped JSON, so `cid = None`
+# followed by `cid = c["id"]` in a loop is "str | None" to it and the call is
+# refused; such lines are reported as warnings instead of blocking the run.
+_WARNING_DIAGNOSTICS = ("[invalid-argument-type]",)
+
+
+def _tool_diagnostics(
+    diagnostics: str, tool_names: Iterable[str]
+) -> tuple[list[str], list[str]]:
+    """Split diagnostics into those worth blocking on and those worth a warning.
 
     Type checking exists to catch a wrong tool name or argument before any API
     call. Diagnostics about the program's own handling of untyped results
     (unions the checker infers from JSON) are not reliable enough to block on,
     so only lines naming the module or one of its functions count, plus an
-    import the sandbox cannot resolve, which would fail at runtime anyway.
+    import the sandbox cannot resolve, which would fail at runtime anyway. A
+    line naming a function but only doubting an argument's type is a warning.
     """
     names = set(tool_names)
-    errors = []
+    errors: list[str] = []
+    warnings: list[str] = []
     for line in diagnostics.splitlines():
         if "Module `" + MODULE_NAME + "`" in line or "[unresolved-import]" in line:
             errors.append(line)
             continue
         match = _FUNCTION_DIAGNOSTIC.search(line)
-        if match and match.group(1) in names:
+        if not match or match.group(1) not in names:
+            continue
+        if any(code in line for code in _WARNING_DIAGNOSTICS):
+            warnings.append(line)
+        else:
             errors.append(line)
-    return errors
+    return errors, warnings
+
+
+def signature_errors(diagnostics: str, tool_names: Iterable[str]) -> list[str]:
+    """The type-check diagnostics worth blocking on; see _tool_diagnostics."""
+    return _tool_diagnostics(diagnostics, tool_names)[0]
+
+
+def signature_warnings(diagnostics: str, tool_names: Iterable[str]) -> list[str]:
+    """Type-check diagnostics about a tool call that do not block the run."""
+    return _tool_diagnostics(diagnostics, tool_names)[1]
 
 
 _MODULE_LIST = ", ".join(SANDBOX_MODULES)
@@ -424,6 +500,14 @@ _SANDBOX_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
         "Exceptions in the sandbox take at most one string argument.",
     ),
     (
+        re.compile(r"exceeded its budget of (\d+) tool calls"),
+        "The program made more than {name} tool calls, and the calls that "
+        "succeeded before the limit are lost with it. Split the work across "
+        "several run_code programs, or use a composite tool such as "
+        "get_company_overview or get_employee_snapshot that bundles several "
+        "API calls into one.",
+    ),
+    (
         # Anything else Monty's parser or runtime reports as unsupported.
         re.compile(r"does not yet support (.+?)(?:\.|$)"),
         "The sandbox does not support {name}. Rewrite the program without it.",
@@ -443,6 +527,18 @@ def sandbox_hint(detail: str) -> str | None:
 
 def _is_throttled(payload: dict[str, Any]) -> bool:
     return payload.get("status_code") == 429
+
+
+def _is_transient(payload: dict[str, Any], *, is_write: bool) -> bool:
+    """Whether a failed call is worth retrying.
+
+    A throttled call always is. A transport error (the connection dropped
+    before a response arrived) is for a read; a write may already have
+    landed, so it is reported instead.
+    """
+    if _is_throttled(payload):
+        return True
+    return bool(payload.get("transport_error")) and not is_write
 
 
 def _retry_delay(payload: dict[str, Any], attempt: int) -> float:
@@ -467,8 +563,33 @@ class ProgramRun:
     # calls finish out of order.
     on_call: CallListener | None = None
     finished_count: int = 0
+    # Monotonic time before which no call may be sent. One throttled call
+    # pauses every call of the program, so a gather stops hammering the API
+    # the moment it says to wait instead of each call finding out for itself.
+    resume_at: float = 0.0
+    # The tasks running host calls, so calls still in flight when the program
+    # ends can be cancelled rather than left to finish in the background.
+    tasks: set[asyncio.Task[Any]] = field(default_factory=set)
+    closed: bool = False
+
+    def throttle(self, delay: float) -> None:
+        self.resume_at = max(self.resume_at, time.monotonic() + delay)
+
+    async def wait_for_window(self) -> None:
+        """Sleep until the program may send a call again."""
+        while (delay := self.resume_at - time.monotonic()) > 0:
+            await asyncio.sleep(delay)
+
+    def close(self) -> None:
+        """Stop reporting calls and cancel those still in flight."""
+        self.closed = True
+        for task in list(self.tasks):
+            task.cancel()
+        self.tasks.clear()
 
     async def finished(self, record: CallRecord) -> None:
+        if self.closed:
+            return
         self.finished_count += 1
         if self.on_call is None:
             return
@@ -589,27 +710,38 @@ class CodeRunner:
                 )
             record = CallRecord(tool=entry.name, arguments=arguments)
             run.calls.append(record)
+            task = asyncio.current_task()
+            if task is not None:
+                run.tasks.add(task)
             started = time.monotonic()
             try:
                 while True:
                     try:
                         async with semaphore:
+                            # Waiting inside the semaphore keeps the burst
+                            # after a pause no larger than the concurrency cap.
+                            await run.wait_for_window()
                             result = await self._index.run(
                                 entry.name, arguments, tool_filter
                             )
                         break
                     except CheckToolError as e:
-                        # A throttled call is retried here, outside the
-                        # semaphore, so a program's gather does not have to
-                        # know about rate limits.
+                        # Throttled calls, and dropped connections on reads,
+                        # are retried here so a program's gather does not
+                        # have to know about rate limits. Retrying outside
+                        # the semaphore puts the call at the back of the
+                        # queue behind calls that have not had a turn.
                         if (
-                            not _is_throttled(e.payload)
+                            not _is_transient(e.payload, is_write=entry.is_write)
                             or record.retries >= max_retries
                         ):
                             raise
                         delay = _retry_delay(e.payload, record.retries)
                         record.retries += 1
-                        await asyncio.sleep(delay)
+                        if _is_throttled(e.payload):
+                            run.throttle(delay)
+                        else:
+                            await asyncio.sleep(delay)
             except CheckToolError as e:
                 record.status = "error"
                 record.error = e.payload
@@ -621,6 +753,8 @@ class CodeRunner:
             else:
                 record.status = "ok"
             finally:
+                if task is not None:
+                    run.tasks.discard(task)
                 record.duration_ms = int((time.monotonic() - started) * 1000)
                 await run.finished(record)
             return _decode(result)
@@ -678,6 +812,12 @@ class CodeRunner:
         deadline = started + timeout
 
         def failure(kind: str, detail: str) -> CheckToolError:
+            if any(c.status == "pending" for c in program.calls):
+                detail += (
+                    " Calls marked pending were still in flight when the"
+                    " program ended and were cancelled; a pending write may"
+                    " still have landed, so check before retrying it."
+                )
             payload: dict[str, Any] = {
                 "error": True,
                 "kind": kind,
@@ -698,6 +838,7 @@ class CodeRunner:
                 session.feed_run(source, **kwargs), timeout=remaining
             )
 
+        warnings: list[str] = []
         try:
             async with pm.AsyncMonty(min_processes=1, max_processes=1) as pool:
                 session = pool.checkout(
@@ -714,7 +855,7 @@ class CodeRunner:
                     try:
                         value = await feed(session, code, print_callback=printed)
                     except pm.MontyTypingError as e:
-                        errors = signature_errors(e.display(), module.attrs)
+                        errors, warnings = _tool_diagnostics(e.display(), module.attrs)
                         if errors:
                             if all("[unresolved-import]" in line for line in errors):
                                 what = (
@@ -724,11 +865,15 @@ class CodeRunner:
                             else:
                                 what = (
                                     "The program does not match the check module's "
-                                    "signatures; nothing ran. Use get_stubs or "
-                                    "search_tools to see them.\n"
+                                    "signatures; nothing ran. Use get_stubs to see "
+                                    "them.\n"
                                 )
+                            notes = missing_member_notes(
+                                errors, self._index.entries, tool_filter, writes
+                            )
                             raise failure(
-                                "type_check_failed", what + "\n".join(errors)
+                                "type_check_failed",
+                                what + "\n".join([*errors, *notes]),
                             ) from e
                         # Diagnostics about the program's own data handling:
                         # run it anyway.
@@ -749,18 +894,21 @@ class CodeRunner:
                 f"The program did not finish within {timeout:g} seconds. "
                 "Make fewer or more parallel calls."
             )
-            if any(c.status == "pending" for c in program.calls):
-                detail += (
-                    " Calls marked pending were still running and may complete;"
-                    " check whether a pending write landed before retrying it."
-                )
             raise failure("timeout", detail) from e
         except pm.MontyError as e:
             raise failure("sandbox_error", str(e)) from e
+        finally:
+            # Whatever ended the program, nothing it started may outlive it:
+            # a call still in flight would otherwise finish in the background
+            # and report progress to a request that has already answered.
+            program.close()
 
-        return {
+        result = {
             "result": value,
             "logs": printed.output,
             "calls": [c.to_dict() for c in program.calls],
             "duration_ms": int((time.monotonic() - started) * 1000),
         }
+        if warnings:
+            result["warnings"] = warnings
+        return result

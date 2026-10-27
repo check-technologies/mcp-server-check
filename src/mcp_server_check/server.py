@@ -123,12 +123,13 @@ see what touched their account.
 and its tool names; get_stubs(tools=[...]), get_stubs(toolset=...), or \
 get_stubs(query="...") return signatures with docstrings. A program is \
 type-checked against them before it runs, so a wrong name or argument fails \
-before any API call is made.
+before any API call is made; a doubt about an argument's type comes back as a \
+warning with the result instead.
 - Paginate with next_cursor until it is null. List results are summaries (key \
 fields only); call the get_* tool for a full record.
 - A failed API call raises RuntimeError whose message is a JSON object with \
-status_code and detail; catch it to continue. Throttled calls are retried for \
-you.
+status_code and detail; catch it to continue. Throttled calls, and reads whose \
+connection dropped, are retried for you.
 - Make the answer the program's last expression and let the server serialize \
 it; do not json.dumps or print it. The sandbox is a Python subset: its only \
 modules are {", ".join(SANDBOX_MODULES)} (json.dumps takes indent and \
@@ -468,9 +469,11 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
 
         Check the signatures first with get_stubs: the program
         is type-checked against them before it runs, so a wrong name or
-        argument fails fast without touching the API. A failed Check API call
+        argument fails fast without touching the API, and a doubt about an
+        argument's type is returned as a warning. A failed Check API call
         raises RuntimeError whose message is a JSON object with status_code
-        and detail; catch it to continue. There is no network or filesystem
+        and detail; catch it to continue. Throttled calls and reads whose
+        connection dropped are retried. There is no network or filesystem
         access; only `check.*` calls leave the sandbox.
 
         code: The Python source to run.
