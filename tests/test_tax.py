@@ -351,7 +351,9 @@ async def test_delete_employee_tax_statement_override(mock_api, ctx):
     mock_api.delete("/employee_tax_statement_overrides/ets_ovr_001").mock(
         return_value=httpx.Response(200, json={"id": "ets_ovr_001"})
     )
-    result = await delete_employee_tax_statement_override(ctx, override_id="ets_ovr_001")
+    result = await delete_employee_tax_statement_override(
+        ctx, override_id="ets_ovr_001"
+    )
     assert result["id"] == "ets_ovr_001"
 
 
