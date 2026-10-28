@@ -20,6 +20,7 @@ from mcp_server_check.tools.tax import (
     list_filings,
     list_taxes,
     request_tax_package,
+    simulate_employee_tax_statement_publish,
     update_company_tax_params,
     update_employee_tax_elections,
 )
@@ -394,3 +395,12 @@ async def test_get_tax(mock_api, ctx):
     result = await get_tax(ctx, tax_id="tax_001")
     assert result["id"] == "tax_001"
     assert result["jurisdiction"] == "fed"
+
+
+@pytest.mark.anyio
+async def test_simulate_employee_tax_statement_publish(mock_api, ctx):
+    mock_api.post("/employee_tax_statements/ets_001/simulate/publish").mock(
+        return_value=httpx.Response(200, json={"id": "ets_001", "published_at": "2026-01-01"})
+    )
+    result = await simulate_employee_tax_statement_publish(ctx, statement_id="ets_001")
+    assert result["id"] == "ets_001"

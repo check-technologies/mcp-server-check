@@ -4,7 +4,7 @@
 
 > **Terms of Service** — By using this MCP server to access the Check API, you agree to the [MCP Usage Terms](TERMS_OF_SERVICE.md), which are in addition to your existing agreement with Check.
 
-An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 263 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
+An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 264 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
 
@@ -244,7 +244,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 ## Available Tools
 
-263 tools organized across 17 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
+264 tools organized across 17 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
 
 ### Companies (26 tools)
 
@@ -498,7 +498,7 @@ Asynchronous reporting. `create_report_run` returns a `run_` ID, `get_report_run
 | `refund_payment` | POST | Refund a payment |
 | `cancel_payment` | POST | Cancel a payment |
 
-### Tax (26 tools)
+### Tax (27 tools)
 
 Tax parameters, elections (including tax exemptions), filings, statements, packages, and tax reference data.
 
@@ -532,6 +532,7 @@ Tax parameters, elections (including tax exemptions), filings, statements, packa
 | **Employee Tax Statements** | | |
 | `list_employee_tax_statements` | GET | List employee tax statements |
 | `get_employee_tax_statement` | GET | Get a specific tax statement |
+| `simulate_employee_tax_statement_publish` | POST | Simulate publishing a draft statement (sandbox) |
 | **Tax Packages** | | |
 | `request_tax_package` | POST | Request a tax package |
 | `get_tax_package` | GET | Get a specific tax package |
