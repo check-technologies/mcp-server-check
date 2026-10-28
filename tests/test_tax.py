@@ -287,6 +287,24 @@ async def test_get_filing(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_request_tax_package_statement_csv_format(mock_api, ctx):
+    route = mock_api.post("/tax_packages").mock(
+        return_value=httpx.Response(201, json={"id": "tax_pkg_002"})
+    )
+    await request_tax_package(
+        ctx,
+        company="com_001",
+        employee_tax_statements=["ets_001"],
+        statement_csv_format="with_ids",
+    )
+    assert json.loads(route.calls.last.request.content) == {
+        "company": "com_001",
+        "contents": {"employee_tax_statements": ["ets_001"]},
+        "statement_csv_format": "with_ids",
+    }
+
+
+@pytest.mark.anyio
 async def test_request_tax_package_with_filings(mock_api, ctx):
     route = mock_api.post("/tax_packages").mock(
         return_value=httpx.Response(
