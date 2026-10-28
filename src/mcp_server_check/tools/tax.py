@@ -595,7 +595,7 @@ async def get_employee_tax_statement_override(ctx: Ctx, override_id: str) -> dic
     """Get a specific employee tax statement override.
 
     Args:
-        override_id: The override ID (e.g. "etso_xxxxx").
+        override_id: The override ID (e.g. "ets_ovr_xxxxx").
     """
     return await check_api_get(ctx, f"/employee_tax_statement_overrides/{override_id}")
 
@@ -641,7 +641,7 @@ async def update_employee_tax_statement_override(
     employee and year cannot be changed; delete and create a new override instead.
 
     Args:
-        override_id: The override ID (e.g. "etso_xxxxx").
+        override_id: The override ID (e.g. "ets_ovr_xxxxx").
         qualified_overtime_compensation: Money string (e.g. "900.00") or null to clear.
         other_lines: List of line objects, each with label (string) and amount
             (money string).
@@ -663,7 +663,7 @@ async def delete_employee_tax_statement_override(ctx: Ctx, override_id: str) -> 
     """Delete an employee tax statement override.
 
     Args:
-        override_id: The override ID (e.g. "etso_xxxxx").
+        override_id: The override ID (e.g. "ets_ovr_xxxxx").
     """
     return await check_api_delete(
         ctx, f"/employee_tax_statement_overrides/{override_id}"
