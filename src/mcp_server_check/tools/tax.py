@@ -572,6 +572,7 @@ async def request_tax_package(
     company: str,
     employee_tax_statements: list[str] | None = None,
     filings: list[str] | None = None,
+    statement_csv_format: str | None = None,
 ) -> dict:
     """Request a tax package.
 
@@ -581,6 +582,10 @@ async def request_tax_package(
             (e.g. ["ets_xxxxx"]).
         filings: Company filing IDs to include employer copies for
             (e.g. ["com_fil_xxxxx"]).
+        statement_csv_format: Layout of the statement CSVs in the package.
+            One of "standard" (default) or "with_ids" (adds a leading statement
+            ID column). The with_ids value requires the provider feature flag
+            ENABLE_TAX_PACKAGE_STATEMENT_CSV_IDS.
     """
     contents: dict[str, list[str]] = {}
     if employee_tax_statements is not None:
@@ -594,6 +599,7 @@ async def request_tax_package(
         data=build_body(
             {"company": company},
             contents=contents if contents else None,
+            statement_csv_format=statement_csv_format,
         ),
     )
 
