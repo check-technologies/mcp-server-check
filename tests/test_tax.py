@@ -8,7 +8,10 @@ import httpx
 import pytest
 
 from mcp_server_check.tools.tax import (
+    create_employee_tax_statement_overrides,
+    delete_employee_tax_statement_override,
     get_company_tax_params,
+    get_employee_tax_statement_override,
     get_filing,
     get_tax,
     list_company_tax_elections,
@@ -16,11 +19,13 @@ from mcp_server_check.tools.tax import (
     list_employee_tax_elections,
     list_employee_tax_param_settings,
     list_employee_tax_params,
+    list_employee_tax_statement_overrides,
     list_employee_tax_statements,
     list_filings,
     list_taxes,
     request_tax_package,
     update_company_tax_params,
+    update_employee_tax_statement_override,
     update_employee_tax_elections,
 )
 
@@ -250,6 +255,106 @@ async def test_list_filings_with_filters(mock_api, ctx):
     assert req.url.params["period"] == "q1"
     assert req.url.params["status"] == "blocked"
     assert req.url.params["correction"] == "cor_abc"
+
+
+@pytest.mark.anyio
+async def test_list_employee_tax_statement_overrides_with_filters(mock_api, ctx):
+    mock_api.get("/employee_tax_statement_overrides").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "ets_ovr_001"}]},
+        )
+    )
+    result = await list_employee_tax_statement_overrides(
+        ctx, company="com_456", employee="emp_123", year=2026
+    )
+    assert result["results"] == [{"id": "ets_ovr_001"}]
+    req = mock_api.get("/employee_tax_statement_overrides").calls.last.request
+    assert req.url.params["company"] == "com_456"
+    assert req.url.params["employee"] == "emp_123"
+    assert req.url.params["year"] == "2026"
+
+
+@pytest.mark.anyio
+async def test_create_employee_tax_statement_overrides(mock_api, ctx):
+    route = mock_api.post("/employee_tax_statement_overrides").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "results": [
+                    {
+                        "id": "ets_ovr_001",
+                        "company": "com_001",
+                        "employee": "emp_001",
+                        "year": 2026,
+                    }
+                ]
+            },
+        )
+    )
+    result = await create_employee_tax_statement_overrides(
+        ctx,
+        company="com_001",
+        overrides=[
+            {
+                "employee": "emp_001",
+                "year": 2026,
+                "qualified_overtime_compensation": "900.00",
+            }
+        ],
+        idempotency_key="idem-1",
+    )
+    assert result["results"][0]["id"] == "ets_ovr_001"
+    req = route.calls.last.request
+    assert req.headers["X-Idempotency-Key"] == "idem-1"
+    assert json.loads(req.content) == {
+        "company": "com_001",
+        "overrides": [
+            {
+                "employee": "emp_001",
+                "year": 2026,
+                "qualified_overtime_compensation": "900.00",
+            }
+        ],
+    }
+
+
+@pytest.mark.anyio
+async def test_update_employee_tax_statement_override(mock_api, ctx):
+    route = mock_api.patch("/employee_tax_statement_overrides/ets_ovr_001").mock(
+        return_value=httpx.Response(200, json={"id": "ets_ovr_001", "year": 2026})
+    )
+    result = await update_employee_tax_statement_override(
+        ctx,
+        override_id="ets_ovr_001",
+        qualified_overtime_compensation="100.00",
+        other_lines=[{"label": "PUCC", "amount": "50.00"}],
+    )
+    assert result["id"] == "ets_ovr_001"
+    assert json.loads(route.calls.last.request.content) == {
+        "qualified_overtime_compensation": "100.00",
+        "other_lines": [{"label": "PUCC", "amount": "50.00"}],
+    }
+
+
+@pytest.mark.anyio
+async def test_get_employee_tax_statement_override(mock_api, ctx):
+    mock_api.get("/employee_tax_statement_overrides/ets_ovr_001").mock(
+        return_value=httpx.Response(200, json={"id": "ets_ovr_001"})
+    )
+    result = await get_employee_tax_statement_override(ctx, override_id="ets_ovr_001")
+    assert result["id"] == "ets_ovr_001"
+
+
+@pytest.mark.anyio
+async def test_delete_employee_tax_statement_override(mock_api, ctx):
+    mock_api.delete("/employee_tax_statement_overrides/ets_ovr_001").mock(
+        return_value=httpx.Response(200, json={"id": "ets_ovr_001"})
+    )
+    result = await delete_employee_tax_statement_override(
+        ctx, override_id="ets_ovr_001"
+    )
+    assert result["id"] == "ets_ovr_001"
 
 
 @pytest.mark.anyio
