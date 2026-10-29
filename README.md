@@ -321,11 +321,11 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 | Tool | Method | Description |
 |---|---|---|
 | `list_payrolls` | GET | List payrolls with optional filters |
-| `get_payroll` | GET | Get details for a specific payroll |
+| `get_payroll` | GET | Get details for a specific payroll; items are omitted unless `include_items=true` |
 | `create_payroll` | POST | Create a new payroll |
 | `update_payroll` | PATCH | Update an existing payroll |
 | `delete_payroll` | DELETE | Delete a payroll |
-| `preview_payroll` | GET | Preview a payroll before approval |
+| `preview_payroll` | GET | Preview a payroll before approval; per-item previews are omitted unless `include_items=true` |
 | `approve_payroll` | POST | Approve a payroll for processing |
 | `reopen_payroll` | POST | Reopen a previously approved payroll |
 | `get_payroll_paper_checks` | GET | Get paper checks for a payroll |
@@ -364,8 +364,8 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 | Tool | Method | Description |
 |---|---|---|
-| `list_external_payrolls` | GET | List external payrolls; optionally omit line items with `include_items=false` |
-| `get_external_payroll` | GET | Get details for a specific external payroll |
+| `list_external_payrolls` | GET | List external payrolls; line items are omitted unless `include_items=true` |
+| `get_external_payroll` | GET | Get details for a specific external payroll; items are omitted unless `include_items=true` |
 | `create_external_payroll` | POST | Create a new external payroll |
 | `update_external_payroll` | PATCH | Update an external payroll |
 | `delete_external_payroll` | DELETE | Delete an external payroll |

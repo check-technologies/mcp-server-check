@@ -15,7 +15,13 @@ from mcp_server_check.helpers import (
     check_api_list,
     check_api_patch,
     check_api_post,
+    shape_payroll,
 )
+
+# Query parameters that make API version 2025-01-01 and later inline items and
+# contractor payments. Earlier versions inline both regardless; shape_payroll
+# removes them unless asked.
+_INLINE_PARAMS = {"include_items": "true", "include_contractor_payments": "true"}
 
 
 async def list_payrolls(
@@ -51,7 +57,9 @@ async def list_payrolls(
         pay_schedule: Filter by pay schedule ID.
         payday_after: Filter to payrolls with payday on or after this date (YYYY-MM-DD).
         payday_before: Filter to payrolls with payday on or before this date (YYYY-MM-DD).
-        include_items: Return payroll items inline.
+        include_items: Return payroll items inline for every payroll on the
+            page, which can be very large; prefer get_payroll or
+            list_payroll_items(payroll=...) for one payroll's items.
         include_contractor_payments: Return contractor payments inline.
     """
     return await check_api_list(
@@ -76,13 +84,27 @@ async def list_payrolls(
     )
 
 
-async def get_payroll(ctx: Ctx, payroll_id: str) -> dict:
+async def get_payroll(ctx: Ctx, payroll_id: str, include_items: bool = False) -> dict:
     """Get details for a specific payroll.
+
+    Payroll items and contractor payments are omitted by default. When the API
+    inlined them, ``items_count`` and ``contractor_payments_count`` say how many
+    there were. For the items themselves, page through
+    ``list_payroll_items(payroll=...)``, call ``get_payroll_details``, or pass
+    ``include_items=true`` here (every item comes back in one response, which
+    can be very large for a big payroll).
 
     Args:
         payroll_id: The Check payroll ID (e.g. "prl_xxxxx").
+        include_items: Return payroll items and contractor payments inline
+            (default false).
     """
-    return await check_api_get(ctx, f"/payrolls/{payroll_id}")
+    result = await check_api_get(
+        ctx,
+        f"/payrolls/{payroll_id}",
+        params=_INLINE_PARAMS if include_items else None,
+    )
+    return shape_payroll(result, include_items=include_items)
 
 
 async def create_payroll(
@@ -128,8 +150,11 @@ async def create_payroll(
         metadata: Arbitrary key-value object stored on the payroll.
         bank_account: ID of the bank account to fund the payroll.
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
+
+    The response omits inlined items and contractor payments (see get_payroll);
+    ``items_count`` confirms how many were written.
     """
-    return await check_api_post(
+    result = await check_api_post(
         ctx,
         "/payrolls",
         data=build_body(
@@ -152,6 +177,7 @@ async def create_payroll(
         ),
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
+    return shape_payroll(result)
 
 
 async def update_payroll(
@@ -193,8 +219,10 @@ async def update_payroll(
         bank_account: ID of the bank account to fund the payroll.
         correction: Check correction ID (e.g. "cor_xxxxx"). On update, send only to
             restate the payroll's current correction; a different value is rejected.
+
+    The response omits inlined items and contractor payments (see get_payroll).
     """
-    return await check_api_patch(
+    result = await check_api_patch(
         ctx,
         f"/payrolls/{payroll_id}",
         data=build_body(
@@ -215,6 +243,7 @@ async def update_payroll(
             correction=correction,
         ),
     )
+    return shape_payroll(result)
 
 
 async def delete_payroll(ctx: Ctx, payroll_id: str) -> dict:
@@ -226,13 +255,27 @@ async def delete_payroll(ctx: Ctx, payroll_id: str) -> dict:
     return await check_api_delete(ctx, f"/payrolls/{payroll_id}")
 
 
-async def preview_payroll(ctx: Ctx, payroll_id: str) -> dict:
+async def preview_payroll(
+    ctx: Ctx, payroll_id: str, include_items: bool = False
+) -> dict:
     """Preview a payroll before approval.
+
+    Returns the payroll with its calculated totals. Per-item previews are
+    omitted by default (``items_count`` says how many there are); pass
+    ``include_items=true`` for every item's preview inline, or read individual
+    items with ``get_payroll_item``.
 
     Args:
         payroll_id: The Check payroll ID.
+        include_items: Return per-item and per-contractor-payment previews
+            inline (default false).
     """
-    return await check_api_get(ctx, f"/payrolls/{payroll_id}/preview")
+    result = await check_api_get(
+        ctx,
+        f"/payrolls/{payroll_id}/preview",
+        params=_INLINE_PARAMS if include_items else None,
+    )
+    return shape_payroll(result, include_items=include_items)
 
 
 async def approve_payroll(
@@ -251,12 +294,13 @@ async def approve_payroll(
             re-previewed after this timestamp.
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
-    return await check_api_post(
+    result = await check_api_post(
         ctx,
         f"/payrolls/{payroll_id}/approve",
         data=build_body({}, preview_started_at=preview_started_at),
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
+    return shape_payroll(result)
 
 
 async def reopen_payroll(ctx: Ctx, payroll_id: str) -> dict:
@@ -265,7 +309,7 @@ async def reopen_payroll(ctx: Ctx, payroll_id: str) -> dict:
     Args:
         payroll_id: The Check payroll ID.
     """
-    return await check_api_post(ctx, f"/payrolls/{payroll_id}/reopen")
+    return shape_payroll(await check_api_post(ctx, f"/payrolls/{payroll_id}/reopen"))
 
 
 async def get_payroll_paper_checks(ctx: Ctx, payroll_id: str) -> dict:
@@ -304,8 +348,8 @@ async def simulate_start_processing(ctx: Ctx, payroll_id: str) -> dict:
     Args:
         payroll_id: The Check payroll ID.
     """
-    return await check_api_post(
-        ctx, f"/payrolls/{payroll_id}/simulate/start_processing"
+    return shape_payroll(
+        await check_api_post(ctx, f"/payrolls/{payroll_id}/simulate/start_processing")
     )
 
 
@@ -315,8 +359,8 @@ async def simulate_complete_funding(ctx: Ctx, payroll_id: str) -> dict:
     Args:
         payroll_id: The Check payroll ID.
     """
-    return await check_api_post(
-        ctx, f"/payrolls/{payroll_id}/simulate/complete_funding"
+    return shape_payroll(
+        await check_api_post(ctx, f"/payrolls/{payroll_id}/simulate/complete_funding")
     )
 
 
@@ -326,7 +370,9 @@ async def simulate_fail_funding(ctx: Ctx, payroll_id: str) -> dict:
     Args:
         payroll_id: The Check payroll ID.
     """
-    return await check_api_post(ctx, f"/payrolls/{payroll_id}/simulate/fail_funding")
+    return shape_payroll(
+        await check_api_post(ctx, f"/payrolls/{payroll_id}/simulate/fail_funding")
+    )
 
 
 async def simulate_complete_disbursements(ctx: Ctx, payroll_id: str) -> dict:
@@ -335,8 +381,10 @@ async def simulate_complete_disbursements(ctx: Ctx, payroll_id: str) -> dict:
     Args:
         payroll_id: The Check payroll ID.
     """
-    return await check_api_post(
-        ctx, f"/payrolls/{payroll_id}/simulate/complete_disbursements"
+    return shape_payroll(
+        await check_api_post(
+            ctx, f"/payrolls/{payroll_id}/simulate/complete_disbursements"
+        )
     )
 
 
