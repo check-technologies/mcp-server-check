@@ -26,7 +26,8 @@ when a session starts. Run all commands through `uv run` (they execute inside `.
   `uv sync --extra code`; the `x-mcp-code-mode` header or `code_mode` query parameter adds
   the same two tools per request;
   budgets via `CHECK_CODE_TIMEOUT_SECS`, `CHECK_CODE_MAX_CALLS`, `CHECK_CODE_CONCURRENCY`,
-  `CHECK_CODE_MAX_MEMORY_MB`, `CHECK_CODE_MAX_RETRIES`), `CHECK_TRANSPORT`, `CHECK_ENV` / `CHECK_API_BASE_URL`, `CHECK_READ_ONLY`,
+  `CHECK_CODE_MAX_MEMORY_MB`, `CHECK_CODE_MAX_RETRIES`; `CHECK_CODE_MICROVM_IMAGE` runs programs in
+  CPython in a Lambda MicroVM instead, needs `--extra microvm`, and is tested with a local runner), `CHECK_TRANSPORT`, `CHECK_ENV` / `CHECK_API_BASE_URL`, `CHECK_READ_ONLY`,
   `CHECK_TOOLSETS`, `CHECK_TOOLS`, `CHECK_EXCLUDE_TOOLS`, `CHECK_EXCLUDE_MONEY_MOVEMENT`,
   `CHECK_EXCLUDE_DESTRUCTIVE`, `CHECK_PREVIEW_TOOLSETS`.
 - Preview toolsets are hidden unless opted into via

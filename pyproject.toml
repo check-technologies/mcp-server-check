@@ -23,6 +23,10 @@ check = "mcp_server_check.cli:main"
 code = [
     "pydantic-monty>=1.3.0",
 ]
+microvm = [
+    "boto3>=1.43.0",
+    "websockets>=13.0",
+]
 
 [dependency-groups]
 dev = [
