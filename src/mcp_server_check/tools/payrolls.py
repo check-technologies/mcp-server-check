@@ -95,7 +95,7 @@ async def get_payroll(ctx: Ctx, payroll_id: str, include_items: bool = False) ->
     can be very large for a big payroll).
 
     Args:
-        payroll_id: The Check payroll ID (e.g. "prl_xxxxx").
+        payroll_id: The Check payroll ID (e.g. "pay_xxxxx").
         include_items: Return payroll items and contractor payments inline
             (default false).
     """

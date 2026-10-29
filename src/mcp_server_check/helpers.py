@@ -47,7 +47,7 @@ _SUMMARY_FIELDS: dict[str, Sequence[str]] = {
     ),
     "emp_": ("id", "first_name", "last_name", "email", "status", "start_date"),
     "ctr_": ("id", "first_name", "last_name", "business_name", "type", "status"),
-    "prl_": (
+    "pay_": (
         "id",
         "status",
         "payday",
@@ -56,8 +56,8 @@ _SUMMARY_FIELDS: dict[str, Sequence[str]] = {
         "type",
         "approval_status",
     ),
-    "pit_": ("id", "employee", "payment_method", "status"),
-    "pmt_": ("id", "status", "amount", "payment_method", "direction"),
+    "itm_": ("id", "employee", "payment_method", "status"),
+    "pyt_": ("id", "status", "amount", "payment_method", "direction"),
     "bnk_": ("id", "institution_name", "subtype", "status", "last_four"),
     "wrk_": ("id", "name", "active", "address"),
     # Logs carry request/response bodies; keep the list view compact and let

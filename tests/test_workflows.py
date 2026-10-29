@@ -31,7 +31,7 @@ async def test_get_company_overview_full(mock_api, ctx):
         )
     )
     mock_api.get("/payrolls").mock(
-        return_value=httpx.Response(200, json=_list_response([{"id": "prl_001"}]))
+        return_value=httpx.Response(200, json=_list_response([{"id": "pay_001"}]))
     )
     mock_api.get("/bank_accounts").mock(
         return_value=httpx.Response(200, json=_list_response([{"id": "bnk_001"}]))
@@ -41,7 +41,7 @@ async def test_get_company_overview_full(mock_api, ctx):
 
     assert result["company"]["id"] == "com_001"
     assert result["employees"]["results"][0]["id"] == "emp_001"
-    assert result["payrolls"]["results"][0]["id"] == "prl_001"
+    assert result["payrolls"]["results"][0]["id"] == "pay_001"
     assert result["bank_accounts"]["results"][0]["id"] == "bnk_001"
 
 
@@ -103,10 +103,10 @@ async def test_get_employee_snapshot_minimal(mock_api, ctx):
 
 @pytest.mark.anyio
 async def test_diagnose_payment_with_payroll_item(mock_api, ctx):
-    mock_api.get("/payments/pmt_001").mock(
+    mock_api.get("/payments/pyt_001").mock(
         return_value=httpx.Response(
             200,
-            json={"id": "pmt_001", "status": "failed", "payroll_item": "pit_001"},
+            json={"id": "pyt_001", "status": "failed", "payroll_item": "itm_001"},
         )
     )
     mock_api.get("/payment_attempts").mock(
@@ -115,23 +115,23 @@ async def test_diagnose_payment_with_payroll_item(mock_api, ctx):
             json=_list_response([{"id": "att_001", "status": "failed"}]),
         )
     )
-    mock_api.get("/payroll_items/pit_001").mock(
-        return_value=httpx.Response(200, json={"id": "pit_001", "employee": "emp_001"})
+    mock_api.get("/payroll_items/itm_001").mock(
+        return_value=httpx.Response(200, json={"id": "itm_001", "employee": "emp_001"})
     )
 
-    result = await diagnose_payment(ctx, payment_id="pmt_001")
+    result = await diagnose_payment(ctx, payment_id="pyt_001")
 
-    assert result["payment"]["id"] == "pmt_001"
+    assert result["payment"]["id"] == "pyt_001"
     assert result["payment_attempts"]["results"][0]["id"] == "att_001"
-    assert result["payroll_item"]["id"] == "pit_001"
+    assert result["payroll_item"]["id"] == "itm_001"
     req = mock_api.get("/payment_attempts").calls.last.request
-    assert req.url.params["payment"] == "pmt_001"
+    assert req.url.params["payment"] == "pyt_001"
 
 
 @pytest.mark.anyio
 async def test_diagnose_payment_without_payroll_item(mock_api, ctx):
-    mock_api.get("/payments/pmt_002").mock(
-        return_value=httpx.Response(200, json={"id": "pmt_002", "status": "completed"})
+    mock_api.get("/payments/pyt_002").mock(
+        return_value=httpx.Response(200, json={"id": "pyt_002", "status": "completed"})
     )
     mock_api.get("/payment_attempts").mock(
         return_value=httpx.Response(
@@ -139,13 +139,13 @@ async def test_diagnose_payment_without_payroll_item(mock_api, ctx):
         )
     )
 
-    result = await diagnose_payment(ctx, payment_id="pmt_002")
+    result = await diagnose_payment(ctx, payment_id="pyt_002")
 
-    assert result["payment"]["id"] == "pmt_002"
+    assert result["payment"]["id"] == "pyt_002"
     assert result["payment_attempts"]["results"][0]["id"] == "att_002"
     assert "payroll_item" not in result
     req = mock_api.get("/payment_attempts").calls.last.request
-    assert req.url.params["payment"] == "pmt_002"
+    assert req.url.params["payment"] == "pyt_002"
 
 
 # --- New workflow tools ---
@@ -153,12 +153,12 @@ async def test_diagnose_payment_without_payroll_item(mock_api, ctx):
 
 @pytest.mark.anyio
 async def test_get_payroll_details_full(mock_api, ctx):
-    mock_api.get("/payrolls/prl_001").mock(
-        return_value=httpx.Response(200, json={"id": "prl_001", "status": "draft"})
+    mock_api.get("/payrolls/pay_001").mock(
+        return_value=httpx.Response(200, json={"id": "pay_001", "status": "draft"})
     )
     mock_api.get("/payroll_items").mock(
         return_value=httpx.Response(
-            200, json=_list_response([{"id": "pit_001", "employee": "emp_001"}])
+            200, json=_list_response([{"id": "itm_001", "employee": "emp_001"}])
         )
     )
     mock_api.get("/contractor_payments").mock(
@@ -167,27 +167,27 @@ async def test_get_payroll_details_full(mock_api, ctx):
         )
     )
 
-    result = await get_payroll_details(ctx, payroll_id="prl_001")
+    result = await get_payroll_details(ctx, payroll_id="pay_001")
 
-    assert result["payroll"]["id"] == "prl_001"
-    assert result["payroll_items"]["results"][0]["id"] == "pit_001"
+    assert result["payroll"]["id"] == "pay_001"
+    assert result["payroll_items"]["results"][0]["id"] == "itm_001"
     assert result["contractor_payments"]["results"][0]["id"] == "cpm_001"
 
 
 @pytest.mark.anyio
 async def test_get_payroll_details_minimal(mock_api, ctx):
-    mock_api.get("/payrolls/prl_001").mock(
-        return_value=httpx.Response(200, json={"id": "prl_001"})
+    mock_api.get("/payrolls/pay_001").mock(
+        return_value=httpx.Response(200, json={"id": "pay_001"})
     )
 
     result = await get_payroll_details(
         ctx,
-        payroll_id="prl_001",
+        payroll_id="pay_001",
         include_items=False,
         include_contractor_payments=False,
     )
 
-    assert result["payroll"]["id"] == "prl_001"
+    assert result["payroll"]["id"] == "pay_001"
     assert "payroll_items" not in result
     assert "contractor_payments" not in result
 
@@ -310,28 +310,28 @@ async def test_get_payroll_details_drops_items_the_api_inlined_on_the_payroll(
 ):
     # Before API version 2025-01-01 the payroll itself carries every item; the
     # paginated payroll_items call is the one copy this tool should return.
-    mock_api.get("/payrolls/prl_001").mock(
+    mock_api.get("/payrolls/pay_001").mock(
         return_value=httpx.Response(
             200,
             json={
-                "id": "prl_001",
-                "items": [{"id": "pit_001"}, {"id": "pit_002"}],
+                "id": "pay_001",
+                "items": [{"id": "itm_001"}, {"id": "itm_002"}],
                 "contractor_payments": [],
             },
         )
     )
     mock_api.get("/payroll_items").mock(
-        return_value=httpx.Response(200, json=_list_response([{"id": "pit_001"}]))
+        return_value=httpx.Response(200, json=_list_response([{"id": "itm_001"}]))
     )
     mock_api.get("/contractor_payments").mock(
         return_value=httpx.Response(200, json=_list_response([]))
     )
 
-    result = await get_payroll_details(ctx, payroll_id="prl_001", item_limit=1)
+    result = await get_payroll_details(ctx, payroll_id="pay_001", item_limit=1)
 
     assert result["payroll"] == {
-        "id": "prl_001",
+        "id": "pay_001",
         "items_count": 2,
         "contractor_payments_count": 0,
     }
-    assert result["payroll_items"]["results"] == [{"id": "pit_001"}]
+    assert result["payroll_items"]["results"] == [{"id": "itm_001"}]

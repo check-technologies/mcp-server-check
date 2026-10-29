@@ -51,7 +51,7 @@ check companies create --legal-name "Acme Corp"
 check employees list --company com_xxxxx
 
 # Approve a payroll
-check payrolls approve prl_xxxxx
+check payrolls approve pay_xxxxx
 
 # Get help for any command
 check companies create --help
@@ -260,20 +260,20 @@ check payrolls create \
 
 # Add a payroll item
 check payroll-items create \
-  --payroll prl_xxxxx \
+  --payroll pay_xxxxx \
   --employee emp_xxxxx \
   --earnings '[{"amount":"5000.00","earning_code":"ec_xxxxx"}]'
 
 # Preview the payroll
-check payrolls preview prl_xxxxx
+check payrolls preview pay_xxxxx
 
 # Approve it
-check payrolls approve prl_xxxxx
+check payrolls approve pay_xxxxx
 
 # Simulate processing (sandbox only)
-check payrolls simulate-start-processing prl_xxxxx
-check payrolls simulate-complete-funding prl_xxxxx
-check payrolls simulate-complete-disbursements prl_xxxxx
+check payrolls simulate-start-processing pay_xxxxx
+check payrolls simulate-complete-funding pay_xxxxx
+check payrolls simulate-complete-disbursements pay_xxxxx
 ```
 
 ### Employee Onboarding

@@ -33,7 +33,7 @@ async def list_contractor_payments(
         limit: Maximum number of results to return (default 10, max 100).
         ids: Filter to specific contractor payment IDs.
         cursor: Pagination cursor from a previous response.
-        payroll: Filter by payroll ID (e.g. "prl_xxxxx").
+        payroll: Filter by payroll ID (e.g. "pay_xxxxx").
     """
     params = build_params(
         company=company,

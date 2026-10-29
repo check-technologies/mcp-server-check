@@ -29,7 +29,7 @@ async def list_payroll_items(
     Args:
         company: Filter to payroll items belonging to this Check company ID (e.g. "com_xxxxx").
         employee: Filter to payroll items for this Check employee ID (e.g. "emp_xxxxx").
-        payroll: Filter to payroll items for this Check payroll ID (e.g. "prl_xxxxx").
+        payroll: Filter to payroll items for this Check payroll ID (e.g. "pay_xxxxx").
         limit: Maximum number of results to return (max 500, default 500).
         ids: Filter to specific payroll item IDs.
         cursor: Pagination cursor from a previous response.

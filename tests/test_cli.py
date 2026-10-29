@@ -146,13 +146,13 @@ def test_employees_list_with_options(respx_mock):
 @respx.mock(base_url=BASE_URL, assert_all_called=False)
 def test_employees_get_paystub(respx_mock):
     """Multi-ID positional args work."""
-    respx_mock.get("/employees/emp_001/paystubs/prl_001").mock(
-        return_value=httpx.Response(200, json={"id": "emp_001", "payroll": "prl_001"})
+    respx_mock.get("/employees/emp_001/paystubs/pay_001").mock(
+        return_value=httpx.Response(200, json={"id": "emp_001", "payroll": "pay_001"})
     )
-    result = _invoke("employees", "get-paystub", "emp_001", "prl_001")
+    result = _invoke("employees", "get-paystub", "emp_001", "pay_001")
     assert result.exit_code == 0
     data = json.loads(result.output.strip())
-    assert data["payroll"] == "prl_001"
+    assert data["payroll"] == "pay_001"
 
 
 # ---------------------------------------------------------------------------

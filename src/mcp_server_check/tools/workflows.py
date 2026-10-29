@@ -124,7 +124,7 @@ async def diagnose_payment(
     This replaces 3 separate API calls.
 
     Args:
-        payment_id: The Check payment ID (e.g. "pmt_xxxxx").
+        payment_id: The Check payment ID (e.g. "pyt_xxxxx").
     """
     fetched = await _gather_named(
         {
@@ -168,7 +168,7 @@ async def get_payroll_details(
     are replaced with ``items_count`` / ``contractor_payments_count``.
 
     Args:
-        payroll_id: The Check payroll ID (e.g. "prl_xxxxx").
+        payroll_id: The Check payroll ID (e.g. "pay_xxxxx").
         include_items: Include payroll items / employee stubs (default true).
         include_contractor_payments: Include contractor payments (default true).
         item_limit: Max payroll items to return (default 50).

@@ -82,7 +82,7 @@ sensitive employee/contractor data.
 - **Tax Elections** (`txe_*`) are exemptions from a specific tax (e.g. a minister exempt from Social Security/Medicare, a company exempt from SUI): check them with list_employee_tax_elections / list_company_tax_elections before escalating; if `exemptible` is true the partner can set it with the matching update tool, if false only Check Support can
 - **Taxes** (`tax_`) and **Agencies** (`agc_`) are global read-only reference data — the levies themselves and the authorities Check files/remits to; look them up with list_taxes/list_agencies
 - Payrolls must be **approved** before they process — approval triggers real money movement
-- All IDs use prefixes: `com_` (company), `emp_` (employee), `ctr_` (contractor), `prl_` (payroll), `pit_` (payroll item), `pmt_` (payment), `wrk_` (workplace), `bnk_` (bank account)
+- All IDs use prefixes: `com_` (company), `emp_` (employee), `ctr_` (contractor), `pay_` (payroll), `itm_` (payroll item), `pyt_` (payment), `wrk_` (workplace), `bnk_` (bank account)
 
 ## Composite Tools (Use These First)
 Prefer the workflow tools when they fit — they combine multiple API calls in one round-trip:

@@ -34,17 +34,17 @@ async def list_payments(
 
     Args:
         company: Filter to payments belonging to this Check company ID (e.g. "com_xxxxx").
-        payroll: Filter by payroll ID (e.g. "prl_xxxxx").
-        payroll_item: Filter by payroll item ID (e.g. "pit_xxxxx").
-        contractor_payment: Filter by contractor payment ID (e.g. "ctp_xxxxx").
+        payroll: Filter by payroll ID (e.g. "pay_xxxxx").
+        payroll_item: Filter by payroll item ID (e.g. "itm_xxxxx").
+        contractor_payment: Filter by contractor payment ID (e.g. "cpa_xxxxx").
         direction: Filter by payment direction: "credit" or "debit".
         amount_min: Minimum payment amount (payments where amount >= this value).
         amount_max: Maximum payment amount (payments where amount <= this value).
         type: Filter by payment type: "company_cash_requirement", "employee_net_pay", "net_pay_refund", "collection", or "refund".
         completion_date_after: Filter to payments with completion date on or after this date (YYYY-MM-DD).
         completion_date_before: Filter to payments with completion date on or before this date (YYYY-MM-DD).
-        parent_id: Filter to payments whose parent_id matches (e.g. "prl_xxxxx",
-            "pit_xxxxx", "ctp_xxxxx", or "cor_xxxxx" for correction parents when
+        parent_id: Filter to payments whose parent_id matches (e.g. "pay_xxxxx",
+            "itm_xxxxx", "cpa_xxxxx", or "cor_xxxxx" for correction parents when
             your account has the corrections API). Multiple values are OR'd (max
             100 per request).
         limit: Maximum number of results to return (default 25, max 100).

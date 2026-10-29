@@ -19,11 +19,11 @@ async def test_list_payments(mock_api, ctx):
     mock_api.get("/payments").mock(
         return_value=httpx.Response(
             200,
-            json={"next": None, "previous": None, "results": [{"id": "pmt_001"}]},
+            json={"next": None, "previous": None, "results": [{"id": "pyt_001"}]},
         )
     )
     result = await list_payments(ctx)
-    assert result["results"] == [{"id": "pmt_001"}]
+    assert result["results"] == [{"id": "pyt_001"}]
 
 
 @pytest.mark.anyio
@@ -31,22 +31,22 @@ async def test_list_payments_with_filters(mock_api, ctx):
     mock_api.get("/payments").mock(
         return_value=httpx.Response(
             200,
-            json={"next": None, "previous": None, "results": [{"id": "pmt_002"}]},
+            json={"next": None, "previous": None, "results": [{"id": "pyt_002"}]},
         )
     )
     result = await list_payments(
         ctx,
         company="com_123",
-        payroll="prl_456",
+        payroll="pay_456",
         type="company_cash_requirement",
         direction="debit",
         amount_min="100.00",
         completion_date_after="2025-01-01",
     )
-    assert result["results"] == [{"id": "pmt_002"}]
+    assert result["results"] == [{"id": "pyt_002"}]
     req = mock_api.get("/payments").calls.last.request
     assert req.url.params["company"] == "com_123"
-    assert req.url.params["payroll"] == "prl_456"
+    assert req.url.params["payroll"] == "pay_456"
     assert req.url.params["type"] == "company_cash_requirement"
     assert req.url.params["direction"] == "debit"
     assert req.url.params["amount_min"] == "100.00"
@@ -60,25 +60,25 @@ async def test_list_payments_parent_id_filter(mock_api, ctx):
     mock_api.get("/payments").mock(
         return_value=httpx.Response(
             200,
-            json={"next": None, "previous": None, "results": [{"id": "pmt_003"}]},
+            json={"next": None, "previous": None, "results": [{"id": "pyt_003"}]},
         )
     )
     result = await list_payments(
         ctx,
-        parent_id=["prl_abc", "cor_def"],
+        parent_id=["pay_abc", "cor_def"],
     )
-    assert result["results"] == [{"id": "pmt_003"}]
+    assert result["results"] == [{"id": "pyt_003"}]
     req = mock_api.get("/payments").calls.last.request
-    assert req.url.params.get_list("parent_id") == ["prl_abc", "cor_def"]
+    assert req.url.params.get_list("parent_id") == ["pay_abc", "cor_def"]
 
 
 @pytest.mark.anyio
 async def test_get_payment(mock_api, ctx):
-    mock_api.get("/payments/pmt_001").mock(
-        return_value=httpx.Response(200, json={"id": "pmt_001"})
+    mock_api.get("/payments/pyt_001").mock(
+        return_value=httpx.Response(200, json={"id": "pyt_001"})
     )
-    result = await get_payment(ctx, payment_id="pmt_001")
-    assert result["id"] == "pmt_001"
+    result = await get_payment(ctx, payment_id="pyt_001")
+    assert result["id"] == "pyt_001"
 
 
 @pytest.mark.anyio
@@ -89,25 +89,25 @@ async def test_list_payment_attempts(mock_api, ctx):
             json={"next": None, "previous": None, "results": [{"id": "pa_001"}]},
         )
     )
-    result = await list_payment_attempts(ctx, payment_id="pmt_001")
+    result = await list_payment_attempts(ctx, payment_id="pyt_001")
     assert result["results"] == [{"id": "pa_001"}]
     req = mock_api.get("/payment_attempts").calls.last.request
-    assert req.url.params["payment"] == "pmt_001"
+    assert req.url.params["payment"] == "pyt_001"
 
 
 @pytest.mark.anyio
 async def test_retry_payment(mock_api, ctx):
-    mock_api.post("/payments/pmt_001/retry").mock(
-        return_value=httpx.Response(200, json={"id": "pmt_001"})
+    mock_api.post("/payments/pyt_001/retry").mock(
+        return_value=httpx.Response(200, json={"id": "pyt_001"})
     )
-    result = await retry_payment(ctx, payment_id="pmt_001")
-    assert result["id"] == "pmt_001"
+    result = await retry_payment(ctx, payment_id="pyt_001")
+    assert result["id"] == "pyt_001"
 
 
 @pytest.mark.anyio
 async def test_cancel_payment(mock_api, ctx):
-    mock_api.post("/payments/pmt_001/cancel").mock(
-        return_value=httpx.Response(200, json={"id": "pmt_001", "status": "canceled"})
+    mock_api.post("/payments/pyt_001/cancel").mock(
+        return_value=httpx.Response(200, json={"id": "pyt_001", "status": "canceled"})
     )
-    result = await cancel_payment(ctx, payment_id="pmt_001")
+    result = await cancel_payment(ctx, payment_id="pyt_001")
     assert result["status"] == "canceled"
