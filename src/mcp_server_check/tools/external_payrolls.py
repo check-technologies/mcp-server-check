@@ -12,6 +12,7 @@ from mcp_server_check.helpers import (
     check_api_list,
     check_api_patch,
     check_api_post,
+    shape_payroll,
 )
 
 
@@ -22,9 +23,14 @@ async def list_external_payrolls(
     ids: list[str] | None = None,
     cursor: str | None = None,
     pay_schedule: str | None = None,
-    include_items: bool | None = None,
+    include_items: bool = False,
 ) -> dict:
     """List external payrolls, optionally filtered by company.
+
+    Line items are omitted by default (the API would include every item of
+    every payroll otherwise, which is slow for large companies and very large
+    in context). Use get_external_payroll for one payroll's items, or pass
+    include_items=true to get them inline for the whole page.
 
     Args:
         company: Filter to external payrolls belonging to this Check company ID (e.g. "com_xxxxx").
@@ -32,8 +38,8 @@ async def list_external_payrolls(
         ids: Filter to specific external payroll IDs.
         cursor: Pagination cursor from a previous response.
         pay_schedule: Filter by pay schedule ID.
-        include_items: When false, omit payroll line items from list responses
-            (faster for large companies). Items are included by default.
+        include_items: Return each payroll's line items and contractor payments
+            inline (default false).
     """
     params: dict = {}
     if company is not None:
@@ -46,18 +52,26 @@ async def list_external_payrolls(
         params["cursor"] = cursor
     if pay_schedule is not None:
         params["pay_schedule"] = pay_schedule
-    if include_items is not None:
-        params["include_items"] = str(include_items).lower()
-    return await check_api_list(ctx, "/external_payrolls", params=params or None)
+    params["include_items"] = str(include_items).lower()
+    return await check_api_list(ctx, "/external_payrolls", params=params)
 
 
-async def get_external_payroll(ctx: Ctx, payroll_id: str) -> dict:
+async def get_external_payroll(
+    ctx: Ctx, payroll_id: str, include_items: bool = False
+) -> dict:
     """Get details for a specific external payroll.
+
+    The API always inlines the payroll's items and contractor payments; by
+    default this tool replaces them with ``items_count`` and
+    ``contractor_payments_count``. Pass ``include_items=true`` to get them.
 
     Args:
         payroll_id: The Check external payroll ID.
+        include_items: Return line items and contractor payments inline
+            (default false).
     """
-    return await check_api_get(ctx, f"/external_payrolls/{payroll_id}")
+    result = await check_api_get(ctx, f"/external_payrolls/{payroll_id}")
+    return shape_payroll(result, include_items=include_items)
 
 
 async def create_external_payroll(
@@ -85,6 +99,9 @@ async def create_external_payroll(
         contractor_payments: List of contractor payment dicts. Each may include
             "contractor", "amount", "reimbursement_amount".
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
+
+    The response omits the inlined items and contractor payments (see
+    get_external_payroll); ``items_count`` confirms how many were written.
     """
     body: dict = {
         "company": company,
@@ -98,12 +115,13 @@ async def create_external_payroll(
         body["items"] = items
     if contractor_payments is not None:
         body["contractor_payments"] = contractor_payments
-    return await check_api_post(
+    result = await check_api_post(
         ctx,
         "/external_payrolls",
         data=body,
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
+    return shape_payroll(result)
 
 
 async def update_external_payroll(
@@ -126,6 +144,9 @@ async def update_external_payroll(
         pay_frequency: Frequency at which the external payroll was paid.
         items: List of external payroll item dicts (see create_external_payroll).
         contractor_payments: List of contractor payment dicts (see create_external_payroll).
+
+    The response omits the inlined items and contractor payments (see
+    get_external_payroll).
     """
     body: dict = {}
     if period_start is not None:
@@ -140,7 +161,8 @@ async def update_external_payroll(
         body["items"] = items
     if contractor_payments is not None:
         body["contractor_payments"] = contractor_payments
-    return await check_api_patch(ctx, f"/external_payrolls/{payroll_id}", data=body)
+    result = await check_api_patch(ctx, f"/external_payrolls/{payroll_id}", data=body)
+    return shape_payroll(result)
 
 
 async def delete_external_payroll(ctx: Ctx, payroll_id: str) -> dict:
@@ -161,11 +183,12 @@ async def approve_external_payroll(
         payroll_id: The Check external payroll ID.
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
-    return await check_api_post(
+    result = await check_api_post(
         ctx,
         f"/external_payrolls/{payroll_id}/approve",
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
+    return shape_payroll(result)
 
 
 async def reopen_external_payroll(ctx: Ctx, payroll_id: str) -> dict:
@@ -174,16 +197,28 @@ async def reopen_external_payroll(ctx: Ctx, payroll_id: str) -> dict:
     Args:
         payroll_id: The Check external payroll ID.
     """
-    return await check_api_post(ctx, f"/external_payrolls/{payroll_id}/reopen")
+    return shape_payroll(
+        await check_api_post(ctx, f"/external_payrolls/{payroll_id}/reopen")
+    )
 
 
-async def preview_external_payroll(ctx: Ctx, external_payroll_id: str) -> dict:
+async def preview_external_payroll(
+    ctx: Ctx, external_payroll_id: str, include_items: bool = False
+) -> dict:
     """Preview an external payroll.
+
+    Per-item previews are omitted by default (``items_count`` says how many
+    there are); pass ``include_items=true`` to get them inline.
 
     Args:
         external_payroll_id: The Check external payroll ID.
+        include_items: Return per-item and per-contractor-payment previews
+            inline (default false).
     """
-    return await check_api_get(ctx, f"/external_payrolls/{external_payroll_id}/preview")
+    result = await check_api_get(
+        ctx, f"/external_payrolls/{external_payroll_id}/preview"
+    )
+    return shape_payroll(result, include_items=include_items)
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:

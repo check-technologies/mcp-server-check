@@ -13,7 +13,12 @@ from typing import Any
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
-from mcp_server_check.helpers import Ctx, check_api_get, check_api_list
+from mcp_server_check.helpers import (
+    Ctx,
+    check_api_get,
+    check_api_list,
+    shape_payroll,
+)
 
 
 async def _gather_named(
@@ -158,6 +163,9 @@ async def get_payroll_details(
 
     Returns the payroll details along with all payroll items (employee pay stubs)
     and contractor payments in a single call. This replaces 3 separate API calls.
+    Items and contractor payments come from their paginated list endpoints,
+    capped by ``item_limit``; any copies the API inlined on the payroll itself
+    are replaced with ``items_count`` / ``contractor_payments_count``.
 
     Args:
         payroll_id: The Check payroll ID (e.g. "prl_xxxxx").
@@ -181,7 +189,9 @@ async def get_payroll_details(
             params={"payroll": payroll_id},
         )
 
-    return await _gather_named(calls)
+    result = await _gather_named(calls)
+    result["payroll"] = shape_payroll(result["payroll"])
+    return result
 
 
 async def get_contractor_snapshot(

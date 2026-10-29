@@ -11,6 +11,7 @@ from mcp_server_check.tools.payrolls import (
     approve_payroll,
     create_payroll,
     delete_payroll,
+    get_payroll,
     list_payrolls,
     preview_payroll,
     reopen_payroll,
@@ -187,3 +188,112 @@ async def test_simulate_start_processing(mock_api, ctx):
     )
     result = await simulate_start_processing(ctx, payroll_id="prl_001")
     assert result["id"] == "prl_001"
+
+
+# --- Inlined items are opt-in ---
+
+_INLINED = {
+    "id": "prl_001",
+    "status": "draft",
+    "items": [{"id": "pit_001"}, {"id": "pit_002"}, {"id": "pit_003"}],
+    "contractor_payments": [{"id": "cpm_001"}],
+}
+
+
+@pytest.mark.anyio
+async def test_get_payroll_omits_inlined_items_by_default(mock_api, ctx):
+    route = mock_api.get("/payrolls/prl_001").mock(
+        return_value=httpx.Response(200, json=_INLINED)
+    )
+    result = await get_payroll(ctx, payroll_id="prl_001")
+    assert result == {
+        "id": "prl_001",
+        "status": "draft",
+        "items_count": 3,
+        "contractor_payments_count": 1,
+    }
+    assert "include_items" not in route.calls.last.request.url.params
+
+
+@pytest.mark.anyio
+async def test_get_payroll_include_items_asks_the_api_and_keeps_them(mock_api, ctx):
+    route = mock_api.get("/payrolls/prl_001").mock(
+        return_value=httpx.Response(200, json=_INLINED)
+    )
+    result = await get_payroll(ctx, payroll_id="prl_001", include_items=True)
+    assert result == _INLINED
+    params = route.calls.last.request.url.params
+    assert params["include_items"] == "true"
+    assert params["include_contractor_payments"] == "true"
+
+
+@pytest.mark.anyio
+async def test_get_payroll_without_inlined_items_is_unchanged(mock_api, ctx):
+    # API version 2025-01-01 and later omit both lists unless asked.
+    mock_api.get("/payrolls/prl_001").mock(
+        return_value=httpx.Response(200, json={"id": "prl_001", "status": "paid"})
+    )
+    result = await get_payroll(ctx, payroll_id="prl_001")
+    assert result == {"id": "prl_001", "status": "paid"}
+
+
+@pytest.mark.anyio
+async def test_get_payroll_passes_errors_through(mock_api, ctx):
+    mock_api.get("/payrolls/prl_404").mock(
+        return_value=httpx.Response(404, json={"error": {"message": "nope"}})
+    )
+    result = await get_payroll(ctx, payroll_id="prl_404")
+    assert result["error"] is True
+    assert result["status_code"] == 404
+
+
+@pytest.mark.anyio
+async def test_preview_payroll_omits_item_previews_unless_asked(mock_api, ctx):
+    route = mock_api.get("/payrolls/prl_001/preview").mock(
+        return_value=httpx.Response(200, json={**_INLINED, "totals": {}})
+    )
+    result = await preview_payroll(ctx, payroll_id="prl_001")
+    assert result["totals"] == {}
+    assert result["items_count"] == 3
+    assert "items" not in result
+    assert "include_items" not in route.calls.last.request.url.params
+
+    result = await preview_payroll(ctx, payroll_id="prl_001", include_items=True)
+    assert len(result["items"]) == 3
+    assert route.calls.last.request.url.params["include_items"] == "true"
+
+
+@pytest.mark.anyio
+async def test_write_tools_omit_inlined_items_from_their_responses(mock_api, ctx):
+    mock_api.post("/payrolls").mock(return_value=httpx.Response(201, json=_INLINED))
+    mock_api.patch("/payrolls/prl_001").mock(
+        return_value=httpx.Response(200, json=_INLINED)
+    )
+    mock_api.post("/payrolls/prl_001/approve").mock(
+        return_value=httpx.Response(200, json=_INLINED)
+    )
+    mock_api.post("/payrolls/prl_001/reopen").mock(
+        return_value=httpx.Response(200, json=_INLINED)
+    )
+    mock_api.post("/payrolls/prl_001/simulate/start_processing").mock(
+        return_value=httpx.Response(200, json=_INLINED)
+    )
+
+    results = [
+        await create_payroll(
+            ctx,
+            company="com_001",
+            period_start="2026-01-01",
+            period_end="2026-01-15",
+            payday="2026-01-17",
+            items=[{"employee": "emp_1"}],
+        ),
+        await update_payroll(ctx, payroll_id="prl_001", payday="2026-01-18"),
+        await approve_payroll(ctx, payroll_id="prl_001"),
+        await reopen_payroll(ctx, payroll_id="prl_001"),
+        await simulate_start_processing(ctx, payroll_id="prl_001"),
+    ]
+    for result in results:
+        assert "items" not in result
+        assert result["items_count"] == 3
+        assert result["contractor_payments_count"] == 1

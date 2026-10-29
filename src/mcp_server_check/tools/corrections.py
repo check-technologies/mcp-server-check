@@ -14,6 +14,7 @@ from mcp_server_check.helpers import (
     check_api_list,
     check_api_patch,
     check_api_post,
+    shape_payroll,
 )
 from mcp_server_check.types import VoidSubset
 
@@ -228,8 +229,11 @@ async def add_payroll_to_correction(
             sends ?include_contractor_payments=true so Check API writes them.
         metadata: Arbitrary key-value object stored on the payroll.
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
+
+    The response omits the inlined items and contractor payments (see
+    get_payroll); ``items_count`` confirms how many were written.
     """
-    return await check_api_post(
+    result = await check_api_post(
         ctx,
         "/payrolls",
         data=build_body(
@@ -254,6 +258,7 @@ async def add_payroll_to_correction(
             ),
         ),
     )
+    return shape_payroll(result)
 
 
 async def add_external_payroll(
@@ -293,8 +298,11 @@ async def add_external_payroll(
         contractor_payments: List of contractor payment dicts. Each may include
             "contractor", "amount", "reimbursement_amount".
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
+
+    The response omits the inlined items and contractor payments (see
+    get_external_payroll); ``items_count`` confirms how many were written.
     """
-    return await check_api_post(
+    result = await check_api_post(
         ctx,
         "/external_payrolls",
         data=build_body(
@@ -311,6 +319,7 @@ async def add_external_payroll(
         ),
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
+    return shape_payroll(result)
 
 
 async def preview_correction(ctx: Ctx, correction_id: str) -> dict:

@@ -159,6 +159,38 @@ def _format_list_response(data: dict, *, summarize: bool = True) -> dict:
     }
 
 
+_INLINE_PAYROLL_LISTS = (
+    ("items", "items_count"),
+    ("contractor_payments", "contractor_payments_count"),
+)
+
+
+def shape_payroll(payroll: dict, *, include_items: bool = False) -> dict:
+    """Replace a payroll's inlined ``items`` and ``contractor_payments`` with counts.
+
+    The MCP sends no Check-Version header, so a key pinned before API version
+    2025-01-01 gets every payroll item inlined on every payroll response (a
+    single payroll with a few hundred items is about a megabyte). Later
+    versions omit both lists unless the request asks with ``include_items`` /
+    ``include_contractor_payments``.
+
+    When ``include_items`` is false, each inlined list is removed and
+    ``<field>_count`` records how many entries it held. A response that never
+    carried the list is returned unchanged, with no count, so the caller can
+    tell "omitted by the API" from "removed here". Error payloads and
+    non-dict values pass through untouched.
+    """
+    if include_items or not isinstance(payroll, dict) or payroll.get("error"):
+        return payroll
+    shaped = dict(payroll)
+    for name, count_field in _INLINE_PAYROLL_LISTS:
+        value = shaped.get(name)
+        if isinstance(value, list):
+            del shaped[name]
+            shaped[count_field] = len(value)
+    return shaped
+
+
 def build_body(required: dict, **optional: object) -> dict:
     """Build a request body from required fields and optional keyword arguments.
 

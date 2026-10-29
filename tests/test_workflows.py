@@ -302,3 +302,36 @@ async def test_get_onboarding_status_not_ready(mock_api, ctx):
     assert result["readiness"]["has_workplaces"] is False
     assert result["readiness"]["outstanding_requirements"] == 1
     assert result["readiness"]["total_requirements"] == 2
+
+
+@pytest.mark.anyio
+async def test_get_payroll_details_drops_items_the_api_inlined_on_the_payroll(
+    mock_api, ctx
+):
+    # Before API version 2025-01-01 the payroll itself carries every item; the
+    # paginated payroll_items call is the one copy this tool should return.
+    mock_api.get("/payrolls/prl_001").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "id": "prl_001",
+                "items": [{"id": "pit_001"}, {"id": "pit_002"}],
+                "contractor_payments": [],
+            },
+        )
+    )
+    mock_api.get("/payroll_items").mock(
+        return_value=httpx.Response(200, json=_list_response([{"id": "pit_001"}]))
+    )
+    mock_api.get("/contractor_payments").mock(
+        return_value=httpx.Response(200, json=_list_response([]))
+    )
+
+    result = await get_payroll_details(ctx, payroll_id="prl_001", item_limit=1)
+
+    assert result["payroll"] == {
+        "id": "prl_001",
+        "items_count": 2,
+        "contractor_payments_count": 0,
+    }
+    assert result["payroll_items"]["results"] == [{"id": "pit_001"}]

@@ -13,6 +13,7 @@ from mcp_server_check.helpers import (
     check_api_post,
     check_api_put,
     merge_metadata_filter_params,
+    shape_payroll,
 )
 
 
@@ -128,3 +129,49 @@ def test_merge_metadata_filter_params() -> None:
     assert merge_metadata_filter_params(None, {"external_id": "123"}) == {
         "metadata[external_id]": "123"
     }
+
+
+# --- shape_payroll ---
+
+
+def test_shape_payroll_replaces_inlined_lists_with_counts():
+    payroll = {
+        "id": "pay_1",
+        "status": "draft",
+        "items": [{"id": "itm_1"}, {"id": "itm_2"}],
+        "contractor_payments": [{"id": "cpm_1"}],
+    }
+    shaped = shape_payroll(payroll)
+    assert shaped == {
+        "id": "pay_1",
+        "status": "draft",
+        "items_count": 2,
+        "contractor_payments_count": 1,
+    }
+    # The input is not mutated.
+    assert "items" in payroll
+
+
+def test_shape_payroll_leaves_a_response_without_inlined_lists_alone():
+    payroll = {"id": "pay_1", "status": "draft", "totals": {"cash_requirement": "1"}}
+    assert shape_payroll(payroll) == payroll
+    assert "items_count" not in shape_payroll(payroll)
+
+
+def test_shape_payroll_keeps_lists_when_items_are_wanted():
+    payroll = {"id": "pay_1", "items": [{"id": "itm_1"}], "contractor_payments": []}
+    assert shape_payroll(payroll, include_items=True) is payroll
+
+
+def test_shape_payroll_counts_an_empty_inlined_list():
+    assert shape_payroll({"id": "pay_1", "items": []}) == {
+        "id": "pay_1",
+        "items_count": 0,
+    }
+
+
+def test_shape_payroll_passes_errors_and_non_dicts_through():
+    error = {"error": True, "status_code": 404, "detail": {"items": []}}
+    assert shape_payroll(error) is error
+    assert shape_payroll(None) is None  # type: ignore[arg-type]
+    assert shape_payroll([1]) == [1]  # type: ignore[arg-type]
