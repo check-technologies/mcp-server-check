@@ -24,7 +24,7 @@ code = [
     "pydantic-monty>=1.3.0",
 ]
 microvm = [
-    "boto3>=1.43.0",
+    "boto3>=1.43.35",
     "websockets>=13.0",
 ]
 
