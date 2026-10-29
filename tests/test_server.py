@@ -279,26 +279,26 @@ async def test_list_payrolls(mock_api, ctx):
             json={
                 "next": None,
                 "previous": None,
-                "results": [{"id": "prl_001"}],
+                "results": [{"id": "pay_001"}],
             },
         )
     )
 
     result = await list_payrolls(ctx)
-    assert result["results"] == [{"id": "prl_001"}]
+    assert result["results"] == [{"id": "pay_001"}]
 
 
 @pytest.mark.anyio
 async def test_get_payroll(mock_api, ctx):
-    mock_api.get("/payrolls/prl_001").mock(
+    mock_api.get("/payrolls/pay_001").mock(
         return_value=httpx.Response(
             200,
-            json={"id": "prl_001", "period_start": "2026-01-01"},
+            json={"id": "pay_001", "period_start": "2026-01-01"},
         )
     )
 
-    result = await get_payroll(ctx, payroll_id="prl_001")
-    assert result == {"id": "prl_001", "period_start": "2026-01-01"}
+    result = await get_payroll(ctx, payroll_id="pay_001")
+    assert result == {"id": "pay_001", "period_start": "2026-01-01"}
 
 
 @pytest.mark.anyio
@@ -742,7 +742,7 @@ async def test_directory_profile_blocks_execution():
     """Hidden is not enough — calling the tool directly must fail too."""
     server = _make_all_tools_server(_DIRECTORY_SAFE)
     with pytest.raises(ToolError, match="not available in the current configuration"):
-        await server.call_tool("approve_payroll", {"payroll_id": "prl_test"})
+        await server.call_tool("approve_payroll", {"payroll_id": "pay_test"})
 
 
 @pytest.mark.anyio
@@ -763,5 +763,16 @@ async def test_directory_profile_blocks_run_tool():
     with pytest.raises(ToolError, match="not available in the current configuration"):
         await server.call_tool(
             "run_tool",
-            {"tool_name": "approve_payroll", "arguments": {"payroll_id": "prl_test"}},
+            {"tool_name": "approve_payroll", "arguments": {"payroll_id": "pay_test"}},
         )
+
+
+def test_server_instructions_teach_real_id_prefixes():
+    """The model learns ID prefixes from the instructions; they must be the
+    ones the API issues, or it fabricates IDs like prl_... that never exist."""
+    from mcp_server_check.server import SERVER_INSTRUCTIONS
+
+    for prefix in ("`pay_`", "`itm_`", "`pyt_`"):
+        assert prefix in SERVER_INSTRUCTIONS
+    for prefix in ("prl_", "pit_", "pmt_"):
+        assert prefix not in SERVER_INSTRUCTIONS

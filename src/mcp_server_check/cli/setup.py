@@ -74,9 +74,9 @@ All Check API resources use prefixed IDs:
 | `com_` | Company |
 | `emp_` | Employee |
 | `ctr_` | Contractor |
-| `prl_` | Payroll |
-| `pit_` | Payroll Item |
-| `pmt_` | Payment |
+| `pay_` | Payroll |
+| `itm_` | Payroll Item |
+| `pyt_` | Payment |
 | `wrk_` | Workplace |
 | `bnk_` | Bank Account |
 | `ern_` | Earning Rate |
@@ -119,10 +119,10 @@ money movement.
 {cmd_prefix}check employees list --company com_abc123
 
 # Preview a payroll
-{cmd_prefix}check payrolls preview --payroll prl_abc123
+{cmd_prefix}check payrolls preview --payroll pay_abc123
 
 # Approve a payroll
-{cmd_prefix}check payrolls approve --payroll prl_abc123
+{cmd_prefix}check payrolls approve --payroll pay_abc123
 ```
 
 ## MCP Server Setup

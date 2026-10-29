@@ -11,6 +11,7 @@ from mcp_server_check.helpers import (
     check_api_list,
     check_api_patch,
     check_api_post,
+    _SUMMARY_FIELDS,
     check_api_put,
     merge_metadata_filter_params,
     shape_payroll,
@@ -175,3 +176,49 @@ def test_shape_payroll_passes_errors_and_non_dicts_through():
     assert shape_payroll(error) is error
     assert shape_payroll(None) is None  # type: ignore[arg-type]
     assert shape_payroll([1]) == [1]  # type: ignore[arg-type]
+
+
+# Check's real public ID prefixes for the entities whose lists carry the
+# most bulk. The summary table was keyed on invented prefixes (prl_, pit_,
+# pmt_) for months, so these lists were never summarized and a company's
+# recent payrolls came back with every payroll item inline.
+@pytest.mark.parametrize(
+    ("record_id", "bulky_field"),
+    [
+        ("pay_001", "items"),
+        ("itm_001", "earnings"),
+        ("pyt_001", "attempts"),
+    ],
+)
+@pytest.mark.anyio
+async def test_check_api_list_summarizes_payroll_entities(
+    mock_api, ctx, record_id, bulky_field
+):
+    mock_api.get("/things").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "next": None,
+                "previous": None,
+                "results": [
+                    {
+                        "id": record_id,
+                        "status": "paid",
+                        bulky_field: [{"id": "x"} for _ in range(50)],
+                    }
+                ],
+            },
+        )
+    )
+    result = await check_api_list(ctx, "/things")
+    row = result["results"][0]
+    assert row["id"] == record_id
+    assert row["status"] == "paid"
+    assert bulky_field not in row
+
+
+def test_summary_prefixes_are_real_check_prefixes() -> None:
+    """Payrolls are pay_, payroll items itm_, payments pyt_ (check-api's
+    public_id_prefix values). A typo here silently turns summaries off."""
+    assert {"pay_", "itm_", "pyt_"} <= set(_SUMMARY_FIELDS)
+    assert not {"prl_", "pit_", "pmt_"} & set(_SUMMARY_FIELDS)

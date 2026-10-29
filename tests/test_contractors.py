@@ -77,11 +77,11 @@ async def test_list_contractor_payments_for_contractor_with_filters(mock_api, ct
         )
     )
     result = await list_contractor_payments_for_contractor(
-        ctx, contractor_id="ctr_001", payroll="prl_123", status="paid"
+        ctx, contractor_id="ctr_001", payroll="pay_123", status="paid"
     )
     assert result["results"] == [{"id": "cp_001"}]
     req = mock_api.get("/contractors/ctr_001/payments").calls.last.request
-    assert req.url.params["payroll"] == "prl_123"
+    assert req.url.params["payroll"] == "pay_123"
     assert req.url.params["status"] == "paid"
 
 

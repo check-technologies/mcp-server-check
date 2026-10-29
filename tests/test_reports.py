@@ -100,7 +100,7 @@ class TestReportRequestRemedies:
         ("overrides", "parameters"),
         [
             pytest.param(
-                {"payroll": ["prl_1"]}, {"payroll": "prl_1"}, id="one payroll"
+                {"payroll": ["pay_1"]}, {"payroll": "pay_1"}, id="one payroll"
             ),
             pytest.param(
                 {"include_contractor_id": True},
@@ -125,7 +125,7 @@ class TestReportRequestRemedies:
                 {"start_date": None, "end_date": None}, "payday range", id="no dates"
             ),
             pytest.param(
-                {"payroll": ["prl_1", "prl_2"]}, "one per payroll", id="many payrolls"
+                {"payroll": ["pay_1", "pay_2"]}, "one per payroll", id="many payrolls"
             ),
         ],
     )
@@ -143,7 +143,7 @@ class TestReportRequestRemedies:
         request = ReportRequest(
             company_id="com_001",
             report_type=ReportType.PAYROLL_JOURNAL,
-            payroll=["prl_1"],
+            payroll=["pay_1"],
         )
 
         assert request.remedies(Failure.TIMED_OUT) == [

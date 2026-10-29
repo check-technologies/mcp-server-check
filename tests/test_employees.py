@@ -65,7 +65,7 @@ async def test_list_employee_paystubs_with_filters(mock_api, ctx):
     result = await list_employee_paystubs(
         ctx,
         employee_id="emp_001",
-        payroll="prl_123",
+        payroll="pay_123",
         status="paid",
         start="2026-01-01",
         end="2026-06-30",
@@ -73,7 +73,7 @@ async def test_list_employee_paystubs_with_filters(mock_api, ctx):
     )
     assert result["results"] == [{"id": "ps_001"}]
     req = mock_api.get("/employees/emp_001/paystubs").calls.last.request
-    assert req.url.params["payroll"] == "prl_123"
+    assert req.url.params["payroll"] == "pay_123"
     assert req.url.params["status"] == "paid"
     assert req.url.params["start"] == "2026-01-01"
     assert req.url.params["end"] == "2026-06-30"
@@ -136,11 +136,11 @@ async def test_list_employee_paystubs(mock_api, ctx):
 
 @pytest.mark.anyio
 async def test_get_employee_paystub(mock_api, ctx):
-    mock_api.get("/employees/emp_001/paystubs/prl_001").mock(
+    mock_api.get("/employees/emp_001/paystubs/pay_001").mock(
         return_value=httpx.Response(200, json={"id": "ps_001", "net_pay": "1000"})
     )
     result = await get_employee_paystub(
-        ctx, employee_id="emp_001", payroll_id="prl_001"
+        ctx, employee_id="emp_001", payroll_id="pay_001"
     )
     assert result["net_pay"] == "1000"
 
