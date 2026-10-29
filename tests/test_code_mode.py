@@ -1145,12 +1145,13 @@ async def _local_microvm(monkeypatch, handler=microvm_runner.handle):
         yield
 
 
-@pytest.fixture
-async def microvm_server(monkeypatch, code_server):
+async def _run_in_microvm(monkeypatch, code: str):
+    # The runner starts inside the test, on the test's event loop: an async
+    # fixture may run on another loop that never serves the connection.
     async with _local_microvm(monkeypatch):
         server = CheckMCP("Test MicroVM", lifespan=lifespan)
         setup_tools(server)
-        yield server
+        return await _run(server, code)
 
 
 def test_microvm_last_expression_becomes_result():
@@ -1160,7 +1161,7 @@ def test_microvm_last_expression_becomes_result():
 
 
 @pytest.mark.anyio
-async def test_microvm_runs_python_monty_lacks(mock_api, microvm_server):
+async def test_microvm_runs_python_monty_lacks(mock_api, monkeypatch, code_server):
     mock_api.get("/companies").mock(return_value=httpx.Response(200, json=COMPANIES))
     for cid, state in (("com_1", "CA"), ("com_2", "NY")):
         mock_api.get(f"/companies/{cid}").mock(
@@ -1187,7 +1188,7 @@ states = await asyncio.gather(*[state(c["id"]) for c in page["results"]])
 print("fetched", len(states))
 dict(Counter(states))
 """
-    is_error, payload = await _run(microvm_server, code)
+    is_error, payload = await _run_in_microvm(monkeypatch, code)
 
     assert not is_error, payload
     assert payload["result"] == {"CA": 1, "NY": 1}
@@ -1200,7 +1201,7 @@ dict(Counter(states))
 
 
 @pytest.mark.anyio
-async def test_microvm_api_error_is_catchable(mock_api, microvm_server):
+async def test_microvm_api_error_is_catchable(mock_api, monkeypatch, code_server):
     mock_api.get("/companies/com_missing").mock(
         return_value=httpx.Response(404, json={"error": "Not found"})
     )
@@ -1212,16 +1213,18 @@ except RuntimeError as e:
     outcome = json.loads(str(e))["status_code"]
 outcome
 """
-    is_error, payload = await _run(microvm_server, code)
+    is_error, payload = await _run_in_microvm(monkeypatch, code)
     assert not is_error, payload
     assert payload["result"] == 404
     assert payload["calls"][0]["error"]["status_code"] == 404
 
 
 @pytest.mark.anyio
-async def test_microvm_undeclared_write_is_not_in_the_module(mock_api, microvm_server):
-    is_error, payload = await _run(
-        microvm_server, 'await check.create_company(legal_name="x")'
+async def test_microvm_undeclared_write_is_not_in_the_module(
+    mock_api, monkeypatch, code_server
+):
+    is_error, payload = await _run_in_microvm(
+        monkeypatch, 'await check.create_company(legal_name="x")'
     )
     assert is_error
     assert payload["kind"] == "runtime_error"
@@ -1253,15 +1256,15 @@ async def test_microvm_host_refuses_forged_write(monkeypatch, mock_api, code_ser
 
 
 @pytest.mark.anyio
-async def test_microvm_syntax_error(microvm_server):
-    is_error, payload = await _run(microvm_server, "x = (")
+async def test_microvm_syntax_error(monkeypatch, code_server):
+    is_error, payload = await _run_in_microvm(monkeypatch, "x = (")
     assert is_error
     assert payload["kind"] == "syntax_error"
 
 
 @pytest.mark.anyio
-async def test_microvm_runtime_error_keeps_logs_and_line(microvm_server):
-    is_error, payload = await _run(microvm_server, "print('hi')\n\n1 / 0")
+async def test_microvm_runtime_error_keeps_logs_and_line(monkeypatch, code_server):
+    is_error, payload = await _run_in_microvm(monkeypatch, "print('hi')\n\n1 / 0")
     assert is_error
     assert payload["kind"] == "runtime_error"
     assert payload["logs"] == "hi\n"
@@ -1281,9 +1284,9 @@ async def test_microvm_timeout(monkeypatch, code_server):
 
 
 @pytest.mark.anyio
-async def test_microvm_dates_serialize_as_strings(microvm_server):
-    is_error, payload = await _run(
-        microvm_server, "from datetime import date\n{'day': date(2026, 1, 5)}"
+async def test_microvm_dates_serialize_as_strings(monkeypatch, code_server):
+    is_error, payload = await _run_in_microvm(
+        monkeypatch, "from datetime import date\n{'day': date(2026, 1, 5)}"
     )
     assert not is_error, payload
     assert payload["result"] == {"day": "2026-01-05"}
