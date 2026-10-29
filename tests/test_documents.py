@@ -369,6 +369,24 @@ async def test_download_pdf_is_truncated_by_whole_pages(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_download_pdf_single_page_over_the_limit_is_flagged(mock_api, ctx):
+    """A one-page PDF longer than the limit is cut, and must say so."""
+    page = "y" * (DOWNLOAD_TEXT_LIMIT + 10)
+    mock_api.get("/documents/company_tax_documents/ctd_001/download").mock(
+        return_value=httpx.Response(
+            200,
+            content=_pdf_with_text([page]),
+            headers={"content-type": "application/pdf"},
+        )
+    )
+    result = await download_company_tax_document(ctx, document_id="ctd_001")
+    assert result["pages"] == 1
+    assert result["truncated"] is True
+    assert len(result["text"]) == DOWNLOAD_TEXT_LIMIT
+    assert "Page 1 alone is over" in result["note"]
+
+
+@pytest.mark.anyio
 async def test_download_pdf_without_text_layer_is_an_error(mock_api, ctx):
     mock_api.get("/documents/setup_documents/sd_001").mock(
         return_value=_setup_document("payroll_journal")

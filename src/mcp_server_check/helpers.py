@@ -429,6 +429,7 @@ def _pdf_download(data: bytes, filename: str | None) -> dict:
     chunks: list[str] = []
     length = 0
     pages_shown = 0
+    page_cut = False
     for number, text in enumerate(page_texts, 1):
         chunk = f"--- page {number} ---\n{text}"
         if chunks:
@@ -439,6 +440,7 @@ def _pdf_download(data: bytes, filename: str | None) -> dict:
                 # One page alone is over the limit; show what fits of it.
                 chunks.append(chunk[:room])
                 pages_shown = 1
+                page_cut = True
             break
         chunks.append(chunk)
         length += len(chunk)
@@ -448,9 +450,19 @@ def _pdf_download(data: bytes, filename: str | None) -> dict:
         "filename": filename,
         "pages": total_pages,
         "text": "".join(chunks),
-        "truncated": pages_shown < total_pages,
+        "truncated": page_cut or pages_shown < total_pages,
     }
-    if result["truncated"]:
+    if page_cut:
+        result["note"] = (
+            f"Page 1 alone is over the {DOWNLOAD_TEXT_LIMIT:,}-character "
+            f"limit; showing its first {DOWNLOAD_TEXT_LIMIT:,} characters"
+            + (
+                f" and omitting {total_pages - 1} more pages."
+                if total_pages > 1
+                else "."
+            )
+        )
+    elif result["truncated"]:
         result["note"] = (
             f"Showing {pages_shown} of {total_pages} pages, under the "
             f"{DOWNLOAD_TEXT_LIMIT:,}-character limit; "
