@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 import json
 import logging
@@ -12,6 +13,7 @@ import httpx
 import pytest
 from fastmcp import Client, Context
 from mcp.server.lowlevel.server import Server
+from mcp_server_check import code_mode, microvm_runner
 from mcp_server_check.code_mode import (
     CallRecord,
     CodeModeSettings,
@@ -23,6 +25,7 @@ from mcp_server_check.code_mode import (
 from mcp_server_check.server import CheckMCP, lifespan, setup_tools
 from mcp_server_check.tool_filter import ToolFilter
 from mcp_server_check.tool_index import ToolIndex
+from websockets.asyncio.server import serve
 
 COMPANIES = {
     "results": [
@@ -1117,3 +1120,173 @@ await check.get_company(company_id="com_1")
     assert record.error["calls"] == [
         {"tool": "get_company", "status": "error", "status_code": 400}
     ]
+
+
+# --- MicroVM backend ---
+#
+# A runner on a local port stands in for the MicroVM, so these cover the
+# WebSocket protocol and the host's tool calls without AWS.
+
+
+@contextlib.asynccontextmanager
+async def _local_microvm(monkeypatch, handler=microvm_runner.handle):
+    async with serve(handler, "127.0.0.1", 0) as server:
+        port = server.sockets[0].getsockname()[1]
+
+        @contextlib.asynccontextmanager
+        async def launch(image_arn, timeout):
+            yield f"ws://127.0.0.1:{port}/", {}
+
+        monkeypatch.setattr(code_mode, "launch_microvm", launch)
+        monkeypatch.setenv(
+            "CHECK_CODE_MICROVM_IMAGE",
+            "arn:aws:lambda:us-east-1:123456789012:microvm-image:test",
+        )
+        yield
+
+
+async def _run_in_microvm(monkeypatch, code: str):
+    # The runner starts inside the test, on the test's event loop: an async
+    # fixture may run on another loop that never serves the connection.
+    async with _local_microvm(monkeypatch):
+        server = CheckMCP("Test MicroVM", lifespan=lifespan)
+        setup_tools(server)
+        return await _run(server, code)
+
+
+def test_microvm_last_expression_becomes_result():
+    namespace: dict = {}
+    exec(microvm_runner.compile_program("x = 2\nx * 21"), namespace)
+    assert namespace["__result__"] == 42
+
+
+@pytest.mark.anyio
+async def test_microvm_runs_python_monty_lacks(mock_api, monkeypatch, code_server):
+    mock_api.get("/companies").mock(return_value=httpx.Response(200, json=COMPANIES))
+    for cid, state in (("com_1", "CA"), ("com_2", "NY")):
+        mock_api.get(f"/companies/{cid}").mock(
+            return_value=httpx.Response(
+                200, json={"id": cid, "legal_name": "x", "address": {"state": state}}
+            )
+        )
+    code = """
+import asyncio
+from collections import Counter
+
+class Missing(KeyError):
+    pass
+
+limit = asyncio.Semaphore(2)
+
+async def state(cid):
+    async with limit:
+        company = await check.get_company(company_id=cid)
+    return next(s for s in [company["address"]["state"]])
+
+page = await check.list_companies(limit=2)
+states = await asyncio.gather(*[state(c["id"]) for c in page["results"]])
+print("fetched", len(states))
+dict(Counter(states))
+"""
+    is_error, payload = await _run_in_microvm(monkeypatch, code)
+
+    assert not is_error, payload
+    assert payload["result"] == {"CA": 1, "NY": 1}
+    assert payload["logs"] == "fetched 2\n"
+    assert [c["tool"] for c in payload["calls"]] == [
+        "list_companies",
+        "get_company",
+        "get_company",
+    ]
+
+
+@pytest.mark.anyio
+async def test_microvm_api_error_is_catchable(mock_api, monkeypatch, code_server):
+    mock_api.get("/companies/com_missing").mock(
+        return_value=httpx.Response(404, json={"error": "Not found"})
+    )
+    code = """
+import json
+try:
+    await check.get_company(company_id="com_missing")
+except RuntimeError as e:
+    outcome = json.loads(str(e))["status_code"]
+outcome
+"""
+    is_error, payload = await _run_in_microvm(monkeypatch, code)
+    assert not is_error, payload
+    assert payload["result"] == 404
+    assert payload["calls"][0]["error"]["status_code"] == 404
+
+
+@pytest.mark.anyio
+async def test_microvm_undeclared_write_is_not_in_the_module(
+    mock_api, monkeypatch, code_server
+):
+    is_error, payload = await _run_in_microvm(
+        monkeypatch, 'await check.create_company(legal_name="x")'
+    )
+    assert is_error
+    assert payload["kind"] == "runtime_error"
+    assert "create_company" in payload["detail"]
+    assert payload["calls"] == []
+    assert mock_api.calls.call_count == 0
+
+
+@pytest.mark.anyio
+async def test_microvm_host_refuses_forged_write(monkeypatch, mock_api, code_server):
+    """Code that reaches the socket still cannot call an undeclared write."""
+
+    async def forge(ws):
+        await ws.recv()
+        call = {"type": "call", "id": 1, "tool": "create_company", "args": []}
+        await ws.send(json.dumps({**call, "kwargs": {"legal_name": "x"}}))
+        reply = json.loads(await ws.recv())
+        await ws.send(json.dumps({"type": "done", "value": reply, "logs": ""}))
+
+    async with _local_microvm(monkeypatch, forge):
+        server = CheckMCP("Test MicroVM forge", lifespan=lifespan)
+        setup_tools(server)
+        is_error, payload = await _run(server, "1")
+
+    assert not is_error, payload
+    assert payload["result"]["type"] == "error"
+    assert "not callable" in payload["result"]["message"]
+    assert mock_api.calls.call_count == 0
+
+
+@pytest.mark.anyio
+async def test_microvm_syntax_error(monkeypatch, code_server):
+    is_error, payload = await _run_in_microvm(monkeypatch, "x = (")
+    assert is_error
+    assert payload["kind"] == "syntax_error"
+
+
+@pytest.mark.anyio
+async def test_microvm_runtime_error_keeps_logs_and_line(monkeypatch, code_server):
+    is_error, payload = await _run_in_microvm(monkeypatch, "print('hi')\n\n1 / 0")
+    assert is_error
+    assert payload["kind"] == "runtime_error"
+    assert payload["logs"] == "hi\n"
+    assert 'File "<program>", line 3' in payload["detail"]
+    assert "ZeroDivisionError" in payload["detail"]
+
+
+@pytest.mark.anyio
+async def test_microvm_timeout(monkeypatch, code_server):
+    monkeypatch.setenv("CHECK_CODE_TIMEOUT_SECS", "1")
+    async with _local_microvm(monkeypatch):
+        server = CheckMCP("Test MicroVM timeout", lifespan=lifespan)
+        setup_tools(server)
+        is_error, payload = await _run(server, "import asyncio\nawait asyncio.sleep(5)")
+    assert is_error
+    assert payload["kind"] == "timeout"
+
+
+@pytest.mark.anyio
+async def test_microvm_dates_serialize_as_strings(monkeypatch, code_server):
+    is_error, payload = await _run_in_microvm(
+        monkeypatch, "from datetime import date\n{'day': date(2026, 1, 5)}"
+    )
+    assert not is_error, payload
+    assert payload["result"] == {"day": "2026-01-05"}

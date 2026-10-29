@@ -29,6 +29,7 @@ CHECK_API_KEY=your-key uv run mcp-server-check
 | `CHECK_CODE_MAX_MEMORY_MB` | No | `256` | Code mode: sandbox heap limit |
 | `CHECK_CODE_MAX_RETRIES` | No | `8` | Code mode: retries of a throttled (HTTP 429) call, or of a read whose connection dropped, before the program sees the error |
 | `CHECK_CODE_MAX_PROGRAMS` | No | `4` | Code mode: most programs (each a sandbox process) one server runs at once; more wait their turn |
+| `CHECK_CODE_MICROVM_IMAGE` | No | — | Code mode: ARN of a Lambda MicroVM image built from `microvm_runner.py`; when set, programs run in CPython in a fresh MicroVM instead of Monty (experimental, needs the `microvm` extra) |
 | `CHECK_TOOLSETS` | No | — | Comma-separated list of toolsets to enable (e.g. `companies,employees`) |
 | `CHECK_TOOLS` | No | — | Comma-separated allowlist of individual tool names |
 | `CHECK_EXCLUDE_TOOLS` | No | — | Comma-separated list of tool names to hide |
@@ -215,6 +216,17 @@ Guardrails:
 - Write tools are absent from `check` unless the program names them in `run_code`'s `writes` argument, which keeps every write visible in the client's tool-call stream before it runs. A declared write that the filter hides is an error.
 - The sandbox is a Python subset with a fixed set of standard-library modules (asyncio, base64, bisect, collections, copy, csv, dataclasses, datetime, functools, hashlib, itertools, json, math, random, re, time, typing, unicodedata) and no third-party packages; `json.dumps` takes `indent` and `sort_keys` but not `default`; `asyncio` has only `gather` and `sleep` (the server caps concurrency and retries throttled calls, so programs need no semaphore); there is no `async with`, `async for`, `yield`, class inheritance, or `del`; and generator expressions evaluate eagerly to lists. The program's last expression is the answer, serialized by the server, so programs rarely need `json` at all. An import the sandbox cannot resolve fails type-checking before anything runs, and a failure caused by one of these limits carries a `hint` the model can act on.
 - Each program gets its own sandbox process with a time budget, a call budget, a concurrency cap on API calls, and a heap limit, and the server runs at most `CHECK_CODE_MAX_PROGRAMS` of them at once (see the `CHECK_CODE_*` variables in the configuration table). When a program ends with calls still in flight (a timeout, or one call of a `gather` failing), the host cancels them and they show `"status": "pending"` in the trace; a pending write may already have landed. Throttled calls (HTTP 429) are retried by the host with the wait the API asks for, and one throttled call pauses every call of the program for that long, so a `gather` of a hundred calls drains at the rate the API allows instead of each call discovering the limit on its own. A read whose connection dropped is retried the same way; a write is not, since it may have landed. The trace records the retries.
+
+#### MicroVM backend (experimental)
+
+Set `CHECK_CODE_MICROVM_IMAGE` to a Lambda MicroVM image ARN to run each program in full CPython in its own Firecracker VM instead of Monty. Install the `microvm` extra (boto3 and websockets) on the server.
+
+- **Image:** build the image from a Dockerfile that installs `websockets` and runs `src/mcp_server_check/microvm_runner.py` on port 8080. The runner imports nothing else from this package.
+- **Launch:** `run_code` launches a MicroVM from the image with `ALL_INGRESS` and no execution role, opens a WebSocket to it, and sends the program and the names of the tools it may call.
+- **Tool calls:** each `check.*` call comes back to the host as a message and runs through the same host function as the Monty path. The `ToolFilter`, `writes`, call budget, concurrency cap, and 429 retries all apply, and the host refuses any tool it didn't offer.
+- **Cleanup:** the MicroVM is terminated when the program finishes or times out. Lambda also ends it 60 seconds after the time budget.
+- **Egress:** turn off egress on the image (`egress_network_connectors = []`); the default is `INTERNET_EGRESS`. The program needs no outbound access, and the API key never enters the VM.
+- **Type checking:** this backend doesn't type-check programs before running them, and `CHECK_CODE_MAX_MEMORY_MB` doesn't apply because the image's memory size sets the limit. The server instructions and stubs still describe Monty's limits.
 
 ## Usage with Claude Desktop
 
