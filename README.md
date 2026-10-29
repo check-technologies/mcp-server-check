@@ -4,7 +4,7 @@
 
 > **Terms of Service** — By using this MCP server to access the Check API, you agree to the [MCP Usage Terms](TERMS_OF_SERVICE.md), which are in addition to your existing agreement with Check.
 
-An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 268 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
+An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 286 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
 
@@ -102,7 +102,7 @@ CHECK_READ_ONLY=1 CHECK_API_KEY=your-key uv run mcp-server-check
 
 #### Preview Toolsets
 
-Toolsets for APIs still being piloted with specific partners are hidden unless the client opts in. Opt in with any of:
+Toolsets for APIs still being piloted with specific partners are hidden unless the client opts in. No toolset is in preview at the moment (corrections left preview when the Corrections API became generally available, so the `X-MCP-Preview-Toolsets: corrections` header is no longer needed and is ignored). When one is, opt in with any of:
 
 ```bash
 # Local (stdio)
@@ -244,7 +244,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 ## Available Tools
 
-268 tools organized across 17 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
+286 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
 
 ### Companies (26 tools)
 
@@ -373,6 +373,31 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 | `reopen_external_payroll` | POST | Reopen an external payroll |
 | `preview_external_payroll` | GET | Preview an external payroll |
 
+### Corrections (18 tools)
+
+Correct a company's past payrolls: create a draft correction, void or add payrolls to it, preview it, then approve. Access is enabled per partner on the Check API; a partner without it gets a "feature unavailable" error.
+
+| Tool | Method | Description |
+|---|---|---|
+| `list_corrections` | GET | List corrections; filter by company, year, status, or payroll |
+| `get_correction` | GET | Get a correction, including its operations, totals, and preview and approval state |
+| `get_correction_receipt` | GET | Get the tax rollup for a previewed correction |
+| `get_correction_receipt_download` | GET | Get a short-lived presigned URL for the correction receipt PDF |
+| `create_correction` | POST | Create a draft correction for a company and tax year |
+| `update_correction` | PATCH | Update a draft correction's settlement date, bank account, description, metadata, or simulation mode |
+| `delete_correction` | DELETE | Delete a draft correction |
+| `void_payroll` | POST | Void a paid payroll, or part of it, as part of a draft correction |
+| `add_payroll_to_correction` | POST | Add a new payroll to a draft correction, e.g. to replace a voided one or record a missed one |
+| `add_external_payroll` | POST | Add a new external payroll to a draft correction |
+| `preview_correction` | POST | Price a draft correction without moving money |
+| `create_correction_payroll_journal_run` | POST | Start a payroll journal report run for a previewed correction |
+| `create_correction_payroll_summary_run` | POST | Start a payroll summary report run for a previewed correction |
+| `approve_correction` | POST | Approve a draft correction, committing its payroll changes and moving money |
+| `reopen_correction` | POST | Cancel a pending correction's approval and return it to draft |
+| `simulate_correction_start_processing` | POST | Simulate starting correction processing (sandbox only) |
+| `simulate_correction_complete_funding` | POST | Simulate completing correction funding (sandbox only) |
+| `simulate_correction_fail_funding` | POST | Simulate failing correction funding (sandbox only) |
+
 ### Compensation (32 tools)
 
 Pay schedules, benefits, post-tax deductions, company benefits, earning rates, earning codes, and net pay splits.
@@ -498,7 +523,7 @@ Asynchronous reporting. `create_report_run` returns a `run_` ID, `get_report_run
 | `refund_payment` | POST | Refund a payment |
 | `cancel_payment` | POST | Cancel a payment |
 
-### Tax (26 tools)
+### Tax (31 tools)
 
 Tax parameters, elections (including tax exemptions), filings, statements, packages, and tax reference data.
 

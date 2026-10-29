@@ -1,6 +1,6 @@
 # Check CLI
 
-A command-line interface for the [Check Payroll API](https://docs.checkhq.com/). The CLI exposes the same 268 tools as the MCP server, organized as resource-oriented commands similar to the [Stripe CLI](https://docs.stripe.com/cli).
+A command-line interface for the [Check Payroll API](https://docs.checkhq.com/). The CLI exposes the same 286 tools as the MCP server, organized as resource-oriented commands similar to the [Stripe CLI](https://docs.stripe.com/cli).
 
 ## Installation
 
@@ -222,7 +222,7 @@ export CHECK_EXCLUDE_DESTRUCTIVE=1
 
 ### Preview Toolsets
 
-Toolsets for APIs still being piloted are hidden until you opt in:
+Toolsets for APIs still being piloted are hidden until you opt in. None is in preview at the moment; `corrections` left preview when the Corrections API became generally available.
 
 ```bash
 check --preview-toolsets <toolset> <toolset> --help

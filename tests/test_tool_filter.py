@@ -15,6 +15,20 @@ from mcp_server_check.tool_filter import (
     is_write_tool,
 )
 
+
+@pytest.fixture
+def corrections_in_preview():
+    """Treat corrections as a preview toolset again, to exercise the opt-in.
+
+    Nothing is in preview right now, so the tests of the mechanism borrow a
+    real toolset for it.
+    """
+    with mock.patch(
+        "mcp_server_check.tool_filter.PREVIEW_TOOLSETS", frozenset({"corrections"})
+    ):
+        yield
+
+
 # --- is_write_tool ---
 
 
@@ -126,6 +140,7 @@ class TestFromEnv:
         assert tf.toolsets is None
         assert tf.tools is None
 
+    @pytest.mark.usefixtures("corrections_in_preview")
     def test_preview_toolsets(self):
         with mock.patch.dict(os.environ, {"CHECK_PREVIEW_TOOLSETS": "corrections"}):
             tf = ToolFilter.from_env()
@@ -168,6 +183,7 @@ class TestFromHeaders:
         tf = ToolFilter.from_headers(headers)
         assert tf.read_only is True
 
+    @pytest.mark.usefixtures("corrections_in_preview")
     def test_preview_toolsets_header(self):
         tf = ToolFilter.from_headers({"x-mcp-preview-toolsets": "corrections"})
         assert tf.preview_toolsets == frozenset({"corrections"})
@@ -201,6 +217,7 @@ class TestFromQueryParams:
         tf = ToolFilter.from_query_params({"foo": "bar", "baz": "1"})
         assert tf == ToolFilter()
 
+    @pytest.mark.usefixtures("corrections_in_preview")
     def test_preview_toolsets(self):
         tf = ToolFilter.from_query_params({"preview_toolsets": "corrections"})
         assert tf.preview_toolsets == frozenset({"corrections"})
@@ -296,6 +313,13 @@ class TestIsToolAllowed:
 # --- Preview toolsets ---
 
 
+def test_nothing_is_in_preview():
+    assert PREVIEW_TOOLSETS == frozenset()
+    assert ToolFilter().is_tool_allowed("list_corrections", "corrections") is True
+    assert ToolFilter().is_toolset_allowed("corrections") is True
+
+
+@pytest.mark.usefixtures("corrections_in_preview")
 class TestPreviewToolsets:
     def test_hidden_by_default(self):
         tf = ToolFilter()
@@ -360,15 +384,14 @@ class TestPreviewToolsets:
         merged = env.merge(header)
         assert merged.is_tool_allowed("list_corrections", "corrections") is False
 
-    def test_exclude_destructive_for_correction_tools(self):
-        tf = ToolFilter(
-            exclude_destructive=True, preview_toolsets=frozenset({"corrections"})
-        )
-        assert tf.is_tool_allowed("approve_correction", "corrections") is False
-        assert tf.is_tool_allowed("reopen_correction", "corrections") is False
-        assert tf.is_tool_allowed("delete_correction", "corrections") is False
-        assert tf.is_tool_allowed("preview_correction", "corrections") is True
-        assert tf.is_tool_allowed("void_payroll", "corrections") is True
+
+def test_exclude_destructive_for_correction_tools():
+    tf = ToolFilter(exclude_destructive=True)
+    assert tf.is_tool_allowed("approve_correction", "corrections") is False
+    assert tf.is_tool_allowed("reopen_correction", "corrections") is False
+    assert tf.is_tool_allowed("delete_correction", "corrections") is False
+    assert tf.is_tool_allowed("preview_correction", "corrections") is True
+    assert tf.is_tool_allowed("void_payroll", "corrections") is True
 
 
 # --- Invalid toolset handling ---

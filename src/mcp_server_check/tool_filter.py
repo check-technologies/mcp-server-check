@@ -39,8 +39,9 @@ TOOLSETS: frozenset[str] = frozenset(
     }
 )
 
-# Hidden until the caller opts in through preview_toolsets.
-PREVIEW_TOOLSETS: frozenset[str] = frozenset({"corrections"})
+# Hidden until the caller opts in through preview_toolsets. Empty since the
+# corrections API went GA; the opt-in machinery stays for the next piloted API.
+PREVIEW_TOOLSETS: frozenset[str] = frozenset()
 
 _WRITE_PREFIXES = (
     "create_",

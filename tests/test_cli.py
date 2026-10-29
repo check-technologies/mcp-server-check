@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+from unittest import mock
 
 import httpx
+import pytest
 import respx
 from click.testing import CliRunner
 
@@ -266,12 +268,29 @@ def test_toolsets_env_blocks_access():
     assert result.exit_code == 2
 
 
+@pytest.fixture
+def corrections_in_preview():
+    """Treat corrections as a preview toolset again, to exercise the opt-in."""
+    with mock.patch(
+        "mcp_server_check.tool_filter.PREVIEW_TOOLSETS", frozenset({"corrections"})
+    ):
+        yield
+
+
+def test_corrections_group_shown_by_default():
+    help_result = _invoke("--help")
+    assert "Commands for corrections" in help_result.output
+    assert _invoke("corrections", "--help").exit_code == 0
+
+
+@pytest.mark.usefixtures("corrections_in_preview")
 def test_preview_toolset_hidden_by_default():
     help_result = _invoke("--help")
     assert "Commands for corrections" not in help_result.output
     assert _invoke("corrections", "--help").exit_code == 2
 
 
+@pytest.mark.usefixtures("corrections_in_preview")
 def test_preview_toolset_flag_shows_group():
     result = _invoke("--preview-toolsets", "corrections", "corrections", "--help")
     assert result.exit_code == 0
@@ -279,12 +298,14 @@ def test_preview_toolset_flag_shows_group():
         assert command in result.output
 
 
+@pytest.mark.usefixtures("corrections_in_preview")
 def test_preview_toolset_flag_shows_group_in_top_level_help():
     result = _invoke("--preview-toolsets", "corrections", "--help")
     assert result.exit_code == 0
     assert "Commands for corrections" in result.output
 
 
+@pytest.mark.usefixtures("corrections_in_preview")
 def test_preview_toolset_env_shows_group():
     result = _invoke("--help", env={"CHECK_PREVIEW_TOOLSETS": "corrections"})
     assert "Commands for corrections" in result.output
@@ -294,8 +315,6 @@ def test_preview_toolset_env_shows_group():
 def test_void_payroll_requires_explicit_subset(respx_mock):
     route = respx_mock.post("/payrolls/pay_001/void")
     result = _invoke(
-        "--preview-toolsets",
-        "corrections",
         "corrections",
         "void-payroll",
         "pay_001",
@@ -313,8 +332,6 @@ def test_void_payroll_null_subset_voids_entire_payroll(respx_mock):
         return_value=httpx.Response(201, json={"id": "pay_void"})
     )
     result = _invoke(
-        "--preview-toolsets",
-        "corrections",
         "corrections",
         "void-payroll",
         "pay_001",
