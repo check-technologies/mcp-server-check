@@ -779,7 +779,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "boto3", marker = "extra == 'microvm'", specifier = ">=1.43.0" },
+    { name = "boto3", marker = "extra == 'microvm'", specifier = ">=1.43.35" },
     { name = "click", specifier = ">=8.0.0" },
     { name = "fastmcp", specifier = ">=3.4.4" },
     { name = "httpx", specifier = ">=0.27.0" },
