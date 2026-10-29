@@ -5,7 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from importlib.metadata import PackageNotFoundError, version
-from urllib.parse import parse_qs, urlparse
+from io import BytesIO
+from urllib.parse import parse_qs, unquote, urlparse
 
 import httpx
 from fastmcp import Context
@@ -321,6 +322,141 @@ def _csv_body(response: httpx.Response) -> dict:
             "detail": f"Expected a CSV response, got {content_type or 'no content type'}.",
         }
     return {"csv": response.text}
+
+
+# Downloaded documents are returned as text so the model can read them; this
+# bounds how much of one lands in its context.
+DOWNLOAD_TEXT_LIMIT = 100_000
+
+_READABLE_DOWNLOADS = "PDF, CSV, plain text, or JSON"
+
+
+async def check_api_download(ctx: Ctx, path: str) -> dict:
+    """GET a document download and return it as text, by content type.
+
+    The document download routes return the file itself, not JSON. A PDF comes
+    back as its text layer, page by page; a CSV or plain-text file as-is; a
+    JSON body (for example one carrying a URL) decoded. Text longer than
+    ``DOWNLOAD_TEXT_LIMIT`` characters is cut, with ``truncated`` set and a
+    ``note`` saying what was left out. Anything else is a structured error.
+    """
+    return await _check_api_request(ctx, "GET", path, parse=_download_body)
+
+
+def _download_body(response: httpx.Response) -> dict:
+    raw_type = response.headers.get("content-type", "")
+    content_type = raw_type.split(";", 1)[0].strip().lower()
+    filename = _content_disposition_filename(response)
+    if content_type == "application/json" or content_type.endswith("+json"):
+        return response.json()
+    if content_type == "application/pdf":
+        return _pdf_download(response.content, filename)
+    if content_type == "text/csv" or content_type.startswith("text/"):
+        result = _capped_text(response.text)
+        result.update(content_type=content_type, filename=filename)
+        return result
+    return {
+        "error": True,
+        "content_type": content_type or None,
+        "size_bytes": len(response.content),
+        "filename": filename,
+        "detail": (
+            f"Cannot read a {content_type or 'untyped'} download "
+            f"({len(response.content)} bytes) here; only a {_READABLE_DOWNLOADS} "
+            "download is readable."
+        ),
+    }
+
+
+def _content_disposition_filename(response: httpx.Response) -> str | None:
+    """Pull the filename out of a Content-Disposition header, if any."""
+    header = response.headers.get("content-disposition", "")
+    for part in header.split(";")[1:]:
+        key, _, value = part.strip().partition("=")
+        key = key.strip().lower()
+        value = value.strip().strip('"')
+        if key == "filename*":
+            # RFC 5987: charset'lang'percent-encoded-name
+            _, _, encoded = value.rpartition("'")
+            return unquote(encoded) or None
+        if key == "filename" and value:
+            return value
+    return None
+
+
+def _capped_text(text: str) -> dict:
+    """Return text under the download limit, flagging what was cut."""
+    if len(text) <= DOWNLOAD_TEXT_LIMIT:
+        return {"text": text, "truncated": False}
+    omitted = len(text) - DOWNLOAD_TEXT_LIMIT
+    return {
+        "text": text[:DOWNLOAD_TEXT_LIMIT],
+        "truncated": True,
+        "note": (
+            f"Showing the first {DOWNLOAD_TEXT_LIMIT:,} of {len(text):,} characters; "
+            f"{omitted:,} were omitted."
+        ),
+    }
+
+
+def _pdf_download(data: bytes, filename: str | None) -> dict:
+    """Extract a PDF's text layer, page by page, under the download limit."""
+    from pypdf import PdfReader  # imported here: only downloads need it
+    from pypdf.errors import PyPdfError
+
+    try:
+        reader = PdfReader(BytesIO(data))
+        page_texts = [(page.extract_text() or "").strip() for page in reader.pages]
+    except PyPdfError as e:
+        return {
+            "error": True,
+            "content_type": "application/pdf",
+            "filename": filename,
+            "detail": f"Could not parse the PDF: {e}",
+        }
+    total_pages = len(page_texts)
+    if not any(page_texts):
+        return {
+            "error": True,
+            "content_type": "application/pdf",
+            "filename": filename,
+            "pages": total_pages,
+            "detail": (
+                "The PDF has no text layer (it is a scan or an image), so it "
+                "cannot be read here."
+            ),
+        }
+    chunks: list[str] = []
+    length = 0
+    pages_shown = 0
+    for number, text in enumerate(page_texts, 1):
+        chunk = f"--- page {number} ---\n{text}"
+        if chunks:
+            chunk = "\n\n" + chunk
+        if length + len(chunk) > DOWNLOAD_TEXT_LIMIT:
+            room = DOWNLOAD_TEXT_LIMIT - length
+            if room > 0 and not chunks:
+                # One page alone is over the limit; show what fits of it.
+                chunks.append(chunk[:room])
+                pages_shown = 1
+            break
+        chunks.append(chunk)
+        length += len(chunk)
+        pages_shown = number
+    result: dict = {
+        "content_type": "application/pdf",
+        "filename": filename,
+        "pages": total_pages,
+        "text": "".join(chunks),
+        "truncated": pages_shown < total_pages,
+    }
+    if result["truncated"]:
+        result["note"] = (
+            f"Showing {pages_shown} of {total_pages} pages, under the "
+            f"{DOWNLOAD_TEXT_LIMIT:,}-character limit; "
+            f"{total_pages - pages_shown} pages were omitted."
+        )
+    return result
 
 
 async def check_api_post(

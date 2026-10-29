@@ -102,6 +102,7 @@ Prefer the workflow tools when they fit — they combine multiple API calls in o
 - Employee SSNs are write-once; after setting, only last 4 digits are readable
 - Tax parameter updates require the `spa_*` setting ID, not the parameter name
 - Report runs (`run_`) are asynchronous: create one, poll it until "completed" or "failed", then download — the download link expires in about a minute
+- The document `download_*` tools return the file's contents as text (a PDF's text layer page by page, a CSV as-is), cut at a limit with `truncated` set; `sensitive_*` setup documents are refused because they hold unmasked SSNs and bank numbers
 - A report that times out or is too large to return fails with "alternatives" (complete calls that can still get it, such as response_format="csv" or a report run) and "hints" (advice that needs input only you have)
 """
 

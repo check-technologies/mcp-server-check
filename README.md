@@ -457,23 +457,23 @@ Pay schedules, benefits, post-tax deductions, company benefits, earning rates, e
 | **Company Tax Documents** | | |
 | `list_company_tax_documents` | GET | List company tax documents |
 | `get_company_tax_document` | GET | Get a specific company tax document |
-| `download_company_tax_document` | GET | Download a company tax document |
+| `download_company_tax_document` | GET | Download a company tax document as text (PDF text layer or CSV) |
 | **Company Authorization Documents** | | |
 | `list_company_authorization_documents` | GET | List authorization documents |
 | `get_company_authorization_document` | GET | Get an authorization document |
-| `download_company_authorization_document` | GET | Download an authorization document |
+| `download_company_authorization_document` | GET | Download an authorization document as text (PDF text layer or CSV) |
 | **Employee Tax Documents** | | |
 | `list_employee_tax_documents` | GET | List employee tax documents |
 | `get_employee_tax_document` | GET | Get an employee tax document |
-| `download_employee_tax_document` | GET | Download an employee tax document |
+| `download_employee_tax_document` | GET | Download an employee tax document as text (PDF text layer or CSV) |
 | **Contractor Tax Documents** | | |
 | `list_contractor_tax_documents` | GET | List contractor tax documents |
 | `get_contractor_tax_document` | GET | Get a contractor tax document |
-| `download_contractor_tax_document` | GET | Download a contractor tax document |
+| `download_contractor_tax_document` | GET | Download a contractor tax document as text (PDF text layer or CSV) |
 | **Setup Documents** | | |
 | `list_setup_documents` | GET | List setup documents |
 | `get_setup_document` | GET | Get a setup document |
-| `download_setup_document` | GET | Download a setup document |
+| `download_setup_document` | GET | Download a setup document as text (PDF text layer or CSV); `sensitive_*` types are refused |
 | **Company Provided Documents** | | |
 | `list_company_provided_documents` | GET | List company-provided documents |
 | `get_company_provided_document` | GET | Get a company-provided document |
