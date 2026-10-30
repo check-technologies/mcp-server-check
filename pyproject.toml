@@ -30,6 +30,7 @@ microvm = [
 
 [dependency-groups]
 dev = [
+    "boto3>=1.43.35",
     "pre-commit>=4.6.0",
     "pydantic-monty>=1.3.0",
     "pytest>=8.0",
