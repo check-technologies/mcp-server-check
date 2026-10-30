@@ -4,18 +4,18 @@ Instead of one tool call per API request, the model writes a short program.
 ``import check`` exposes one async function per Check tool; each call proxies
 to the same tool function run_tool would run, through the same ToolFilter, and
 the program's final value comes back as one result. The program runs in a
-Pydantic Monty sandbox: no network, no filesystem, a time and memory budget,
-and only ``check.*`` calls leave it. Credentials never enter the sandbox.
+Pydantic Monty sandbox (no network, no filesystem, a time and memory budget),
+or, when CHECK_CODE_MICROVM_IMAGE is set, in CPython in a fresh Lambda
+MicroVM (microvm_host.py). Either way the host functions here answer every
+``check.*`` call, and credentials never enter the sandbox.
 """
 
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import inspect
 import json
 import logging
-import math
 import os
 import random
 import re
@@ -119,6 +119,15 @@ def _monty():
     except ImportError as e:  # pragma: no cover - exercised only without the extra
         raise CheckToolError({"error": True, "detail": _install_hint()}) from e
     return pydantic_monty
+
+
+def _microvm():
+    try:
+        from mcp_server_check import microvm_host
+    except ImportError as e:  # pragma: no cover - exercised only without the extra
+        detail = "MicroVM code mode needs the microvm extra: uv sync --extra microvm."
+        raise CheckToolError({"error": True, "detail": detail}) from e
+    return microvm_host
 
 
 # ---------------------------------------------------------------------------
@@ -452,6 +461,18 @@ def signature_warnings(diagnostics: str, tool_names: Iterable[str]) -> list[str]
 
 
 _MODULE_LIST = ", ".join(SANDBOX_MODULES)
+# Hints for failures either backend can produce.
+_GENERAL_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (
+        re.compile(r"exceeded its budget of (\d+) tool calls"),
+        "The program made more than {name} tool calls, and the calls that "
+        "succeeded before the limit are lost with it. Split the work across "
+        "several run_code programs, or use a composite tool such as "
+        "get_company_overview or get_employee_snapshot that bundles several "
+        "API calls into one.",
+    ),
+)
+# Hints for Monty's gaps, plus the general ones.
 _SANDBOX_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
     (
         re.compile(r"JSONEncoder\.__init__\(\) got an unexpected keyword argument"),
@@ -505,14 +526,7 @@ _SANDBOX_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
         re.compile(r"exceptions can only be called with zero or one string argument"),
         "Exceptions in the sandbox take at most one string argument.",
     ),
-    (
-        re.compile(r"exceeded its budget of (\d+) tool calls"),
-        "The program made more than {name} tool calls, and the calls that "
-        "succeeded before the limit are lost with it. Split the work across "
-        "several run_code programs, or use a composite tool such as "
-        "get_company_overview or get_employee_snapshot that bundles several "
-        "API calls into one.",
-    ),
+    *_GENERAL_HINTS,
     (
         # Anything else Monty's parser or runtime reports as unsupported.
         re.compile(r"does not yet support (.+?)(?:\.|$)"),
@@ -521,9 +535,11 @@ _SANDBOX_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
 )
 
 
-def sandbox_hint(detail: str) -> str | None:
+def sandbox_hint(
+    detail: str, hints: Sequence[tuple[re.Pattern[str], str]] = _SANDBOX_HINTS
+) -> str | None:
     """Advice for a failure caused by a known limit of the sandbox."""
-    for pattern, hint in _SANDBOX_HINTS:
+    for pattern, hint in hints:
         match = pattern.search(detail)
         if match:
             name = next((g for g in match.groups() if g), "")
@@ -648,73 +664,21 @@ def _program_failure(
     return CheckToolError(payload)
 
 
-def _timeout_detail(timeout: float) -> str:
+class ProgramFailed(Exception):
+    """A program that did not finish, as a backend reports it to CodeRunner.run."""
+
+    def __init__(self, kind: str, detail: str, logs: str = "") -> None:
+        super().__init__(detail)
+        self.kind = kind
+        self.detail = detail
+        self.logs = logs
+
+
+def timeout_detail(timeout: float) -> str:
     return (
         f"The program did not finish within {timeout:g} seconds. "
         "Make fewer or more parallel calls."
     )
-
-
-MICROVM_PORT = 8080
-MICROVM_MAX_MESSAGE_BYTES = 16 * 1024 * 1024
-
-
-@contextlib.asynccontextmanager
-async def launch_microvm(image_arn: str, timeout: float):
-    """Run a MicroVM from the runner image; yield its WebSocket URL and headers.
-
-    The MicroVM gets no execution role and no egress connector, so the program
-    reaches nothing but this host. It is terminated on exit, and Lambda
-    terminates it anyway a minute after the program's time budget.
-    """
-    try:
-        import boto3
-    except ImportError as e:  # pragma: no cover - exercised only without the extra
-        raise CheckToolError(
-            {
-                "error": True,
-                "detail": "MicroVM code mode needs boto3: uv sync --extra microvm.",
-            }
-        ) from e
-    region = image_arn.split(":")[3]
-    client = boto3.client("lambda-microvms", region_name=region)
-    run = await asyncio.to_thread(
-        client.run_microvm,
-        imageIdentifier=image_arn,
-        ingressNetworkConnectors=[
-            f"arn:aws:lambda:{region}:aws:network-connector:aws-network-connector:ALL_INGRESS"
-        ],
-        maximumDurationInSeconds=int(timeout) + 60,
-    )
-    microvm_id = run["microvmId"]
-    try:
-        state = run["state"]
-        while state == "PENDING":
-            await asyncio.sleep(0.1)
-            state = (
-                await asyncio.to_thread(
-                    client.get_microvm, microvmIdentifier=microvm_id
-                )
-            )["state"]
-        if state != "RUNNING":
-            raise RuntimeError(f"MicroVM {microvm_id} is {state}, not RUNNING")
-        token = await asyncio.to_thread(
-            client.create_microvm_auth_token,
-            microvmIdentifier=microvm_id,
-            expirationInMinutes=max(1, math.ceil(timeout / 60)),
-            allowedPorts=[{"port": MICROVM_PORT}],
-        )
-        yield (
-            f"wss://{run['endpoint']}/",
-            {"X-aws-proxy-auth": token["authToken"]["X-aws-proxy-auth"]},
-        )
-    finally:
-        try:
-            await asyncio.to_thread(
-                client.terminate_microvm, microvmIdentifier=microvm_id
-            )
-        except Exception:
-            logger.warning("Could not terminate MicroVM %s", microvm_id, exc_info=True)
 
 
 class CodeRunner:
@@ -725,8 +689,15 @@ class CodeRunner:
     ) -> None:
         self._index = index
         self._settings = settings or CodeModeSettings.from_env()
-        # Each program holds a Monty worker process; cap them across requests.
+        # Each program holds a Monty worker process or a MicroVM; cap them
+        # across requests.
         self._programs = asyncio.Semaphore(self._settings.max_programs)
+        if self._settings.microvm_image:
+            self._execute = self._execute_microvm
+            self._hints = _GENERAL_HINTS
+        else:
+            self._execute = self._execute_monty
+            self._hints = _SANDBOX_HINTS
 
     @property
     def settings(self) -> CodeModeSettings:
@@ -878,28 +849,73 @@ class CodeRunner:
         does not type-check, raises, or exhausts a budget. Waiting for a free
         program slot does not count against the time budget.
         """
-        run = self._run_microvm if self._settings.microvm_image else self._run
-        async with self._programs:
-            return await run(code, tool_filter, writes, on_call)
-
-    async def _run(
-        self,
-        code: str,
-        tool_filter: ToolFilter,
-        writes: Sequence[str] = (),
-        on_call: CallListener | None = None,
-    ) -> dict[str, Any]:
-        pm = _monty()
         entries = self.callable_entries(tool_filter, writes)
         program = ProgramRun(on_call=on_call)
         semaphore = asyncio.Semaphore(self._settings.concurrency)
-        module = pm.ExternalModule(
-            {
-                entry.name: self._host_function(entry, tool_filter, semaphore, program)
-                for entry in entries
-            },
-            stubs=render_stubs(entries),
+        functions = {
+            entry.name: self._host_function(entry, tool_filter, semaphore, program)
+            for entry in entries
+        }
+        async with self._programs:
+            started = time.monotonic()
+            try:
+                value, logs, warnings = await self._execute(
+                    code, entries, functions, tool_filter, writes
+                )
+            except ProgramFailed as e:
+                raise _program_failure(
+                    e.kind,
+                    e.detail,
+                    e.logs,
+                    program.calls,
+                    sandbox_hint(e.detail, self._hints),
+                ) from e
+            finally:
+                # Whatever ended the program, nothing it started may outlive
+                # it: a call still in flight would otherwise finish in the
+                # background and report progress to a request that has
+                # already answered.
+                program.close()
+
+        result: dict[str, Any] = {
+            "result": value,
+            "logs": logs,
+            "calls": [c.to_dict() for c in program.calls],
+            "duration_ms": int((time.monotonic() - started) * 1000),
+        }
+        if warnings:
+            result["warnings"] = warnings
+        return result
+
+    async def _execute_microvm(
+        self,
+        code: str,
+        entries: Sequence[ToolEntry],
+        functions: dict[str, Callable[..., Awaitable[Any]]],
+        tool_filter: ToolFilter,
+        writes: Sequence[str],
+    ) -> tuple[Any, str, list[str]]:
+        # shortcut: no type check before the run, so a wrong tool name fails
+        # at runtime; run ty on the host against render_stubs(entries) to
+        # restore type_check_failed.
+        value, logs = await _microvm().execute(
+            code,
+            functions,
+            self._settings.microvm_image,
+            self._settings.timeout_secs,
         )
+        return value, logs, []
+
+    async def _execute_monty(
+        self,
+        code: str,
+        entries: Sequence[ToolEntry],
+        functions: dict[str, Callable[..., Awaitable[Any]]],
+        tool_filter: ToolFilter,
+        writes: Sequence[str],
+    ) -> tuple[Any, str, list[str]]:
+        pm = _monty()
+        module = pm.ExternalModule(functions, stubs=render_stubs(entries))
         printed = pm.CollectString()
         limits = pm.ResourceLimits(
             max_feed_duration_secs=self._settings.timeout_secs,
@@ -909,13 +925,10 @@ class CodeRunner:
             max_suspensions=self._settings.max_calls * 4 + 64,
         )
         timeout = self._settings.timeout_secs
-        started = time.monotonic()
-        deadline = started + timeout
+        deadline = time.monotonic() + timeout
 
-        def failure(kind: str, detail: str) -> CheckToolError:
-            return _program_failure(
-                kind, detail, printed.output, program.calls, sandbox_hint(detail)
-            )
+        def failure(kind: str, detail: str) -> ProgramFailed:
+            return ProgramFailed(kind, detail, printed.output)
 
         async def feed(session: Any, source: str, **kwargs: Any) -> Any:
             # One deadline across every feed, so a type-check rerun cannot
@@ -977,119 +990,7 @@ class CodeRunner:
             )
             raise failure(kind, e.display()) from e
         except asyncio.TimeoutError as e:
-            raise failure("timeout", _timeout_detail(timeout)) from e
+            raise failure("timeout", timeout_detail(timeout)) from e
         except pm.MontyError as e:
             raise failure("sandbox_error", str(e)) from e
-        finally:
-            # Whatever ended the program, nothing it started may outlive it:
-            # a call still in flight would otherwise finish in the background
-            # and report progress to a request that has already answered.
-            program.close()
-
-        result = {
-            "result": value,
-            "logs": printed.output,
-            "calls": [c.to_dict() for c in program.calls],
-            "duration_ms": int((time.monotonic() - started) * 1000),
-        }
-        if warnings:
-            result["warnings"] = warnings
-        return result
-
-    async def _run_microvm(
-        self,
-        code: str,
-        tool_filter: ToolFilter,
-        writes: Sequence[str] = (),
-        on_call: CallListener | None = None,
-    ) -> dict[str, Any]:
-        """Run the program in CPython in a fresh Lambda MicroVM.
-
-        The runner in the MicroVM (microvm_runner.py) sends each check.* call
-        back over the WebSocket, and the same host functions Monty uses answer
-        it, so the ToolFilter, writes, budgets, and retries apply unchanged.
-        """
-        # shortcut: no type check before the run, so a wrong tool name fails
-        # at runtime; run ty on the host against render_stubs(entries) to
-        # restore type_check_failed.
-        from websockets.asyncio.client import connect
-
-        entries = self.callable_entries(tool_filter, writes)
-        program = ProgramRun(on_call=on_call)
-        semaphore = asyncio.Semaphore(self._settings.concurrency)
-        functions = {
-            entry.name: self._host_function(entry, tool_filter, semaphore, program)
-            for entry in entries
-        }
-        timeout = self._settings.timeout_secs
-        started = time.monotonic()
-        answers: set[asyncio.Task] = set()
-
-        async def answer(ws: Any, call: dict[str, Any]) -> None:
-            reply: dict[str, Any] = {"id": call.get("id")}
-            try:
-                fn = functions.get(call.get("tool"))
-                if fn is None:
-                    raise ValueError(f"Tool {call.get('tool')!r} is not callable")
-                value = await fn(*call.get("args", ()), **call.get("kwargs", {}))
-                reply.update(type="result", value=value)
-            except Exception as e:
-                reply.update(type="error", error_type=type(e).__name__, message=str(e))
-            await ws.send(json.dumps(reply, default=str))
-
-        async def converse() -> dict[str, Any]:
-            async with launch_microvm(self._settings.microvm_image, timeout) as (
-                url,
-                headers,
-            ):
-                async with connect(
-                    url,
-                    additional_headers=headers,
-                    max_size=MICROVM_MAX_MESSAGE_BYTES,
-                ) as ws:
-                    request = {
-                        "type": "execute",
-                        "code": code,
-                        "tools": list(functions),
-                    }
-                    await ws.send(json.dumps(request))
-                    async for raw in ws:
-                        message = json.loads(raw)
-                        if message.get("type") != "call":
-                            return message
-                        task = asyncio.create_task(answer(ws, message))
-                        answers.add(task)
-                        task.add_done_callback(answers.discard)
-            raise RuntimeError("The MicroVM closed the connection without a result")
-
-        try:
-            reply = await asyncio.wait_for(converse(), timeout=timeout)
-        except asyncio.TimeoutError as e:
-            raise _program_failure(
-                "timeout", _timeout_detail(timeout), "", program.calls
-            ) from e
-        except CheckToolError:
-            raise
-        except Exception as e:
-            raise _program_failure(
-                "sandbox_error", f"{type(e).__name__}: {e}", "", program.calls
-            ) from e
-        finally:
-            # As in the Monty path: no call may outlive the program.
-            program.close()
-            for task in answers:
-                task.cancel()
-
-        if reply.get("type") != "done":
-            raise _program_failure(
-                str(reply.get("kind", "runtime_error")),
-                str(reply.get("detail", "")),
-                str(reply.get("logs", "")),
-                program.calls,
-            )
-        return {
-            "result": reply.get("value"),
-            "logs": reply.get("logs", ""),
-            "calls": [c.to_dict() for c in program.calls],
-            "duration_ms": int((time.monotonic() - started) * 1000),
-        }
+        return value, printed.output, warnings

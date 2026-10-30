@@ -118,7 +118,9 @@ async def run_program(ws, code: str, tools: list[str]) -> dict:
             "detail": detail,
             "logs": out.getvalue(),
         }
-    except Exception as e:
+    # SystemExit too: sys.exit() in a program is a failure to report, not a
+    # reason to drop the connection and its output.
+    except (Exception, SystemExit) as e:
         return {
             "type": "failed",
             "kind": "runtime_error",
