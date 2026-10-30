@@ -39,6 +39,7 @@ CHECK_API_KEY=your-key uv run mcp-server-check
 | `CHECK_PREVIEW_TOOLSETS` | No | — | Comma-separated list of [preview toolsets](#preview-toolsets) to enable |
 | `CHECK_TRANSPORT` | No | `stdio` | Transport protocol: `stdio`, `sse`, or `streamable-http` |
 | `CHECK_MAX_RESPONSE_BYTES` | No | `6000000` | Largest tool result to return; a bigger one becomes a tool error listing ways to narrow it. `0` disables the check |
+| `CHECK_MAX_RESULT_CHARS` | No | `50000` | Most characters of a tool result to hand the model. A longer list result keeps the records that fit, with `results_omitted` and a hint to page; any other longer result becomes a tool error listing ways to narrow it. `0` disables the budget |
 
 ### Sandbox vs Production
 
