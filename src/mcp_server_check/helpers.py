@@ -325,8 +325,11 @@ def _csv_body(response: httpx.Response) -> dict:
 
 
 # Downloaded documents are returned as text so the model can read them; this
-# bounds how much of one lands in its context.
-DOWNLOAD_TEXT_LIMIT = 100_000
+# bounds how much of one lands in its context. It sits under
+# ResultBudgetMiddleware's default of 50,000 characters, with room for the
+# JSON envelope and page markers: a document result over that budget is not a
+# list, so the middleware would reject it whole instead of trimming it.
+DOWNLOAD_TEXT_LIMIT = 40_000
 
 _READABLE_DOWNLOADS = "PDF, CSV, plain text, or JSON"
 
