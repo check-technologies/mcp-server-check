@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import sys
@@ -16,7 +17,6 @@ from fastmcp.tools import FunctionTool, ToolResult
 from mcp.types import TextContent
 
 from mcp_server_check.code_mode import (
-    SANDBOX_MODULES,
     CallRecord,
     CodeRunner,
     render_catalog,
@@ -104,7 +104,7 @@ Prefer the workflow tools when they fit — they combine multiple API calls in o
 - A report that times out or is too large to return fails with "alternatives" (complete calls that can still get it, such as response_format="csv" or a report run) and "hints" (advice that needs input only you have)
 """
 
-CODE_MODE_INSTRUCTIONS = f"""\
+CODE_MODE_INSTRUCTIONS = """\
 
 ## Code Mode
 This server runs in code mode: every Check API call happens inside a Python \
@@ -121,26 +121,16 @@ ran (tool, key arguments, and any failures), always for writes, so they can \
 see what touched their account.
 - Look up signatures first: get_stubs() with no arguments lists every toolset \
 and its tool names; get_stubs(tools=[...]), get_stubs(toolset=...), or \
-get_stubs(query="...") return signatures with docstrings. A program is \
-type-checked against them before it runs, so a wrong name or argument fails \
-before any API call is made; a doubt about an argument's type comes back as a \
-warning with the result instead.
+get_stubs(query="...") return signatures with docstrings.
 - Paginate with next_cursor until it is null. List results are summaries (key \
 fields only); call the get_* tool for a full record.
 - A failed API call raises RuntimeError whose message is a JSON object with \
 status_code and detail; catch it to continue. Throttled calls, and reads whose \
 connection dropped, are retried for you.
 - Make the answer the program's last expression and let the server serialize \
-it; do not json.dumps or print it. The sandbox is a Python subset: its only \
-modules are {", ".join(SANDBOX_MODULES)} (json.dumps takes indent and \
-sort_keys, not default); generator expressions evaluate eagerly to lists (use \
-`next(iter(...))`); there are no third-party packages.
-- Its asyncio has only gather(*coros) and sleep(): no Semaphore, wait_for, \
-create_task, async with, or gather keyword arguments. Do not throttle or time \
-out calls yourself; the server caps concurrent calls and retries throttled \
-ones. There is also no async for, yield, class inheritance (so no custom \
-exceptions, TypedDict, or NamedTuple), or del. When a program hits one of \
-these limits, the error carries a hint; fix the program and rerun it.
+it; do not json.dumps or print it. Programs run in CPython 3.13 with the \
+standard library and no third-party packages. Do not throttle or time out \
+calls yourself; the server caps concurrent calls and retries throttled ones.
 - Write tools (create_*, update_*, approve_*, ...) are absent from `check` \
 unless named in run_code's writes argument. Confirm with the user before \
 running a program that declares writes, and keep reads and writes in separate \
@@ -156,6 +146,11 @@ programs where you can.
 # the opt-in.
 CODE_MODE_TOOLS: frozenset[str] = frozenset({"get_stubs", "run_code"})
 DYNAMIC_TOOLS: frozenset[str] = frozenset({"search_tools", "list_toolsets", "run_tool"})
+
+
+def code_mode_available() -> bool:
+    """Code mode runs programs in a Lambda MicroVM, so it needs an image."""
+    return bool(os.environ.get("CHECK_CODE_MICROVM_IMAGE"))
 
 
 def _code_mode_tool_allowed(tf: ToolFilter, name: str) -> bool:
@@ -189,7 +184,10 @@ class CheckMCP(FastMCP):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._registry: dict[str, str] = {}
-        self._static_filter: ToolFilter = ToolFilter.from_env()
+        # Without a MicroVM image, CHECK_CODE_MODE and the request opt-ins
+        # are ignored, so the request gets the normal tools.
+        self._code_mode_available = code_mode_available()
+        self._static_filter: ToolFilter = self._usable(ToolFilter.from_env())
         self._tool_index: ToolIndex | None = None
         self._code_runner: CodeRunner | None = None
         self.add_middleware(RecoveryMiddleware(self.is_tool_available))
@@ -197,6 +195,11 @@ class CheckMCP(FastMCP):
         response_size_limit = ResponseSizeLimitMiddleware.from_env()
         if response_size_limit is not None:
             self.add_middleware(response_size_limit)
+
+    def _usable(self, tf: ToolFilter) -> ToolFilter:
+        if tf.code_mode and not self._code_mode_available:
+            return dataclasses.replace(tf, code_mode=False)
+        return tf
 
     def active_tool_filter(self) -> ToolFilter:
         """Return the filter for the current request.
@@ -219,7 +222,7 @@ class CheckMCP(FastMCP):
                     qp_filter = ToolFilter.from_query_params(request.query_params)
                     if qp_filter != ToolFilter():
                         result = result.merge(qp_filter)
-                return result
+                return self._usable(result)
         except Exception:
             pass
         return self._static_filter
@@ -467,14 +470,12 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         made. Each call is also sent as a progress notification as it
         finishes. Tell the user which calls ran when you report the result.
 
-        Check the signatures first with get_stubs: the program
-        is type-checked against them before it runs, so a wrong name or
-        argument fails fast without touching the API, and a doubt about an
-        argument's type is returned as a warning. A failed Check API call
+        Check the signatures first with get_stubs. A failed Check API call
         raises RuntimeError whose message is a JSON object with status_code
         and detail; catch it to continue. Throttled calls and reads whose
-        connection dropped are retried. There is no network or filesystem
-        access; only `check.*` calls leave the sandbox.
+        connection dropped are retried. The program runs in CPython 3.13 with
+        the standard library and holds no Check credentials; only `check.*`
+        calls reach the Check API.
 
         code: The Python source to run.
         writes: Names of write tools (create_*, update_*, approve_*, ...) the
@@ -639,7 +640,7 @@ def _create_server() -> CheckMCP:
     """Create and configure the MCP server from CHECK_TOOL_MODE and CHECK_CODE_MODE."""
     tool_mode = os.environ.get("CHECK_TOOL_MODE", "dynamic").lower()
     instructions = SERVER_INSTRUCTIONS
-    if tool_mode != "all" and ToolFilter.from_env().code_mode:
+    if tool_mode != "all" and ToolFilter.from_env().code_mode and code_mode_available():
         instructions += CODE_MODE_INSTRUCTIONS
     server = CheckMCP("Check Payroll API", instructions=instructions, lifespan=lifespan)
     setup_tools(server, tool_mode)
@@ -667,10 +668,14 @@ def main():
             "Running in code mode (get_stubs + run_code)",
             file=sys.stderr,
         )
+    elif ToolFilter.from_env().code_mode:
+        print(
+            "CHECK_CODE_MODE is ignored: code mode needs CHECK_CODE_MICROVM_IMAGE",
+            file=sys.stderr,
+        )
     else:
         print(
-            "Running in dynamic tool mode (3 meta-tools; CHECK_CODE_MODE=1 or the "
-            "X-MCP-Code-Mode header switches to get_stubs + run_code)",
+            "Running in dynamic tool mode (3 meta-tools)",
             file=sys.stderr,
         )
     if mcp._static_filter.read_only:
