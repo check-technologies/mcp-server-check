@@ -579,17 +579,24 @@ async def list_employee_tax_statements(
     limit: int | None = None,
     cursor: str | None = None,
     company: str | None = None,
+    correction: str | None = None,
     year: int | None = None,
     form: str | None = None,
     published_from: str | None = None,
 ) -> dict:
-    """List employee tax statements, optionally filtered by employee.
+    """List employee tax statements.
+
+    Either employee, company, or correction is required. When none of those
+    scope filters is provided, the API returns a validation error.
 
     Args:
         employee: Filter to tax statements for this Check employee ID (e.g. "emp_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
         company: Filter by company ID.
+        correction: Filter to employee tax statements produced by this correction
+            session (e.g. "cor_xxxxx"). Requires the corrections feature for your
+            partner; also satisfies the required scope filter on list.
         year: Filter by tax year.
         form: Filter by tax form ("fed_w2" or "vi_w2vi").
         published_from: ISO-8601 datetime lower bound on published_at (inclusive),
@@ -603,6 +610,7 @@ async def list_employee_tax_statements(
             limit=limit,
             cursor=cursor,
             company=company,
+            correction=correction,
             year=year,
             form=form,
             published_from=published_from,
