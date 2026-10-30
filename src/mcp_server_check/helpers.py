@@ -268,7 +268,7 @@ async def _check_api_request(
             method, path, params=params, json=data, headers=headers or None
         )
         response.raise_for_status()
-        if response.status_code == 204:
+        if response.status_code == 204 or not response.content:
             return {"success": True}
         return parse(response)
     except httpx.HTTPStatusError as e:

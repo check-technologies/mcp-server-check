@@ -653,6 +653,23 @@ async def request_embedded_setup(ctx: Ctx, company_id: str) -> dict:
     return await check_api_post(ctx, f"/companies/{company_id}/request_embedded_setup")
 
 
+async def simulate_unpublish_employee_tax_statements(
+    ctx: Ctx, company_id: str
+) -> dict:
+    """Simulate unpublishing a company's employee tax statements (sandbox only).
+
+    Reverts published W-2s for the company back to draft so sandbox flows can
+    be exercised repeatedly. Returns an empty body on success.
+
+    Args:
+        company_id: The Check company ID (for example "com_xxxxx").
+    """
+    return await check_api_post(
+        ctx,
+        f"/companies/{company_id}/simulate/unpublish_employee_tax_statements",
+    )
+
+
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, list_companies)
     add_annotated_tool(mcp, search_companies)
@@ -675,3 +692,4 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
         add_annotated_tool(mcp, start_implementation)
         add_annotated_tool(mcp, cancel_implementation)
         add_annotated_tool(mcp, request_embedded_setup)
+        add_annotated_tool(mcp, simulate_unpublish_employee_tax_statements)
