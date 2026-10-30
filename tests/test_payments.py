@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -11,6 +13,7 @@ from mcp_server_check.tools.payments import (
     list_payment_attempts,
     list_payments,
     retry_payment,
+    reverse_payment,
 )
 
 
@@ -111,3 +114,20 @@ async def test_cancel_payment(mock_api, ctx):
     )
     result = await cancel_payment(ctx, payment_id="pyt_001")
     assert result["status"] == "canceled"
+
+
+@pytest.mark.anyio
+async def test_reverse_payment(mock_api, ctx):
+    mock_api.post("/payments/pmt_001/reverse").mock(
+        return_value=httpx.Response(200, json={"id": "pmt_001", "status": "reversed"})
+    )
+    result = await reverse_payment(
+        ctx,
+        payment_id="pmt_001",
+        reason="duplicate",
+        idempotency_key="idem-1",
+    )
+    assert result["status"] == "reversed"
+    request = mock_api.post("/payments/pmt_001/reverse").calls.last.request
+    assert request.headers["X-Idempotency-Key"] == "idem-1"
+    assert json.loads(request.content) == {"reason": "duplicate"}
