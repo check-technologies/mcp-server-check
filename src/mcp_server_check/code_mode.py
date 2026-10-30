@@ -3,11 +3,10 @@
 Instead of one tool call per API request, the model writes a short program.
 ``import check`` exposes one async function per Check tool; each call proxies
 to the same tool function run_tool would run, through the same ToolFilter, and
-the program's final value comes back as one result. The program runs in a
-Pydantic Monty sandbox (no network, no filesystem, a time and memory budget),
-or, when CHECK_CODE_MICROVM_IMAGE is set, in CPython in a fresh Lambda
-MicroVM (microvm_host.py). Either way the host functions here answer every
-``check.*`` call, and credentials never enter the sandbox.
+the program's final value comes back as one result. Each program runs in
+CPython in a fresh Lambda MicroVM (microvm_host.py), so code mode is available
+only when CHECK_CODE_MICROVM_IMAGE names an image. The host functions here
+answer every ``check.*`` call, and credentials never enter the MicroVM.
 """
 
 from __future__ import annotations
@@ -39,30 +38,6 @@ MODULE_NAME = "check"
 
 _CTX_ANNOTATIONS = frozenset({"Ctx", "Context"})
 
-# Standard-library modules the sandbox provides (checked against
-# pydantic-monty 1.3). Filesystem and network modules are left out: they
-# import but every access is denied.
-SANDBOX_MODULES: tuple[str, ...] = (
-    "asyncio",
-    "base64",
-    "bisect",
-    "collections",
-    "copy",
-    "csv",
-    "dataclasses",
-    "datetime",
-    "functools",
-    "hashlib",
-    "itertools",
-    "json",
-    "math",
-    "random",
-    "re",
-    "time",
-    "typing",
-    "unicodedata",
-)
-
 _STUB_HEADER = f'''\
 """The `{MODULE_NAME}` module, already imported in programs run with run_code.
 
@@ -75,13 +50,10 @@ results carry "results",
 are marked below and must be named in run_code's `writes` argument before a
 program can call them.
 
-Make the answer the program's last expression; the server serializes it. The
-sandbox's modules are {", ".join(SANDBOX_MODULES)}; json.dumps takes indent
-and sort_keys but not default. asyncio has only gather(*coros) and sleep():
-no Semaphore, wait_for, or create_task, and the server already caps
-concurrent calls and retries throttled ones, so do not throttle. No async
-with, async for, generators, class inheritance, or del. Generator
-expressions evaluate eagerly to lists here (use next(iter(...))).
+Make the answer the program's last expression; the server serializes it.
+Programs run in CPython 3.13 with the standard library and no third-party
+packages. The server already caps concurrent calls and retries throttled
+ones, so do not throttle.
 
 List results are summaries: each record keeps only the fields below, by ID
 prefix. Call the matching get_* tool for a full record.
@@ -105,27 +77,11 @@ def _summary_field_lines() -> str:
 _WRITE_NOTE = "# write tool: name it in run_code(writes=[...]) to call it"
 
 
-def _install_hint() -> str:
-    return (
-        "Code mode needs the pydantic-monty package. Install the server with "
-        "the 'code' extra: uv sync --extra code (or pip install "
-        "'mcp-server-check[code]')."
-    )
-
-
-def _monty():
-    try:
-        import pydantic_monty
-    except ImportError as e:  # pragma: no cover - exercised only without the extra
-        raise CheckToolError({"error": True, "detail": _install_hint()}) from e
-    return pydantic_monty
-
-
 def _microvm():
     try:
         from mcp_server_check import microvm_host
     except ImportError as e:  # pragma: no cover - exercised only without the extra
-        detail = "MicroVM code mode needs the microvm extra: uv sync --extra microvm."
+        detail = "Code mode needs the code extra: uv sync --extra code."
         raise CheckToolError({"error": True, "detail": detail}) from e
     return microvm_host
 
@@ -175,9 +131,7 @@ def render_signature(entry: ToolEntry) -> str:
         if p.default is not inspect.Parameter.empty:
             text += f" = {p.default!r}"
         params.append(text)
-    # Results are untyped JSON; `Any` keeps the type checker on names and
-    # arguments, where it catches real mistakes, and off result shapes, where a
-    # strict `dict` produced false positives on mixed asyncio.gather results.
+    # Results are untyped JSON.
     return f"async def {entry.name}({', '.join(params)}) -> Any"
 
 
@@ -261,12 +215,10 @@ class CodeModeSettings:
 
     timeout_secs: float = 60.0
     max_calls: int = 200
-    max_memory_bytes: int = 256 * 1024 * 1024
     concurrency: int = 8
     max_retries: int = 8
     max_programs: int = 4
-    # A Lambda MicroVM image ARN. When set, programs run in CPython in a fresh
-    # MicroVM instead of Monty.
+    # The Lambda MicroVM image programs run in; code mode is off without one.
     microvm_image: str = ""
 
     @classmethod
@@ -275,9 +227,6 @@ class CodeModeSettings:
         return cls(
             timeout_secs=float(env.get("CHECK_CODE_TIMEOUT_SECS", cls.timeout_secs)),
             max_calls=int(env.get("CHECK_CODE_MAX_CALLS", cls.max_calls)),
-            max_memory_bytes=int(
-                float(env.get("CHECK_CODE_MAX_MEMORY_MB", 256)) * 1024 * 1024
-            ),
             concurrency=int(env.get("CHECK_CODE_CONCURRENCY", cls.concurrency)),
             max_retries=int(env.get("CHECK_CODE_MAX_RETRIES", cls.max_retries)),
             max_programs=int(env.get("CHECK_CODE_MAX_PROGRAMS", cls.max_programs)),
@@ -361,8 +310,7 @@ CallListener = Callable[[CallRecord, int], Awaitable[None]]
 
 
 _THROTTLE_HINT = re.compile(r"available in (\d+(?:\.\d+)?) second")
-_FUNCTION_DIAGNOSTIC = re.compile(r"function `(\w+)`")
-_MISSING_MEMBER = re.compile(r"Module `" + MODULE_NAME + r"` has no member `(\w+)`")
+_MISSING_MEMBER = re.compile(r"module '" + MODULE_NAME + r"' has no attribute '(\w+)'")
 
 
 def missing_member_notes(
@@ -371,9 +319,9 @@ def missing_member_notes(
     tool_filter: ToolFilter,
     writes: Iterable[str],
 ) -> list[str]:
-    """Why each tool the type checker could not find is absent from `check`.
+    """Why each tool a program could not find is absent from `check`.
 
-    "Module `check` has no member `create_correction`" is true for a tool
+    "module 'check' has no attribute 'create_correction'" is true for a tool
     that does not exist, one hidden by the server's configuration, and a
     write the program did not declare, and the fix is different for each.
     """
@@ -414,55 +362,7 @@ def missing_member_notes(
     return notes
 
 
-# Diagnostics that name a tool but judge the type of an argument rather than
-# its name. The checker infers those types from untyped JSON, so `cid = None`
-# followed by `cid = c["id"]` in a loop is "str | None" to it and the call is
-# refused; such lines are reported as warnings instead of blocking the run.
-_WARNING_DIAGNOSTICS = ("[invalid-argument-type]",)
-
-
-def _tool_diagnostics(
-    diagnostics: str, tool_names: Iterable[str]
-) -> tuple[list[str], list[str]]:
-    """Split diagnostics into those worth blocking on and those worth a warning.
-
-    Type checking exists to catch a wrong tool name or argument before any API
-    call. Diagnostics about the program's own handling of untyped results
-    (unions the checker infers from JSON) are not reliable enough to block on,
-    so only lines naming the module or one of its functions count, plus an
-    import the sandbox cannot resolve, which would fail at runtime anyway. A
-    line naming a function but only doubting an argument's type is a warning.
-    """
-    names = set(tool_names)
-    errors: list[str] = []
-    warnings: list[str] = []
-    for line in diagnostics.splitlines():
-        if "Module `" + MODULE_NAME + "`" in line or "[unresolved-import]" in line:
-            errors.append(line)
-            continue
-        match = _FUNCTION_DIAGNOSTIC.search(line)
-        if not match or match.group(1) not in names:
-            continue
-        if any(code in line for code in _WARNING_DIAGNOSTICS):
-            warnings.append(line)
-        else:
-            errors.append(line)
-    return errors, warnings
-
-
-def signature_errors(diagnostics: str, tool_names: Iterable[str]) -> list[str]:
-    """The type-check diagnostics worth blocking on; see _tool_diagnostics."""
-    return _tool_diagnostics(diagnostics, tool_names)[0]
-
-
-def signature_warnings(diagnostics: str, tool_names: Iterable[str]) -> list[str]:
-    """Type-check diagnostics about a tool call that do not block the run."""
-    return _tool_diagnostics(diagnostics, tool_names)[1]
-
-
-_MODULE_LIST = ", ".join(SANDBOX_MODULES)
-# Hints for failures either backend can produce.
-_GENERAL_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
+_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
     (
         re.compile(r"exceeded its budget of (\d+) tool calls"),
         "The program made more than {name} tool calls, and the calls that "
@@ -472,74 +372,11 @@ _GENERAL_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
         "API calls into one.",
     ),
 )
-# Hints for Monty's gaps, plus the general ones.
-_SANDBOX_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
-    (
-        re.compile(r"JSONEncoder\.__init__\(\) got an unexpected keyword argument"),
-        "The sandbox's json.dumps takes indent, sort_keys, and ensure_ascii but "
-        "not default. Make the data the program's last expression instead of "
-        "serializing it: the server turns it into JSON and renders dates and "
-        "other objects as strings.",
-    ),
-    (
-        re.compile(
-            r"No module named '([^']+)'|Cannot resolve imported module `([^`]+)`"
-        ),
-        "The sandbox has no {name} module and no third-party packages. Its "
-        f"modules are {_MODULE_LIST}.",
-    ),
-    (
-        re.compile(r"'list' object is not an iterator"),
-        "Generator expressions evaluate eagerly to lists in the sandbox, so "
-        "next() cannot consume one. Use next(iter(...)), index the list, or a "
-        "for loop.",
-    ),
-    (
-        re.compile(
-            r"does not yet support async context managers"
-            r"|module 'asyncio' has no attribute"
-            r"|gather\(\) does not yet support keyword arguments"
-        ),
-        "The sandbox's asyncio has only gather(*coros) and sleep(): no "
-        "Semaphore, wait_for, create_task, async with, or gather keyword "
-        "arguments. Drop the throttling; the server already caps concurrent "
-        "calls and retries throttled ones. For partial failures, catch "
-        "RuntimeError inside a helper coroutine instead of "
-        "gather(return_exceptions=True).",
-    ),
-    (
-        re.compile(r"does not yet support yield expressions"),
-        "The sandbox has no generators, so no yield or async for. Build and "
-        "return lists instead.",
-    ),
-    (
-        re.compile(r"does not yet support class inheritance"),
-        "The sandbox has no class inheritance: no subclassing, custom "
-        "exception classes, TypedDict, or NamedTuple. Use plain classes, "
-        "dicts, or dataclasses, and raise built-in exceptions.",
-    ),
-    (
-        re.compile(r"does not yet support the 'del' statement"),
-        "The sandbox has no del statement. Use dict.pop(key) or list.pop(i).",
-    ),
-    (
-        re.compile(r"exceptions can only be called with zero or one string argument"),
-        "Exceptions in the sandbox take at most one string argument.",
-    ),
-    *_GENERAL_HINTS,
-    (
-        # Anything else Monty's parser or runtime reports as unsupported.
-        re.compile(r"does not yet support (.+?)(?:\.|$)"),
-        "The sandbox does not support {name}. Rewrite the program without it.",
-    ),
-)
 
 
-def sandbox_hint(
-    detail: str, hints: Sequence[tuple[re.Pattern[str], str]] = _SANDBOX_HINTS
-) -> str | None:
-    """Advice for a failure caused by a known limit of the sandbox."""
-    for pattern, hint in hints:
+def sandbox_hint(detail: str) -> str | None:
+    """Advice for a failure caused by a known limit of code mode."""
+    for pattern, hint in _HINTS:
         match = pattern.search(detail)
         if match:
             name = next((g for g in match.groups() if g), "")
@@ -689,15 +526,8 @@ class CodeRunner:
     ) -> None:
         self._index = index
         self._settings = settings or CodeModeSettings.from_env()
-        # Each program holds a Monty worker process or a MicroVM; cap them
-        # across requests.
+        # Each program holds a MicroVM; cap them across requests.
         self._programs = asyncio.Semaphore(self._settings.max_programs)
-        if self._settings.microvm_image:
-            self._execute = self._execute_microvm
-            self._hints = _GENERAL_HINTS
-        else:
-            self._execute = self._execute_monty
-            self._hints = _SANDBOX_HINTS
 
     @property
     def settings(self) -> CodeModeSettings:
@@ -845,8 +675,8 @@ class CodeRunner:
 
         on_call is awaited after each tool call finishes, with its record and
         the number of calls finished so far, so the caller can report progress
-        while the program runs. Raises CheckToolError, with the trace so far, when the program
-        does not type-check, raises, or exhausts a budget. Waiting for a free
+        while the program runs. Raises CheckToolError, with the trace so far,
+        when the program raises or exhausts a budget. Waiting for a free
         program slot does not count against the time budget.
         """
         entries = self.callable_entries(tool_filter, writes)
@@ -859,16 +689,22 @@ class CodeRunner:
         async with self._programs:
             started = time.monotonic()
             try:
-                value, logs, warnings = await self._execute(
-                    code, entries, functions, tool_filter, writes
+                value, logs = await _microvm().execute(
+                    code,
+                    functions,
+                    self._settings.microvm_image,
+                    self._settings.timeout_secs,
                 )
             except ProgramFailed as e:
+                notes = missing_member_notes(
+                    [e.detail], self._index.entries, tool_filter, writes
+                )
                 raise _program_failure(
                     e.kind,
-                    e.detail,
+                    "\n".join([e.detail, *notes]),
                     e.logs,
                     program.calls,
-                    sandbox_hint(e.detail, self._hints),
+                    sandbox_hint(e.detail),
                 ) from e
             finally:
                 # Whatever ended the program, nothing it started may outlive
@@ -877,120 +713,9 @@ class CodeRunner:
                 # already answered.
                 program.close()
 
-        result: dict[str, Any] = {
+        return {
             "result": value,
             "logs": logs,
             "calls": [c.to_dict() for c in program.calls],
             "duration_ms": int((time.monotonic() - started) * 1000),
         }
-        if warnings:
-            result["warnings"] = warnings
-        return result
-
-    async def _execute_microvm(
-        self,
-        code: str,
-        entries: Sequence[ToolEntry],
-        functions: dict[str, Callable[..., Awaitable[Any]]],
-        tool_filter: ToolFilter,
-        writes: Sequence[str],
-    ) -> tuple[Any, str, list[str]]:
-        # shortcut: no type check before the run, so a wrong tool name fails
-        # at runtime; run ty on the host against render_stubs(entries) to
-        # restore type_check_failed.
-        value, logs = await _microvm().execute(
-            code,
-            functions,
-            self._settings.microvm_image,
-            self._settings.timeout_secs,
-        )
-        return value, logs, []
-
-    async def _execute_monty(
-        self,
-        code: str,
-        entries: Sequence[ToolEntry],
-        functions: dict[str, Callable[..., Awaitable[Any]]],
-        tool_filter: ToolFilter,
-        writes: Sequence[str],
-    ) -> tuple[Any, str, list[str]]:
-        pm = _monty()
-        module = pm.ExternalModule(functions, stubs=render_stubs(entries))
-        printed = pm.CollectString()
-        limits = pm.ResourceLimits(
-            max_feed_duration_secs=self._settings.timeout_secs,
-            max_memory=self._settings.max_memory_bytes,
-            # Backstop for the call budget enforced in the host functions;
-            # gathers and name lookups count here too.
-            max_suspensions=self._settings.max_calls * 4 + 64,
-        )
-        timeout = self._settings.timeout_secs
-        deadline = time.monotonic() + timeout
-
-        def failure(kind: str, detail: str) -> ProgramFailed:
-            return ProgramFailed(kind, detail, printed.output)
-
-        async def feed(session: Any, source: str, **kwargs: Any) -> Any:
-            # One deadline across every feed, so a type-check rerun cannot
-            # double the budget.
-            remaining = max(deadline - time.monotonic(), 0)
-            return await asyncio.wait_for(
-                session.feed_run(source, **kwargs), timeout=remaining
-            )
-
-        warnings: list[str] = []
-        try:
-            async with pm.AsyncMonty(min_processes=1, max_processes=1) as pool:
-                session = pool.checkout(
-                    type_check=True,
-                    type_check_format="concise",
-                    limits=limits,
-                    external_modules={MODULE_NAME: module},
-                )
-                async with session:
-                    # Bind the module up front so programs need no import and
-                    # the type checker knows the name; a program's own
-                    # `import check` is then a harmless repeat.
-                    await feed(session, f"import {MODULE_NAME}")
-                    try:
-                        value = await feed(session, code, print_callback=printed)
-                    except pm.MontyTypingError as e:
-                        errors, warnings = _tool_diagnostics(e.display(), module.attrs)
-                        if errors:
-                            if all("[unresolved-import]" in line for line in errors):
-                                what = (
-                                    "The program imports a module the sandbox "
-                                    "does not have; nothing ran.\n"
-                                )
-                            else:
-                                what = (
-                                    "The program does not match the check module's "
-                                    "signatures; nothing ran. Use get_stubs to see "
-                                    "them.\n"
-                                )
-                            notes = missing_member_notes(
-                                errors, self._index.entries, tool_filter, writes
-                            )
-                            raise failure(
-                                "type_check_failed",
-                                what + "\n".join([*errors, *notes]),
-                            ) from e
-                        # Diagnostics about the program's own data handling:
-                        # run it anyway.
-                        value = await feed(
-                            session, code, print_callback=printed, skip_type_check=True
-                        )
-        except pm.MontySyntaxError as e:
-            raise failure("syntax_error", e.display()) from e
-        except pm.MontyRuntimeError as e:
-            kind = (
-                "timeout"
-                if isinstance(e.exception(), TimeoutError)
-                else "runtime_error"
-            )
-            raise failure(kind, e.display()) from e
-        except asyncio.TimeoutError as e:
-            raise failure("timeout", timeout_detail(timeout)) from e
-        except pm.MontyError as e:
-            raise failure("sandbox_error", str(e)) from e
-        return value, printed.output, warnings

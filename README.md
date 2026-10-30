@@ -26,10 +26,8 @@ CHECK_API_KEY=your-key uv run mcp-server-check
 | `CHECK_CODE_TIMEOUT_SECS` | No | `60` | Code mode: wall-clock budget for one `run_code` program |
 | `CHECK_CODE_MAX_CALLS` | No | `200` | Code mode: most tool calls one program may make |
 | `CHECK_CODE_CONCURRENCY` | No | `8` | Code mode: most tool calls one program runs at once |
-| `CHECK_CODE_MAX_MEMORY_MB` | No | `256` | Code mode: sandbox heap limit |
 | `CHECK_CODE_MAX_RETRIES` | No | `8` | Code mode: retries of a throttled (HTTP 429) call, or of a read whose connection dropped, before the program sees the error |
-| `CHECK_CODE_MAX_PROGRAMS` | No | `4` | Code mode: most programs (each a sandbox process) one server runs at once; more wait their turn |
-| `CHECK_CODE_MICROVM_IMAGE` | No | — | Code mode: ARN of a Lambda MicroVM image built from `microvm_runner.py`; when set, programs run in CPython in a fresh MicroVM instead of Monty (experimental, needs the `microvm` extra) |
+| `CHECK_CODE_MAX_PROGRAMS` | No | `4` | Code mode: most programs (each in its own sandbox) one server runs at once; more wait their turn |
 | `CHECK_TOOLSETS` | No | — | Comma-separated list of toolsets to enable (e.g. `companies,employees`) |
 | `CHECK_TOOLS` | No | — | Comma-separated allowlist of individual tool names |
 | `CHECK_EXCLUDE_TOOLS` | No | — | Comma-separated list of tool names to hide |
@@ -169,12 +167,7 @@ CHECK_TOOL_MODE=all CHECK_API_KEY=your-key uv run mcp-server-check
 
 Code mode follows the pattern described by [Cloudflare](https://blog.cloudflare.com/code-mode/) and [Rippling](https://www.rippling.com/blog/building-mcp-server): instead of one tool call per API request, the model writes a short Python program that calls many tools and returns only the answer. Intermediate results never pass through the model's context.
 
-It needs the `code` extra, which installs [Pydantic Monty](https://pydantic.dev/articles/pydantic-monty), a sandboxed Python interpreter:
-
-```bash
-uv sync --extra code
-CHECK_CODE_MODE=1 CHECK_API_KEY=your-key uv run mcp-server-check
-```
+Each program runs in an isolated VM, so code mode is available only on a server configured to start one, such as the hosted Check MCP. On a local install, `CHECK_CODE_MODE`, the header, and the query parameter have no effect, and the server keeps the dynamic-mode tools.
 
 A dynamic-mode server can also switch it on per request, which lets a remote deployment roll it out client by client:
 
@@ -191,7 +184,7 @@ Without the header, a dynamic-mode server lists only the three meta-tools and re
 Code mode replaces the three dynamic-mode tools with two, so every API call goes through a program:
 
 - **`get_stubs(query?, toolset?, tools?)`** — With no arguments, the catalog: every toolset with its description and tool names, write tools marked with `*`. With a keyword `query`, a `toolset`, or a list of `tools`, typed Python signatures (with docstrings) for the `check` module, one `async def` per tool.
-- **`run_code(code, writes?)`** — Run a program. The `check` module is pre-imported and exposes every allowed tool as an async function; the program's last expression is returned along with anything it printed and a trace of every tool call it made (tool, arguments, status, duration). The program is type-checked against the stubs before it runs, so a wrong name or argument fails without touching the API.
+- **`run_code(code, writes?)`** — Run a program. The `check` module is pre-imported and exposes every allowed tool as an async function; the program's last expression is returned along with anything it printed and a trace of every tool call it made (tool, arguments, status, duration).
 
 ```python
 import asyncio
@@ -206,28 +199,17 @@ snapshots = await asyncio.gather(
 How it works:
 
 1. **Stubs come from the tool functions.** `code_mode.render_stubs` introspects the same functions `run_tool` runs (signature, defaults, docstring) and renders a `.pyi`-style stub file for the `check` module. There is no second catalog to keep in sync; a new tool gets a stub automatically.
-2. **Each program gets a fresh sandbox.** `run_code` starts a Monty worker process (about 10ms), registers one host function per allowed tool as the `check` module, imports it, and feeds the program in. Monty type-checks the program against the stubs first, so a wrong tool name or argument surfaces as `type_check_failed` before any API call. A doubt about an argument's *type* (the checker infers types from untyped JSON, so a variable assigned in a loop looks like `str | None` to it) does not block the run; it comes back in a `warnings` list beside the result.
-3. **Calls proxy back to the host.** When the program awaits `check.list_employees(...)`, the sandbox suspends and the host runs the tool through `ToolIndex.run`, so validation, the `ToolFilter`, and error conversion apply as they do for `run_tool`. MCP middleware runs once, around `run_code` itself, so failed reports inside a program don't get recovery `alternatives` or `hints`, and the server logs a failed program's call trace without its arguments, output, or source. Only the tool's result crosses back into the sandbox; the API key never does.
+2. **Each program gets a fresh sandbox.** `run_code` starts an isolated VM for the program, sends it the program and the names of the tools it may call, and terminates the VM when the program ends. The program runs in CPython with the standard library, and the `check` module inside the VM sends each call back to the server.
+3. **Calls proxy back to the host.** When the program awaits `check.list_employees(...)`, the host runs the tool through `ToolIndex.run`, so validation, the `ToolFilter`, and error conversion apply as they do for `run_tool`. MCP middleware runs once, around `run_code` itself, so failed reports inside a program don't get recovery `alternatives` or `hints`, and the server logs a failed program's call trace without its arguments, output, or source. Only the tool's result crosses back into the sandbox; the API key never does.
 4. **The result is the program's last expression** plus captured `print` output and a call trace (tool, arguments, status, duration). A failed API call raises `RuntimeError` inside the sandbox with the usual JSON error payload, so a program can catch it and continue; an uncaught error returns the trace so far.
 5. **Every call is visible.** The trace comes back as its own content block, one line per call, and the server instructions tell the model to repeat it when reporting the result. While the program runs, each finished call is also sent as an MCP progress notification (`list_employees(company='com_x') ok 340ms`), which clients that request progress, such as Claude Code, show on the running tool. MCP has no per-call approval inside a program; that is what the `writes` declaration is for.
 
 Guardrails:
 
-- The sandbox has no network, filesystem, or environment access and never sees the API key; every `check.*` call proxies to the same tool function `run_tool` would run, through the same `ToolFilter`, so `CHECK_READ_ONLY`, toolsets, and category exclusions apply unchanged.
+- The sandbox never sees the API key; every `check.*` call proxies to the same tool function `run_tool` would run, through the same `ToolFilter`, so `CHECK_READ_ONLY`, toolsets, and category exclusions apply unchanged.
 - Write tools are absent from `check` unless the program names them in `run_code`'s `writes` argument, which keeps every write visible in the client's tool-call stream before it runs. A declared write that the filter hides is an error.
-- The sandbox is a Python subset with a fixed set of standard-library modules (asyncio, base64, bisect, collections, copy, csv, dataclasses, datetime, functools, hashlib, itertools, json, math, random, re, time, typing, unicodedata) and no third-party packages; `json.dumps` takes `indent` and `sort_keys` but not `default`; `asyncio` has only `gather` and `sleep` (the server caps concurrency and retries throttled calls, so programs need no semaphore); there is no `async with`, `async for`, `yield`, class inheritance, or `del`; and generator expressions evaluate eagerly to lists. The program's last expression is the answer, serialized by the server, so programs rarely need `json` at all. An import the sandbox cannot resolve fails type-checking before anything runs, and a failure caused by one of these limits carries a `hint` the model can act on.
-- Each program gets its own sandbox process with a time budget, a call budget, a concurrency cap on API calls, and a heap limit, and the server runs at most `CHECK_CODE_MAX_PROGRAMS` of them at once (see the `CHECK_CODE_*` variables in the configuration table). When a program ends with calls still in flight (a timeout, or one call of a `gather` failing), the host cancels them and they show `"status": "pending"` in the trace; a pending write may already have landed. Throttled calls (HTTP 429) are retried by the host with the wait the API asks for, and one throttled call pauses every call of the program for that long, so a `gather` of a hundred calls drains at the rate the API allows instead of each call discovering the limit on its own. A read whose connection dropped is retried the same way; a write is not, since it may have landed. The trace records the retries.
-
-#### MicroVM backend (experimental)
-
-Set `CHECK_CODE_MICROVM_IMAGE` to a Lambda MicroVM image ARN to run each program in full CPython in its own Firecracker VM instead of Monty. Install the `microvm` extra (boto3 and websockets) on the server.
-
-- **Image:** build the image from a Dockerfile that installs `websockets` and runs `src/mcp_server_check/microvm_runner.py` on port 8080. The runner imports nothing else from this package.
-- **Launch:** `run_code` launches a MicroVM from the image with `ALL_INGRESS` and no execution role, opens a WebSocket to it, and sends the program and the names of the tools it may call.
-- **Tool calls:** each `check.*` call comes back to the host as a message and runs through the same host function as the Monty path. The `ToolFilter`, `writes`, call budget, concurrency cap, and 429 retries all apply, and the host refuses any tool it didn't offer.
-- **Cleanup:** the MicroVM is terminated when the program finishes or times out. Lambda also ends it 60 seconds after the time budget.
-- **Egress:** turn off egress on the image (`egress_network_connectors = []`); the default is `INTERNET_EGRESS`. The program needs no outbound access, and the API key never enters the VM.
-- **Type checking:** this backend doesn't type-check programs before running them, and `CHECK_CODE_MAX_MEMORY_MB` doesn't apply because the image's memory size sets the limit. The server instructions and stubs still describe Monty's limits.
+- Programs run in CPython with the standard library and no third-party packages. The program's last expression is the answer, serialized by the server, so programs rarely need `json` at all. A program that calls a tool missing from `check` gets a note saying whether the tool doesn't exist, is hidden by the server's configuration, or is a write it didn't declare.
+- Each program gets its own sandbox with a time budget, a call budget, and a concurrency cap on API calls, and the server runs at most `CHECK_CODE_MAX_PROGRAMS` of them at once (see the `CHECK_CODE_*` variables in the configuration table). When a program ends with calls still in flight (a timeout, or one call of a `gather` failing), the host cancels them and they show `"status": "pending"` in the trace; a pending write may already have landed. Throttled calls (HTTP 429) are retried by the host with the wait the API asks for, and one throttled call pauses every call of the program for that long, so a `gather` of a hundred calls drains at the rate the API allows instead of each call discovering the limit on its own. A read whose connection dropped is retried the same way; a write is not, since it may have landed. The trace records the retries.
 
 ## Usage with Claude Desktop
 

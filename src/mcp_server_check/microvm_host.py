@@ -3,9 +3,8 @@
 Each program runs in CPython in a fresh Lambda MicroVM started from an image
 of microvm_runner.py. The runner sends each ``check.*`` call back over a
 WebSocket, and the host functions code_mode builds answer it, so the
-ToolFilter, writes, budgets, and retries apply as they do under Monty. Needs
-the ``microvm`` extra; code_mode imports this module only when
-CHECK_CODE_MICROVM_IMAGE is set.
+ToolFilter, writes, budgets, and retries apply to every call. Needs the
+``code`` extra; code_mode imports this module only when a program runs.
 """
 
 from __future__ import annotations
