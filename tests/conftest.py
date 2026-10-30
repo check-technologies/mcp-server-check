@@ -65,3 +65,59 @@ def ctx(mock_api):
 
     _current_context.reset(ctx_token)
     request_ctx.reset(rc_token)
+
+
+MICROVM_IMAGE = "arn:aws:lambda:us-east-1:123456789012:microvm-image:test"
+
+
+@pytest.fixture
+def local_microvm(monkeypatch):
+    """Run code-mode programs in a runner on a local port instead of a MicroVM.
+
+    The runner gets its own thread and event loop, so it serves the host no
+    matter which loop the test runs on. Yields the runner's port.
+    """
+    import asyncio
+    import contextlib
+    import threading
+
+    from mcp_server_check import microvm_host, microvm_runner
+    from websockets.asyncio.server import serve
+
+    loop = asyncio.new_event_loop()
+    started = threading.Event()
+    state: dict = {}
+
+    async def start() -> None:
+        state["server"] = await serve(microvm_runner.handle, "127.0.0.1", 0)
+        state["port"] = state["server"].sockets[0].getsockname()[1]
+
+    def run() -> None:
+        loop.run_until_complete(start())
+        started.set()
+        loop.run_forever()
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    started.wait(5)
+    port = state["port"]
+
+    @contextlib.asynccontextmanager
+    async def launch(image_arn, timeout):
+        yield f"ws://127.0.0.1:{port}/", {}
+
+    monkeypatch.setattr(microvm_host, "launch_microvm", launch)
+    monkeypatch.setenv("CHECK_CODE_MICROVM_IMAGE", MICROVM_IMAGE)
+    yield port
+
+    async def stop() -> None:
+        # Like terminating a MicroVM: a program still running is cut off.
+        state["server"].close()
+        for task in asyncio.all_tasks():
+            if task is not asyncio.current_task():
+                task.cancel()
+        await asyncio.sleep(0)
+
+    asyncio.run_coroutine_threadsafe(stop(), loop).result(5)
+    loop.call_soon_threadsafe(loop.stop)
+    thread.join(5)

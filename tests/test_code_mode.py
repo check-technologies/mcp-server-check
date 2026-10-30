@@ -41,6 +41,11 @@ def index() -> ToolIndex:
     return idx
 
 
+@pytest.fixture(autouse=True)
+def _runs_in_local_microvm(local_microvm):
+    """Every program in this module runs in the local runner."""
+
+
 @pytest.fixture
 def code_server(monkeypatch):
     monkeypatch.setenv("CHECK_API_KEY", "test-key")
@@ -147,7 +152,6 @@ class TestStubs:
 def test_settings_from_env(monkeypatch):
     monkeypatch.setenv("CHECK_CODE_TIMEOUT_SECS", "5")
     monkeypatch.setenv("CHECK_CODE_MAX_CALLS", "7")
-    monkeypatch.setenv("CHECK_CODE_MAX_MEMORY_MB", "1")
     monkeypatch.setenv("CHECK_CODE_CONCURRENCY", "2")
     monkeypatch.setenv("CHECK_CODE_MAX_RETRIES", "1")
     monkeypatch.setenv("CHECK_CODE_MAX_PROGRAMS", "3")
@@ -155,10 +159,10 @@ def test_settings_from_env(monkeypatch):
     assert settings == CodeModeSettings(
         timeout_secs=5,
         max_calls=7,
-        max_memory_bytes=1024 * 1024,
         concurrency=2,
         max_retries=1,
         max_programs=3,
+        microvm_image="arn:aws:lambda:us-east-1:123456789012:microvm-image:test",
     )
 
 
@@ -170,6 +174,23 @@ async def test_code_mode_exposes_meta_tools(code_server):
     async with Client(code_server) as client:
         names = {t.name for t in await client.list_tools()}
     assert names == {"get_stubs", "run_code"}
+
+
+@pytest.mark.anyio
+async def test_code_mode_is_off_without_a_microvm_image(monkeypatch):
+    """Programs only run in a MicroVM, so without an image the opt-ins do nothing."""
+    monkeypatch.delenv("CHECK_CODE_MICROVM_IMAGE")
+    monkeypatch.setenv("CHECK_API_KEY", "test-key")
+    monkeypatch.setenv("CHECK_CODE_MODE", "1")
+    server = CheckMCP("Test Code", lifespan=lifespan)
+    setup_tools(server)
+    _attach_request(monkeypatch, _FakeRequest(headers={"x-mcp-code-mode": "1"}))
+    async with Client(server) as client:
+        names = {t.name for t in await client.list_tools()}
+        assert names == {"search_tools", "list_toolsets", "run_tool"}
+        result = await client.call_tool("run_code", {"code": "1"}, raise_on_error=False)
+        assert result.is_error
+        assert "code mode is off" in result.content[0].text
 
 
 @pytest.mark.anyio
@@ -499,18 +520,6 @@ async def test_run_code_needs_no_import(mock_api, code_server):
 
 
 @pytest.mark.anyio
-async def test_run_code_type_error_line_numbers_match_the_program(
-    mock_api, code_server
-):
-    is_error, payload = await _run(
-        code_server, "x = 1\nawait check.get_compny(company_id='com_1')"
-    )
-    assert is_error
-    assert payload["kind"] == "type_check_failed"
-    assert "main.py:2:" in payload["detail"]
-
-
-@pytest.mark.anyio
 async def test_run_code_accepts_positional_arguments(mock_api, code_server):
     mock_api.get("/companies/com_1").mock(
         return_value=httpx.Response(200, json={"id": "com_1"})
@@ -521,21 +530,6 @@ async def test_run_code_accepts_positional_arguments(mock_api, code_server):
     assert not is_error, payload
     assert payload["result"] == "com_1"
     assert payload["calls"][0]["arguments"] == {"company_id": "com_1"}
-
-
-@pytest.mark.anyio
-async def test_run_code_type_error_runs_nothing(mock_api, code_server):
-    mock_api.get("/companies/com_1").mock(
-        return_value=httpx.Response(200, json={"id": "com_1"})
-    )
-    is_error, payload = await _run(
-        code_server, "import check\nawait check.get_company(compny_id='com_1')"
-    )
-    assert is_error
-    assert payload["kind"] == "type_check_failed"
-    assert "company_id" in payload["detail"]
-    assert payload["calls"] == []
-    assert mock_api.calls.call_count == 0
 
 
 @pytest.fixture
@@ -558,19 +552,25 @@ def corrections_in_preview():
 @pytest.mark.anyio
 @pytest.mark.usefixtures("corrections_in_preview")
 async def test_run_code_says_why_a_tool_is_missing_from_check(mock_api, code_server):
-    code = """
-await check.get_compny(company_id="com_1")
-await check.create_workplace(company="com_1", name="HQ", address={})
-await check.create_correction(payroll="pay_1")
-"""
-    is_error, payload = await _run(code_server, code)
-    assert is_error
-    assert payload["kind"] == "type_check_failed"
-    assert payload["calls"] == []
-    detail = payload["detail"]
-    assert "get_compny: no such tool. Call get_stubs(query='get_compny')" in detail
-    assert "create_workplace: a write tool; name it in run_code's writes" in detail
-    assert "create_correction: in the preview toolset 'corrections'" in detail
+    for code, note in (
+        (
+            'await check.get_compny(company_id="com_1")',
+            "get_compny: no such tool. Call get_stubs(query='get_compny')",
+        ),
+        (
+            'await check.create_workplace(company="com_1", name="HQ", address={})',
+            "create_workplace: a write tool; name it in run_code's writes",
+        ),
+        (
+            'await check.create_correction(payroll="pay_1")',
+            "create_correction: in the preview toolset 'corrections'",
+        ),
+    ):
+        is_error, payload = await _run(code_server, code)
+        assert is_error
+        assert payload["kind"] == "runtime_error"
+        assert payload["calls"] == []
+        assert note in payload["detail"]
 
 
 @pytest.mark.anyio
@@ -586,200 +586,20 @@ async def test_run_code_says_when_a_tool_is_hidden_by_configuration(
         server, 'await check.create_workplace(company="com_1", name="HQ", address={})'
     )
     assert is_error
-    assert payload["kind"] == "type_check_failed"
+    assert payload["kind"] == "runtime_error"
     assert "create_workplace: hidden by the server's configuration" in payload["detail"]
-
-
-@pytest.mark.anyio
-async def test_run_code_warns_instead_of_blocking_on_argument_types(
-    mock_api, code_server
-):
-    mock_api.get("/companies").mock(
-        return_value=httpx.Response(
-            200, json={"results": [{"id": "com_1"}], "next_cursor": None}
-        )
-    )
-    mock_api.get("/companies/com_1").mock(
-        return_value=httpx.Response(200, json={"id": "com_1"})
-    )
-    # The checker sees `str | None` here; the program is fine.
-    code = """
-cid = None
-for c in (await check.list_companies())["results"]:
-    cid = c["id"]
-(await check.get_company(company_id=cid))["id"]
-"""
-    is_error, payload = await _run(code_server, code)
-    assert not is_error, payload
-    assert payload["result"] == "com_1"
-    assert len(payload["warnings"]) == 1
-    assert "invalid-argument-type" in payload["warnings"][0]
-    assert "get_company" in payload["warnings"][0]
-
-
-@pytest.mark.anyio
-async def test_run_code_ignores_type_errors_about_its_own_data(mock_api, code_server):
-    """Only diagnostics about the check module block a program."""
-    mock_api.get("/companies/com_1").mock(
-        return_value=httpx.Response(200, json={"id": "com_1"})
-    )
-    code = """
-x: int = "not an int"
-(await check.get_company(company_id="com_1"))["id"]
-"""
-    is_error, payload = await _run(code_server, code)
-    assert not is_error, payload
-    assert payload["result"] == "com_1"
-
-
-def test_signature_errors_keep_only_check_module_lines():
-    from mcp_server_check.code_mode import signature_errors
-
-    diagnostics = (
-        "main.py:1:7: error[unresolved-attribute] Module `check` has no member `x`\n"
-        "main.py:2:1: error[invalid-assignment] Object of type `str` is not assignable\n"
-        "main.py:3:1: error[unknown-argument] Argument `foo` does not match any known "
-        "parameter of function `get_company`\n"
-        "main.py:4:1: error[missing-argument] No argument provided for required "
-        "parameter `x` of function `page_all`\n"
-    )
-    errors = signature_errors(diagnostics, ["get_company"])
-    assert [e.split("error")[1][:22] for e in errors] == [
-        "[unresolved-attribute]",
-        "[unknown-argument] Arg",
-    ]
-
-
-def test_signature_warnings_keep_argument_type_doubts():
-    from mcp_server_check.code_mode import signature_errors, signature_warnings
-
-    diagnostics = (
-        "main.py:4:30: error[invalid-argument-type] Argument to function "
-        "`get_company` is incorrect: Expected `str`, found `str | None`\n"
-        "main.py:5:1: error[invalid-argument-type] Argument to function "
-        "`sorted` is incorrect: Expected `Iterable`, found `int`\n"
-        "main.py:6:1: error[unknown-argument] Argument `foo` does not match any "
-        "known parameter of function `get_company`\n"
-    )
-    assert [
-        e.split("error")[1][:18] for e in signature_errors(diagnostics, ["get_company"])
-    ] == ["[unknown-argument]"]
-    warnings = signature_warnings(diagnostics, ["get_company"])
-    assert len(warnings) == 1
-    assert "main.py:4:30" in warnings[0]
-
-
-def test_signature_errors_keep_unresolved_imports():
-    from mcp_server_check.code_mode import signature_errors
-
-    diagnostics = (
-        "main.py:1:8: error[unresolved-import] Cannot resolve imported module "
-        "`statistics`\n"
-        "main.py:2:1: error[invalid-assignment] Object of type `str` is not assignable\n"
-    )
-    assert len(signature_errors(diagnostics, [])) == 1
 
 
 # --- sandbox limits ---
 
 
 def test_sandbox_hint():
-    from mcp_server_check.code_mode import SANDBOX_MODULES, sandbox_hint
+    from mcp_server_check.code_mode import sandbox_hint
 
-    assert "last expression" in sandbox_hint(
-        "TypeError: JSONEncoder.__init__() got an unexpected keyword argument 'default'"
-    )
-    missing = sandbox_hint("ModuleNotFoundError: No module named 'statistics'")
-    assert missing.startswith("The sandbox has no statistics module")
-    assert ", ".join(SANDBOX_MODULES) in missing
-    unresolved = sandbox_hint(
-        "main.py:1:8: error[unresolved-import] Cannot resolve imported module `decimal`"
-    )
-    assert unresolved.startswith("The sandbox has no decimal module")
-    assert "next(iter(...))" in sandbox_hint(
-        "TypeError: 'list' object is not an iterator"
-    )
-    for detail in (
-        "NotImplementedError: The monty syntax parser does not yet support async "
-        "context managers (async with)",
-        "AttributeError: module 'asyncio' has no attribute 'Semaphore'",
-        "NotImplementedError: gather() does not yet support keyword arguments",
-    ):
-        assert "gather(*coros) and sleep()" in sandbox_hint(detail), detail
-    assert "no generators" in sandbox_hint(
-        "NotImplementedError: The monty syntax parser does not yet support yield "
-        "expressions"
-    )
-    assert "no class inheritance" in sandbox_hint(
-        "NotImplementedError: The monty syntax parser does not yet support class "
-        "inheritance and metaclasses"
-    )
-    assert "dict.pop" in sandbox_hint(
-        "NotImplementedError: The monty syntax parser does not yet support the "
-        "'del' statement"
-    )
-    assert "one string argument" in sandbox_hint(
-        "RuntimeError: Internal error in monty: exceptions can only be called with "
-        "zero or one string argument"
-    )
-    assert sandbox_hint(
-        "NotImplementedError: The monty syntax parser does not yet support walrus "
-        "in lambdas"
-    ) == (
-        "The sandbox does not support walrus in lambdas. Rewrite the program "
-        "without it."
+    assert "Split the work" in sandbox_hint(
+        "Program exceeded its budget of 200 tool calls."
     )
     assert sandbox_hint("KeyError: 'x'") is None
-
-
-@pytest.mark.anyio
-async def test_run_code_async_with_semaphore_fails_with_hint(mock_api, code_server):
-    """The program from testing: a semaphore around each call."""
-    mock_api.get("/companies").mock(return_value=httpx.Response(200, json=COMPANIES))
-    code = """
-import asyncio
-sem = asyncio.Semaphore(4)
-async def fetch(cid):
-    async with sem:
-        return await check.get_company(company_id=cid)
-page = await check.list_companies()
-await asyncio.gather(*[fetch(c["id"]) for c in page["results"]])
-"""
-    is_error, payload = await _run(code_server, code)
-    assert is_error
-    assert "gather(*coros) and sleep()" in payload["hint"]
-    assert "Drop the throttling" in payload["hint"]
-
-
-@pytest.mark.anyio
-async def test_run_code_json_default_fails_with_hint(code_server):
-    is_error, payload = await _run(
-        code_server, "import json\njson.dumps({'a': 1}, indent=2, default=str)"
-    )
-    assert is_error
-    assert payload["kind"] == "runtime_error"
-    assert "last expression" in payload["hint"]
-
-
-@pytest.mark.anyio
-async def test_run_code_missing_module_fails_before_any_call(mock_api, code_server):
-    mock_api.get("/companies").mock(return_value=httpx.Response(200, json=COMPANIES))
-    is_error, payload = await _run(
-        code_server, "import statistics\nawait check.list_companies()\n1"
-    )
-    assert is_error
-    assert payload["kind"] == "type_check_failed"
-    assert "does not have" in payload["detail"]
-    assert payload["hint"].startswith("The sandbox has no statistics module")
-    assert mock_api.calls.call_count == 0
-
-
-@pytest.mark.anyio
-async def test_run_code_next_on_generator_fails_with_hint(code_server):
-    is_error, payload = await _run(code_server, "next(x for x in [1, 2])")
-    assert is_error
-    assert payload["kind"] == "runtime_error"
-    assert "next(iter(...))" in payload["hint"]
 
 
 @pytest.mark.anyio
@@ -1001,8 +821,8 @@ await check.create_workplace(
 """
     is_error, payload = await _run(code_server, code)
     assert is_error
-    assert payload["kind"] == "type_check_failed"
-    assert "create_workplace" in payload["detail"]
+    assert payload["kind"] == "runtime_error"
+    assert "create_workplace: a write tool" in payload["detail"]
     assert mock_api.calls.call_count == 0
 
     is_error, payload = await _run(code_server, code, writes=["create_workplace"])
@@ -1029,21 +849,13 @@ async def test_run_code_rejects_unknown_write(code_server):
 
 
 @pytest.mark.anyio
-async def test_run_code_has_no_filesystem_or_network(code_server):
-    is_error, payload = await _run(code_server, 'import os\nos.listdir("/")')
-    assert is_error
-    assert payload["kind"] == "runtime_error"
-    assert "PermissionError" in payload["detail"]
-
-
-@pytest.mark.anyio
 async def test_run_code_times_out(monkeypatch):
     monkeypatch.setenv("CHECK_API_KEY", "test-key")
     monkeypatch.setenv("CHECK_CODE_TIMEOUT_SECS", "1")
     monkeypatch.setenv("CHECK_CODE_MODE", "1")
     server = CheckMCP("Test Code", lifespan=lifespan)
     setup_tools(server)
-    is_error, payload = await _run(server, "i = 0\nwhile True:\n    i += 1\n")
+    is_error, payload = await _run(server, "import asyncio\nawait asyncio.sleep(30)")
     assert is_error
     assert payload["kind"] == "timeout"
 

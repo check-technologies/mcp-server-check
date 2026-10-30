@@ -22,12 +22,12 @@ when a session starts. Run all commands through `uv run` (they execute inside `.
   otherwise). Defaults to stdio transport and "dynamic" tool mode (exposes 3 meta-tools:
   `search_tools`, `list_toolsets`, `run_tool`). Env knobs: `CHECK_TOOL_MODE=all` (legacy
   all-tools), `CHECK_CODE_MODE=1` (replaces the 3 meta-tools with `get_stubs` and `run_code` for every
-  request; `run_code` runs model-written Python in a Pydantic Monty sandbox and needs
-  `uv sync --extra code`; the `x-mcp-code-mode` header or `code_mode` query parameter adds
-  the same two tools per request;
-  budgets via `CHECK_CODE_TIMEOUT_SECS`, `CHECK_CODE_MAX_CALLS`, `CHECK_CODE_CONCURRENCY`,
-  `CHECK_CODE_MAX_MEMORY_MB`, `CHECK_CODE_MAX_RETRIES`; `CHECK_CODE_MICROVM_IMAGE` runs programs in
-  CPython in a Lambda MicroVM instead, needs `--extra microvm`, and is tested with a local runner), `CHECK_TRANSPORT`, `CHECK_ENV` / `CHECK_API_BASE_URL`, `CHECK_READ_ONLY`,
+  request; `run_code` runs each program in CPython in a Lambda MicroVM, so code mode only
+  turns on when `CHECK_CODE_MICROVM_IMAGE` names an image, and needs `uv sync --extra code`;
+  the `x-mcp-code-mode` header or `code_mode` query parameter adds the same two tools per
+  request; budgets via `CHECK_CODE_TIMEOUT_SECS`, `CHECK_CODE_MAX_CALLS`,
+  `CHECK_CODE_CONCURRENCY`, `CHECK_CODE_MAX_RETRIES`; tests run programs in a local runner,
+  the `local_microvm` fixture in `tests/conftest.py`), `CHECK_TRANSPORT`, `CHECK_ENV` / `CHECK_API_BASE_URL`, `CHECK_READ_ONLY`,
   `CHECK_TOOLSETS`, `CHECK_TOOLS`, `CHECK_EXCLUDE_TOOLS`, `CHECK_EXCLUDE_MONEY_MOVEMENT`,
   `CHECK_EXCLUDE_DESTRUCTIVE`, `CHECK_PREVIEW_TOOLSETS`.
 - Preview toolsets are hidden unless opted into via

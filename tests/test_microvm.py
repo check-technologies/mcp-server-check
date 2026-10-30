@@ -58,7 +58,7 @@ def test_last_expression_becomes_result():
 
 
 @pytest.mark.anyio
-async def test_runs_python_monty_lacks(mock_api, monkeypatch):
+async def test_runs_full_python(mock_api, monkeypatch):
     mock_api.get("/companies").mock(return_value=httpx.Response(200, json=COMPANIES))
     for cid, state in (("com_1", "CA"), ("com_2", "NY")):
         mock_api.get(f"/companies/{cid}").mock(
