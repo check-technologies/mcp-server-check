@@ -28,6 +28,7 @@ from mcp_server_check.helpers import CheckContext
 from mcp_server_check.middleware import (
     RecoveryMiddleware,
     ResponseSizeLimitMiddleware,
+    ResultBudgetMiddleware,
     ToolCall,
     ToolErrorLogMiddleware,
 )
@@ -195,6 +196,10 @@ class CheckMCP(FastMCP):
         response_size_limit = ResponseSizeLimitMiddleware.from_env()
         if response_size_limit is not None:
             self.add_middleware(response_size_limit)
+        # Added last so the size limit measures the result after any trimming.
+        result_budget = ResultBudgetMiddleware.from_env()
+        if result_budget is not None:
+            self.add_middleware(result_budget)
 
     def _usable(self, tf: ToolFilter) -> ToolFilter:
         if tf.code_mode and not self._code_mode_available:
