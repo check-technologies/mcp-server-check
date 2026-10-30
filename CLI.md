@@ -1,6 +1,6 @@
 # Check CLI
 
-A command-line interface for the [Check Payroll API](https://docs.checkhq.com/). The CLI exposes the same 286 tools as the MCP server, organized as resource-oriented commands similar to the [Stripe CLI](https://docs.stripe.com/cli).
+A command-line interface for the [Check Payroll API](https://docs.checkhq.com/). The CLI exposes the same 289 tools as the MCP server, organized as resource-oriented commands similar to the [Stripe CLI](https://docs.stripe.com/cli).
 
 ## Installation
 

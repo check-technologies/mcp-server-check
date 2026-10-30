@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 from mcp_server_check.tools.companies import (
@@ -12,6 +14,8 @@ from mcp_server_check.tools.companies import (
     list_companies,
     list_signatories,
     onboard_company,
+    simulate_publish_contractor_tax_statements,
+    simulate_publish_employee_tax_statements,
     start_implementation,
     update_company,
 )
@@ -341,6 +345,30 @@ async def test_list_signatories(mock_api, ctx):
     )
     result = await list_signatories(ctx, company_id="com_001")
     assert result["results"] == [{"id": "sig_001"}]
+
+
+@pytest.mark.anyio
+async def test_simulate_publish_employee_tax_statements_notify_only(mock_api, ctx):
+    route = mock_api.post(
+        "/companies/com_001/simulate/publish_employee_tax_statements"
+    ).mock(return_value=httpx.Response(204))
+    result = await simulate_publish_employee_tax_statements(
+        ctx, company_id="com_001", notify_only=True
+    )
+    assert result == {"success": True}
+    assert json.loads(route.calls.last.request.content) == {"notify_only": True}
+
+
+@pytest.mark.anyio
+async def test_simulate_publish_contractor_tax_statements_notify_only(mock_api, ctx):
+    route = mock_api.post(
+        "/companies/com_001/simulate/publish_contractor_tax_statements"
+    ).mock(return_value=httpx.Response(204))
+    result = await simulate_publish_contractor_tax_statements(
+        ctx, company_id="com_001", notify_only=True
+    )
+    assert result == {"success": True}
+    assert json.loads(route.calls.last.request.content) == {"notify_only": True}
 
 
 @pytest.mark.anyio
