@@ -101,6 +101,7 @@ async def create_employee(
     start_date: str | None = None,
     termination_date: str | None = None,
     residence: Address | None = None,
+    mailing_address: Address | None = None,
     workplaces: list[str] | None = None,
     primary_workplace: str | None = None,
     ssn: str | None = None,
@@ -122,6 +123,9 @@ async def create_employee(
         termination_date: Most recent termination date (YYYY-MM-DD).
         residence: Residence address with keys: line1, line2, city, state,
             postal_code, country.
+        mailing_address: Envelope-only mailing address (not used for tax).
+            Same keys as residence. Requires the payee mailing address feature
+            on the provider.
         workplaces: List of workplace IDs where the employee works.
         primary_workplace: Workplace ID of the employee's primary workplace.
         ssn: Employee's Social Security Number. Only last four digits available after set.
@@ -141,6 +145,7 @@ async def create_employee(
             start_date=start_date,
             termination_date=termination_date,
             residence=residence,
+            mailing_address=mailing_address,
             workplaces=workplaces,
             primary_workplace=primary_workplace,
             ssn=ssn,
@@ -163,6 +168,7 @@ async def update_employee(
     start_date: str | None = None,
     termination_date: str | None = None,
     residence: Address | None = None,
+    mailing_address: Address | None = None,
     workplaces: list[str] | None = None,
     primary_workplace: str | None = None,
     ssn: str | None = None,
@@ -184,6 +190,9 @@ async def update_employee(
         termination_date: Most recent termination date (YYYY-MM-DD).
         residence: Residence address with keys: line1, line2, city, state,
             postal_code, country.
+        mailing_address: Envelope-only mailing address (not used for tax).
+            Same keys as residence. Requires the payee mailing address feature
+            on the provider.
         workplaces: List of workplace IDs where the employee works.
         primary_workplace: Workplace ID of the employee's primary workplace.
         ssn: Employee's Social Security Number.
@@ -205,6 +214,7 @@ async def update_employee(
             start_date=start_date,
             termination_date=termination_date,
             residence=residence,
+            mailing_address=mailing_address,
             workplaces=workplaces,
             primary_workplace=primary_workplace,
             ssn=ssn,
