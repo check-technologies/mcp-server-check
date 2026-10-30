@@ -9,10 +9,15 @@ from mcp_server_check.helpers import (
     Ctx,
     build_body,
     build_params,
+    check_api_download,
     check_api_get,
     check_api_list,
     check_api_post,
 )
+
+
+# Setup document types whose files carry unmasked SSNs and bank numbers.
+SENSITIVE_SETUP_DOCUMENT_PREFIX = "sensitive_"
 
 
 # --- Company Tax Documents ---
@@ -54,12 +59,16 @@ async def get_company_tax_document(ctx: Ctx, document_id: str) -> dict:
 
 
 async def download_company_tax_document(ctx: Ctx, document_id: str) -> dict:
-    """Download a company tax document.
+    """Download a company tax document and return its contents.
+
+    The file comes back as text: a PDF as its text layer page by page, a CSV
+    as-is. Long files are cut at the download limit with ``truncated`` set
+    and a ``note`` saying what was left out.
 
     Args:
         document_id: The document ID.
     """
-    return await check_api_get(
+    return await check_api_download(
         ctx, f"/documents/company_tax_documents/{document_id}/download"
     )
 
@@ -101,12 +110,16 @@ async def get_company_authorization_document(ctx: Ctx, document_id: str) -> dict
 
 
 async def download_company_authorization_document(ctx: Ctx, document_id: str) -> dict:
-    """Download a company authorization document.
+    """Download a company authorization document and return its contents.
+
+    The file comes back as text: a PDF as its text layer page by page, a CSV
+    as-is. Long files are cut at the download limit with ``truncated`` set
+    and a ``note`` saying what was left out.
 
     Args:
         document_id: The document ID.
     """
-    return await check_api_get(
+    return await check_api_download(
         ctx, f"/documents/company_authorization_documents/{document_id}/download"
     )
 
@@ -150,12 +163,16 @@ async def get_employee_tax_document(ctx: Ctx, document_id: str) -> dict:
 
 
 async def download_employee_tax_document(ctx: Ctx, document_id: str) -> dict:
-    """Download an employee tax document.
+    """Download an employee tax document and return its contents.
+
+    The file comes back as text: a PDF as its text layer page by page, a CSV
+    as-is. Long files are cut at the download limit with ``truncated`` set
+    and a ``note`` saying what was left out.
 
     Args:
         document_id: The document ID.
     """
-    return await check_api_get(
+    return await check_api_download(
         ctx, f"/documents/employee_tax_documents/{document_id}/download"
     )
 
@@ -205,12 +222,16 @@ async def get_contractor_tax_document(ctx: Ctx, document_id: str) -> dict:
 
 
 async def download_contractor_tax_document(ctx: Ctx, document_id: str) -> dict:
-    """Download a contractor tax document.
+    """Download a contractor tax document and return its contents.
+
+    The file comes back as text: a PDF as its text layer page by page, a CSV
+    as-is. Long files are cut at the download limit with ``truncated`` set
+    and a ``note`` saying what was left out.
 
     Args:
         document_id: The document ID.
     """
-    return await check_api_get(
+    return await check_api_download(
         ctx, f"/documents/contractor_tax_documents/{document_id}/download"
     )
 
@@ -248,12 +269,35 @@ async def get_setup_document(ctx: Ctx, document_id: str) -> dict:
 
 
 async def download_setup_document(ctx: Ctx, document_id: str) -> dict:
-    """Download a setup document.
+    """Download a setup document and return its contents.
+
+    The file comes back as text: a PDF as its text layer page by page, a CSV
+    as-is. Long files are cut at the download limit with ``truncated`` set
+    and a ``note`` saying what was left out.
+
+    The ``sensitive_*`` setup documents (sensitive_employee_setup,
+    sensitive_contractor_setup, sensitive_bank_account_setup) hold unmasked
+    SSNs and bank account numbers and are refused; every other document type,
+    including the HLD report, is readable.
 
     Args:
         document_id: The document ID.
     """
-    return await check_api_get(
+    document = await check_api_get(ctx, f"/documents/setup_documents/{document_id}")
+    if document.get("error"):
+        return document
+    document_type = document.get("document_type") or ""
+    if document_type.startswith(SENSITIVE_SETUP_DOCUMENT_PREFIX):
+        return {
+            "error": True,
+            "document_type": document_type,
+            "detail": (
+                f"Setup documents of type {document_type!r} hold unmasked SSNs "
+                "and bank account numbers and are not available through the "
+                "MCP. Use get_setup_document for the document's metadata."
+            ),
+        }
+    return await check_api_download(
         ctx, f"/documents/setup_documents/{document_id}/download"
     )
 
