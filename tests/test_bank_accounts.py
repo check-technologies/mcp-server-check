@@ -59,6 +59,23 @@ async def test_create_bank_account(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_create_bank_account_cash_app(mock_api, ctx):
+    mock_api.post("/bank_accounts").mock(
+        return_value=httpx.Response(201, json={"id": "bnk_cash"})
+    )
+    result = await create_bank_account(
+        ctx,
+        cash_app_bank_account={"square_id": "sq_123"},
+        employee="emp_001",
+    )
+    assert result["id"] == "bnk_cash"
+    req = mock_api.post("/bank_accounts").calls.last.request
+    assert req.content == (
+        b'{"cash_app_bank_account":{"square_id":"sq_123"},"employee":"emp_001"}'
+    )
+
+
+@pytest.mark.anyio
 async def test_delete_bank_account(mock_api, ctx):
     mock_api.delete("/bank_accounts/bnk_001").mock(return_value=httpx.Response(204))
     result = await delete_bank_account(ctx, bank_account_id="bnk_001")
