@@ -67,6 +67,16 @@ async def test_check_api_delete(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_check_api_post_empty_200_body_is_success(mock_api, ctx):
+    """The sandbox simulate actions on companies answer 200 with no body."""
+    mock_api.post("/test/t_1/simulate/thing").mock(
+        return_value=httpx.Response(200, content=b"")
+    )
+    result = await check_api_post(ctx, "/test/t_1/simulate/thing")
+    assert result == {"success": True}
+
+
+@pytest.mark.anyio
 async def test_check_api_delete_with_body(mock_api, ctx):
     mock_api.delete("/test/t_1").mock(
         return_value=httpx.Response(200, json={"deleted": True})
