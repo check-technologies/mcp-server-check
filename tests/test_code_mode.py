@@ -1154,6 +1154,73 @@ async def _run_in_microvm(monkeypatch, code: str):
         return await _run(server, code)
 
 
+class _FakeMicrovms:
+    """The lambda-microvms client calls launch_microvm makes."""
+
+    class exceptions:
+        ConflictException = type("ConflictException", (Exception,), {})
+
+    def __init__(self, states, conflicts=0):
+        self.states = list(states)
+        self.conflicts = conflicts
+        self.calls: list[str] = []
+
+    def run_microvm(self, **kwargs):
+        self.calls.append("run")
+        return {"microvmId": "mvm-1", "state": "PENDING", "endpoint": "mvm-1.example"}
+
+    def get_microvm(self, **kwargs):
+        self.calls.append("get")
+        return {"state": self.states.pop(0)}
+
+    def create_microvm_auth_token(self, **kwargs):
+        self.calls.append("token")
+        if self.conflicts:
+            self.conflicts -= 1
+            raise self.exceptions.ConflictException()
+        return {"authToken": {"X-aws-proxy-auth": "tok"}}
+
+    def terminate_microvm(self, **kwargs):
+        self.calls.append("terminate")
+
+
+ARN = "arn:aws:lambda:us-east-1:123456789012:microvm-image:test"
+
+
+@pytest.mark.anyio
+async def test_launch_microvm_mints_token_while_starting(monkeypatch):
+    fake = _FakeMicrovms(["PENDING", "RUNNING"], conflicts=1)
+    monkeypatch.setattr(code_mode, "_microvm_client", lambda region: fake)
+    monkeypatch.setattr(code_mode, "MICROVM_POLL_SECS", 0)
+
+    async with code_mode.launch_microvm(ARN, 10) as (url, headers):
+        assert url == "wss://mvm-1.example/"
+        assert headers == {"X-aws-proxy-auth": "tok"}
+        assert fake.calls.count("token") == 2  # one ConflictException, then a token
+    assert fake.calls[-1] == "terminate"
+
+
+@pytest.mark.anyio
+async def test_launch_microvm_that_never_runs_is_terminated(monkeypatch):
+    fake = _FakeMicrovms(["TERMINATED"], conflicts=10**6)
+    monkeypatch.setattr(code_mode, "_microvm_client", lambda region: fake)
+    monkeypatch.setattr(code_mode, "MICROVM_POLL_SECS", 0)
+
+    async def launch():
+        async with code_mode.launch_microvm(ARN, 10):
+            pass
+
+    with pytest.raises(RuntimeError, match="TERMINATED"):
+        await asyncio.wait_for(launch(), timeout=5)
+    # Let a token call already in its worker thread finish, then check that
+    # no further calls follow.
+    await asyncio.sleep(0.05)
+    calls = len(fake.calls)
+    await asyncio.sleep(0.05)
+    assert len(fake.calls) == calls, "the token loop kept running"
+    assert "terminate" in fake.calls
+
+
 def test_microvm_last_expression_becomes_result():
     namespace: dict = {}
     exec(microvm_runner.compile_program("x = 2\nx * 21"), namespace)

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import inspect
 import json
 import logging
@@ -656,7 +657,23 @@ def _timeout_detail(timeout: float) -> str:
 
 
 MICROVM_PORT = 8080
+# GetMicrovm is not among the rate-limited MicroVM APIs, so poll often: a
+# MicroVM takes about 1.4s to start, and each poll interval past RUNNING is
+# added to every run.
+MICROVM_POLL_SECS = 0.05
 MICROVM_MAX_MESSAGE_BYTES = 16 * 1024 * 1024
+
+
+@functools.cache
+def _microvm_client(region: str) -> Any:
+    """One boto3 client per region for the life of the process.
+
+    Building a client loads the service model, which took about 300ms on a
+    cold Lambda; boto3 clients are safe to share across threads.
+    """
+    import boto3
+
+    return boto3.client("lambda-microvms", region_name=region)
 
 
 @contextlib.asynccontextmanager
@@ -667,8 +684,9 @@ async def launch_microvm(image_arn: str, timeout: float):
     reaches nothing but this host. It is terminated on exit, and Lambda
     terminates it anyway a minute after the program's time budget.
     """
+    region = image_arn.split(":")[3]
     try:
-        import boto3
+        client = _microvm_client(region)
     except ImportError as e:  # pragma: no cover - exercised only without the extra
         raise CheckToolError(
             {
@@ -676,8 +694,6 @@ async def launch_microvm(image_arn: str, timeout: float):
                 "detail": "MicroVM code mode needs boto3: uv sync --extra microvm.",
             }
         ) from e
-    region = image_arn.split(":")[3]
-    client = boto3.client("lambda-microvms", region_name=region)
     run = await asyncio.to_thread(
         client.run_microvm,
         imageIdentifier=image_arn,
@@ -687,10 +703,11 @@ async def launch_microvm(image_arn: str, timeout: float):
         maximumDurationInSeconds=int(timeout) + 60,
     )
     microvm_id = run["microvmId"]
-    try:
+
+    async def running() -> None:
         state = run["state"]
         while state == "PENDING":
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(MICROVM_POLL_SECS)
             state = (
                 await asyncio.to_thread(
                     client.get_microvm, microvmIdentifier=microvm_id
@@ -698,17 +715,34 @@ async def launch_microvm(image_arn: str, timeout: float):
             )["state"]
         if state != "RUNNING":
             raise RuntimeError(f"MicroVM {microvm_id} is {state}, not RUNNING")
-        token = await asyncio.to_thread(
-            client.create_microvm_auth_token,
-            microvmIdentifier=microvm_id,
-            expirationInMinutes=max(1, math.ceil(timeout / 60)),
-            allowedPorts=[{"port": MICROVM_PORT}],
-        )
+
+    async def auth_token() -> dict[str, Any]:
+        # The token only needs the MicroVM's ID, so it is minted while the
+        # MicroVM starts. AWS refuses it with ConflictException until the
+        # MicroVM is registered; retry until then.
+        while True:
+            try:
+                return await asyncio.to_thread(
+                    client.create_microvm_auth_token,
+                    microvmIdentifier=microvm_id,
+                    expirationInMinutes=max(1, math.ceil(timeout / 60)),
+                    allowedPorts=[{"port": MICROVM_PORT}],
+                )
+            except client.exceptions.ConflictException:
+                await asyncio.sleep(MICROVM_POLL_SECS)
+
+    token_task = asyncio.create_task(auth_token())
+    try:
+        await running()
+        token = await token_task
         yield (
             f"wss://{run['endpoint']}/",
             {"X-aws-proxy-auth": token["authToken"]["X-aws-proxy-auth"]},
         )
     finally:
+        # A MicroVM that never reaches RUNNING would keep the token loop
+        # retrying.
+        token_task.cancel()
         try:
             await asyncio.to_thread(
                 client.terminate_microvm, microvmIdentifier=microvm_id
