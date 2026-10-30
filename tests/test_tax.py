@@ -12,12 +12,14 @@ from mcp_server_check.tools.tax import (
     delete_employee_tax_statement_override,
     get_company_tax_param_setting,
     get_company_tax_params,
+    get_contractor_tax_statement,
     get_employee_tax_param_setting,
     get_employee_tax_statement_override,
     get_filing,
     get_tax,
     list_company_tax_elections,
     list_company_tax_param_settings,
+    list_contractor_tax_statements,
     list_employee_tax_elections,
     list_employee_tax_param_settings,
     list_employee_tax_params,
@@ -26,6 +28,10 @@ from mcp_server_check.tools.tax import (
     list_filings,
     list_taxes,
     request_tax_package,
+    simulate_publish_contractor_tax_statement,
+    simulate_publish_employee_tax_statement,
+    simulate_unpublish_contractor_tax_statement,
+    simulate_unpublish_employee_tax_statement,
     update_company_tax_params,
     update_employee_tax_statement_override,
     update_employee_tax_elections,
@@ -538,3 +544,105 @@ def test_settings_tools_explain_value_versus_settings_history(tool):
     assert "``settings[]`` lists every write" in doc
     assert "latest ``created_at`` is the one in force" in doc
     assert "not a change history" not in doc
+
+
+# --- Tax statement publishing (sandbox simulation) ---
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("tool", "path"),
+    [
+        (
+            simulate_publish_employee_tax_statement,
+            "/employee_tax_statements/ets_001/simulate/publish",
+        ),
+        (
+            simulate_unpublish_employee_tax_statement,
+            "/employee_tax_statements/ets_001/simulate/unpublish",
+        ),
+    ],
+)
+async def test_simulate_employee_tax_statement_publishing(mock_api, ctx, tool, path):
+    route = mock_api.post(path).mock(
+        return_value=httpx.Response(
+            200, json={"id": "ets_001", "publication_status": "draft"}
+        )
+    )
+    result = await tool(ctx, statement_id="ets_001")
+    assert route.called
+    assert result["id"] == "ets_001"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("tool", "path"),
+    [
+        (
+            simulate_publish_contractor_tax_statement,
+            "/contractor_tax_statements/cts_001/simulate/publish",
+        ),
+        (
+            simulate_unpublish_contractor_tax_statement,
+            "/contractor_tax_statements/cts_001/simulate/unpublish",
+        ),
+    ],
+)
+async def test_simulate_contractor_tax_statement_publishing(mock_api, ctx, tool, path):
+    route = mock_api.post(path).mock(
+        return_value=httpx.Response(
+            200, json={"id": "cts_001", "publication_status": "draft"}
+        )
+    )
+    result = await tool(ctx, statement_id="cts_001")
+    assert route.called
+    assert result["id"] == "cts_001"
+
+
+# --- Contractor tax statements ---
+
+
+@pytest.mark.anyio
+async def test_list_contractor_tax_statements_with_filters(mock_api, ctx):
+    mock_api.get("/contractor_tax_statements").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "cts_001"}]},
+        )
+    )
+    result = await list_contractor_tax_statements(
+        ctx,
+        contractor="ctr_123",
+        company="com_456",
+        year=2025,
+        publication_status="published",
+        published_from="2026-01-15T00:00:00Z",
+    )
+    assert result["results"] == [{"id": "cts_001"}]
+    req = mock_api.get("/contractor_tax_statements").calls.last.request
+    assert req.url.params["contractor"] == "ctr_123"
+    assert req.url.params["company"] == "com_456"
+    assert req.url.params["year"] == "2025"
+    assert req.url.params["publication_status"] == "published"
+    assert req.url.params["published_from"] == "2026-01-15T00:00:00Z"
+
+
+@pytest.mark.anyio
+async def test_get_contractor_tax_statement(mock_api, ctx):
+    mock_api.get("/contractor_tax_statements/cts_001").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "id": "cts_001",
+                "contractor": "ctr_123",
+                "company": "com_456",
+                "year": 2025,
+                "document": "doc_001",
+                "published_at": None,
+                "publication_status": "draft",
+            },
+        )
+    )
+    result = await get_contractor_tax_statement(ctx, statement_id="cts_001")
+    assert result["id"] == "cts_001"
+    assert result["publication_status"] == "draft"
