@@ -371,6 +371,7 @@ async def test_list_employee_tax_statements_with_filters(mock_api, ctx):
         ctx,
         employee="emp_123",
         company="com_456",
+        correction="cor_789",
         year=2025,
         form="vi_w2vi",
         published_from="2026-01-15T00:00:00Z",
@@ -379,6 +380,7 @@ async def test_list_employee_tax_statements_with_filters(mock_api, ctx):
     req = mock_api.get("/employee_tax_statements").calls.last.request
     assert req.url.params["employee"] == "emp_123"
     assert req.url.params["company"] == "com_456"
+    assert req.url.params["correction"] == "cor_789"
     assert req.url.params["year"] == "2025"
     assert req.url.params["form"] == "vi_w2vi"
     assert req.url.params["published_from"] == "2026-01-15T00:00:00Z"
