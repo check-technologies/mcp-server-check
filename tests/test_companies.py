@@ -12,6 +12,7 @@ from mcp_server_check.tools.companies import (
     list_companies,
     list_signatories,
     onboard_company,
+    simulate_publish_employee_tax_statements,
     start_implementation,
     update_company,
 )
@@ -341,6 +342,20 @@ async def test_list_signatories(mock_api, ctx):
     )
     result = await list_signatories(ctx, company_id="com_001")
     assert result["results"] == [{"id": "sig_001"}]
+
+
+@pytest.mark.anyio
+async def test_simulate_publish_employee_tax_statements(mock_api, ctx):
+    route = mock_api.post(
+        "/companies/com_001/simulate/publish_employee_tax_statements"
+    ).mock(return_value=httpx.Response(200))
+    result = await simulate_publish_employee_tax_statements(
+        ctx, company_id="com_001"
+    )
+    assert result == {"success": True}
+    assert route.calls.last.request.url.path == (
+        "/companies/com_001/simulate/publish_employee_tax_statements"
+    )
 
 
 @pytest.mark.anyio
