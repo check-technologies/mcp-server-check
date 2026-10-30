@@ -443,6 +443,34 @@ async def test_request_tax_package_with_filings(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_request_tax_package_with_contractor_statements(mock_api, ctx):
+    route = mock_api.post("/tax_packages").mock(
+        return_value=httpx.Response(
+            201,
+            json={
+                "id": "tax_pkg_002",
+                "company": "com_001",
+                "contents": {
+                    "employee_tax_statements": [],
+                    "contractor_tax_statements": ["cts_001"],
+                    "filings": [],
+                },
+            },
+        )
+    )
+    result = await request_tax_package(
+        ctx,
+        company="com_001",
+        contractor_tax_statements=["cts_001"],
+    )
+    assert result["id"] == "tax_pkg_002"
+    assert json.loads(route.calls.last.request.content) == {
+        "company": "com_001",
+        "contents": {"contractor_tax_statements": ["cts_001"]},
+    }
+
+
+@pytest.mark.anyio
 async def test_list_taxes(mock_api, ctx):
     mock_api.get("/taxes").mock(
         return_value=httpx.Response(
