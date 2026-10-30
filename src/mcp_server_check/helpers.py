@@ -250,7 +250,7 @@ async def _check_api_request(
     params: dict | None = None,
     data: dict | list | None = None,
     extra_headers: dict[str, str] | None = None,
-    parse: Callable[[httpx.Response], dict] = lambda response: response.json(),
+    parse: Callable[[httpx.Response], dict] | None = None,
 ) -> dict:
     """Make a request to the Check API with shared error handling.
 
@@ -270,7 +270,7 @@ async def _check_api_request(
         response.raise_for_status()
         if response.status_code == 204:
             return {"success": True}
-        return parse(response)
+        return (parse or _json_or_success)(response)
     except httpx.HTTPStatusError as e:
         try:
             error_body = e.response.json()
@@ -323,16 +323,30 @@ def _csv_body(response: httpx.Response) -> dict:
     return {"csv": response.text}
 
 
+def _json_or_success(response: httpx.Response) -> dict:
+    if not response.content:
+        return {"success": True}
+    return response.json()
+
+
 async def check_api_post(
     ctx: Ctx,
     path: str,
     data: dict | list | None = None,
     headers: dict[str, str] | None = None,
     params: dict | None = None,
+    *,
+    parse: Callable[[httpx.Response], dict] | None = None,
 ) -> dict:
     """Make a POST request to the Check API."""
     return await _check_api_request(
-        ctx, "POST", path, params=params, data=data, extra_headers=headers
+        ctx,
+        "POST",
+        path,
+        params=params,
+        data=data,
+        extra_headers=headers,
+        parse=parse or _json_or_success,
     )
 
 

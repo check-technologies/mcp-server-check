@@ -623,6 +623,26 @@ async def update_enrollment_profile(
     )
 
 
+# --- Simulation ---
+
+
+async def simulate_publish_employee_tax_statements(ctx: Ctx, company_id: str) -> dict:
+    """Simulate publishing employee tax statements (W-2s) for a company (sandbox only).
+
+    Marks draft employee tax statements for the company as published and sends the
+    employer published notification, without running production filing flows. Requires
+    draft statements to publish; otherwise the API returns a validation error. Supports
+    the Idempotency-Key header like other write endpoints.
+
+    Args:
+        company_id: The Check company ID (for example "com_xxxxx").
+    """
+    return await check_api_post(
+        ctx,
+        f"/companies/{company_id}/simulate/publish_employee_tax_statements",
+    )
+
+
 # --- Implementation ---
 
 
@@ -675,3 +695,4 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
         add_annotated_tool(mcp, start_implementation)
         add_annotated_tool(mcp, cancel_implementation)
         add_annotated_tool(mcp, request_embedded_setup)
+        add_annotated_tool(mcp, simulate_publish_employee_tax_statements)
