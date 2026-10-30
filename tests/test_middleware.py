@@ -14,6 +14,7 @@ from mcp_server_check.errors import CheckToolError
 from mcp_server_check.middleware import (
     ResponseSize,
     ResponseSizeLimitMiddleware,
+    ResultBudgetMiddleware,
     ToolCall,
 )
 from mcp_server_check.server import CheckMCP, lifespan, setup_tools
@@ -27,6 +28,24 @@ JOURNAL_ARGUMENTS = {
 }
 SMALL_LIMIT = "2000"
 REMEDIES = ("alternatives", "hints")
+
+
+def employees(count: int) -> dict:
+    return {
+        "results": [
+            {
+                "id": f"emp_{index:020d}",
+                "first_name": "Jane",
+                "last_name": "Doe",
+                "email": f"jane{index}@example.com",
+                "status": "active",
+                "start_date": "2026-01-05",
+            }
+            for index in range(count)
+        ],
+        "next": "https://sandbox.checkhq.com/employees?cursor=abc",
+        "previous": None,
+    }
 
 
 def journal(rows: int) -> dict:
@@ -48,6 +67,7 @@ def make_server(monkeypatch):
     monkeypatch.setenv("CHECK_API_KEY", "test-key")
     monkeypatch.delenv("CHECK_API_BASE_URL", raising=False)
     monkeypatch.delenv(ResponseSizeLimitMiddleware.ENV_VAR, raising=False)
+    monkeypatch.delenv(ResultBudgetMiddleware.ENV_VAR, raising=False)
 
     def make(tool_mode: str, tool_filter: ToolFilter | None = None) -> CheckMCP:
         server = CheckMCP("Test", lifespan=lifespan)
@@ -243,6 +263,134 @@ class TestResponseSizeLimitMiddleware:
     def test_rejects_non_positive_limit(self):
         with pytest.raises(ValueError, match="max_bytes must be positive"):
             ResponseSizeLimitMiddleware(max_bytes=0)
+
+
+class TestResultBudgetMiddleware:
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("tool_mode", ["all", "dynamic"])
+    async def test_list_over_budget_keeps_the_records_that_fit(
+        self, mock_api, make_server, monkeypatch, tool_mode
+    ):
+        mock_api.get("/employees").mock(
+            return_value=httpx.Response(200, json=employees(100))
+        )
+        monkeypatch.setenv(ResultBudgetMiddleware.ENV_VAR, "3000")
+
+        result = await call(
+            make_server(tool_mode), tool_mode, "list_employees", {"limit": 100}
+        )
+
+        assert result.is_error is False
+        text = result.content[0].text
+        page = json.loads(text)
+        kept = len(page["results"])
+        assert len(text) <= 3000
+        assert 0 < kept < 100
+        assert page["results"][0]["id"] == "emp_" + "0" * 20
+        assert page["results_omitted"] == 100 - kept
+        assert "next_cursor" not in page
+        assert f"limit={kept}" in page["hint"]
+
+    @pytest.mark.anyio
+    async def test_list_under_budget_is_unchanged(self, mock_api, make_server):
+        mock_api.get("/employees").mock(
+            return_value=httpx.Response(200, json=employees(10))
+        )
+
+        result = await call(make_server("all"), "all", "list_employees", {})
+
+        page = json.loads(result.content[0].text)
+        assert len(page["results"]) == 10
+        assert page["next_cursor"] == "abc"
+        assert "results_omitted" not in page
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("tool_mode", ["all", "dynamic"])
+    async def test_other_result_over_budget_is_explained_tool_error(
+        self, mock_api, make_server, monkeypatch, tool_mode
+    ):
+        monkeypatch.setenv(ResultBudgetMiddleware.ENV_VAR, "200")
+        mock_api.get("/companies/com_001").mock(
+            return_value=httpx.Response(200, json={"id": "com_001", "notes": "x" * 500})
+        )
+
+        result = await call(
+            make_server(tool_mode), tool_mode, "get_company", {"company_id": "com_001"}
+        )
+
+        error = error_of(result)
+        assert error["response_too_large"] is True
+        size = len(
+            json.dumps({"id": "com_001", "notes": "x" * 500}, separators=(",", ":"))
+        )
+        assert error["detail"].startswith(
+            f"The get_company result is {size} characters, over the 200-character"
+        )
+        assert error["limit"] == 200
+
+    @pytest.mark.anyio
+    async def test_list_whose_first_record_does_not_fit_is_tool_error(
+        self, mock_api, make_server, monkeypatch
+    ):
+        monkeypatch.setenv(ResultBudgetMiddleware.ENV_VAR, "200")
+        mock_api.get("/employees").mock(
+            return_value=httpx.Response(200, json=employees(3))
+        )
+
+        result = await call(make_server("all"), "all", "list_employees", {})
+
+        assert error_of(result)["response_too_large"] is True
+
+    @pytest.mark.anyio
+    async def test_size_limit_measures_the_trimmed_result(
+        self, mock_api, make_server, monkeypatch
+    ):
+        mock_api.get("/employees").mock(
+            return_value=httpx.Response(200, json=employees(100))
+        )
+        monkeypatch.setenv(ResponseSizeLimitMiddleware.ENV_VAR, "5000")
+        monkeypatch.setenv(ResultBudgetMiddleware.ENV_VAR, "3000")
+
+        result = await call(make_server("all"), "all", "list_employees", {"limit": 100})
+
+        assert result.is_error is False
+        assert json.loads(result.content[0].text)["results_omitted"] > 0
+
+    @pytest.mark.anyio
+    async def test_tool_catalog_is_exempt(self, make_server, monkeypatch):
+        monkeypatch.setenv(ResultBudgetMiddleware.ENV_VAR, "200")
+
+        async with Client(make_server("dynamic")) as client:
+            result = await client.call_tool(
+                "search_tools", {"query": "payroll"}, raise_on_error=False
+            )
+
+        assert result.is_error is False
+        assert len(result.content[0].text) > 200
+
+    def test_default_budget(self, make_server):
+        budgets = [
+            middleware.max_chars
+            for middleware in make_server("all").middleware
+            if isinstance(middleware, ResultBudgetMiddleware)
+        ]
+
+        assert budgets == [ResultBudgetMiddleware.DEFAULT_MAX_CHARS]
+
+    def test_zero_disables_the_budget(self, monkeypatch):
+        monkeypatch.setenv(ResultBudgetMiddleware.ENV_VAR, "0")
+
+        assert ResultBudgetMiddleware.from_env() is None
+
+    def test_non_integer_budget_names_the_variable(self, monkeypatch):
+        monkeypatch.setenv(ResultBudgetMiddleware.ENV_VAR, "50k")
+
+        with pytest.raises(ValueError, match="CHECK_MAX_RESULT_CHARS must be"):
+            ResultBudgetMiddleware.from_env()
+
+    def test_rejects_non_positive_budget(self):
+        with pytest.raises(ValueError, match="max_chars must be positive"):
+            ResultBudgetMiddleware(max_chars=0)
 
 
 class TestRecoveryMiddleware:

@@ -11,7 +11,8 @@ from typing import Any, ClassVar
 
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 from fastmcp.tools import ToolResult
-from mcp.types import CallToolRequestParams, CallToolResult
+from fastmcp.tools.base import default_serializer
+from mcp.types import CallToolRequestParams, CallToolResult, TextContent
 
 from mcp_server_check.errors import CheckToolError, ResponseTooLargeError
 from mcp_server_check.recovery import Recovery, recovery
@@ -125,6 +126,112 @@ class ResponseSizeLimitMiddleware(Middleware):
             return result
         tool = ToolCall.from_request(context.message).name
         raise ResponseTooLargeError(tool, size, self.max_bytes)
+
+
+class ResultBudgetMiddleware(Middleware):
+    """Keep a tool result within the characters a model can sensibly read.
+
+    ResponseSizeLimitMiddleware protects the transport; this protects the
+    model's context window, where a megabyte result fails the next model call
+    with "prompt is too long". A list result over the budget keeps the records
+    that fit and says how many were left out. Any other result over the budget
+    becomes a ResponseTooLargeError, so the model narrows the call instead of
+    reading a document cut off mid-way.
+    """
+
+    ENV_VAR = "CHECK_MAX_RESULT_CHARS"
+    # About 12k tokens. Prod results sit well under it (p99 about 50k), so it
+    # only catches the outliers.
+    DEFAULT_MAX_CHARS = 50_000
+    # The tool catalog itself: the model needs all of it to find a tool, and
+    # an error there would leave it with nothing to call.
+    EXEMPT_TOOLS: ClassVar[frozenset[str]] = frozenset(
+        {"search_tools", "list_toolsets", "get_stubs"}
+    )
+
+    def __init__(self, max_chars: int = DEFAULT_MAX_CHARS) -> None:
+        if max_chars <= 0:
+            raise ValueError(f"max_chars must be positive, got {max_chars}")
+        self.max_chars = max_chars
+
+    @classmethod
+    def from_env(cls) -> ResultBudgetMiddleware | None:
+        """Configure from CHECK_MAX_RESULT_CHARS; a 0 value disables the budget."""
+        value = os.environ.get(cls.ENV_VAR, str(cls.DEFAULT_MAX_CHARS))
+        try:
+            max_chars = int(value)
+        except ValueError:
+            raise ValueError(
+                f"{cls.ENV_VAR} must be a whole number of characters, got {value!r}"
+            ) from None
+        return cls(max_chars) if max_chars else None
+
+    async def on_call_tool(
+        self,
+        context: MiddlewareContext[CallToolRequestParams],
+        call_next: CallNext[CallToolRequestParams, ToolResult],
+    ) -> ToolResult:
+        result = await call_next(context)
+        if (
+            not isinstance(result, ToolResult)
+            or context.message.name in self.EXEMPT_TOOLS
+        ):
+            return result
+        size = _text_length(result)
+        if size <= self.max_chars:
+            return result
+        trimmed = self._trim_list(result)
+        if trimmed is not None:
+            return trimmed
+        tool = ToolCall.from_request(context.message).name
+        raise ResponseTooLargeError(tool, size, self.max_chars, unit="character")
+
+    def _trim_list(self, result: ToolResult) -> ToolResult | None:
+        """Keep the leading records of a list result that fit the budget."""
+        if result.structured_content is not None or len(result.content) != 1:
+            return None
+        block = result.content[0]
+        if not isinstance(block, TextContent):
+            return None
+        try:
+            data = json.loads(block.text)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(data, dict) or not isinstance(data.get("results"), list):
+            return None
+        text = None
+        low, high = 1, len(data["results"]) - 1
+        while low <= high:
+            middle = (low + high) // 2
+            candidate = default_serializer(_page_of(data, middle))
+            if len(candidate) <= self.max_chars:
+                text = candidate
+                low = middle + 1
+            else:
+                high = middle - 1
+        if text is None:
+            return None
+        return ToolResult(
+            content=[TextContent(type="text", text=text)], meta=result.meta
+        )
+
+
+def _text_length(result: ToolResult) -> int:
+    return sum(len(b.text) for b in result.content if isinstance(b, TextContent))
+
+
+def _page_of(data: dict[str, Any], kept: int) -> dict[str, Any]:
+    records = data["results"]
+    page = {**data, "results": records[:kept], "results_omitted": len(records) - kept}
+    # The cursor starts after the full page, so following it would skip the
+    # omitted records.
+    page.pop("next_cursor", None)
+    page["hint"] = (
+        f"Only the first {kept} of {len(records)} results fit in one response. "
+        f"Call again with limit={kept} to page through the rest, or narrow the "
+        "request with filters."
+    )
+    return page
 
 
 def _loggable(tool: str, payload: dict[str, Any]) -> dict[str, Any]:

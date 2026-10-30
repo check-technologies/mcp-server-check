@@ -47,13 +47,13 @@ class CheckAPIError(CheckToolError):
 class ResponseTooLargeError(CheckToolError):
     """Raised when a tool result is too large to deliver to the client."""
 
-    def __init__(self, tool: str, size: int, limit: int) -> None:
+    def __init__(self, tool: str, size: int, limit: int, unit: str = "byte") -> None:
         super().__init__(
             {
                 "error": True,
                 Failure.TOO_LARGE.value: True,
                 "detail": (
-                    f"The {tool} result is {size} bytes, over the {limit}-byte "
+                    f"The {tool} result is {size} {unit}s, over the {limit}-{unit} "
                     "response limit. Narrow the request with filters, a lower "
                     "limit, or specific IDs."
                 ),
