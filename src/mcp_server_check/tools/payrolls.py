@@ -65,6 +65,8 @@ async def list_payrolls(
     return await check_api_list(
         ctx,
         "/payrolls",
+        # A summary would drop the items and contractor payments asked for.
+        summarize=not (include_items or include_contractor_payments),
         params=build_params(
             company=company,
             limit=limit,

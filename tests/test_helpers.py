@@ -222,3 +222,48 @@ def test_summary_prefixes_are_real_check_prefixes() -> None:
     public_id_prefix values). A typo here silently turns summaries off."""
     assert {"pay_", "itm_", "pyt_"} <= set(_SUMMARY_FIELDS)
     assert not {"prl_", "pit_", "pmt_"} & set(_SUMMARY_FIELDS)
+
+
+# The summary fields went unused while the prefixes were wrong, so nothing
+# checked them against check-api's serializers.
+@pytest.mark.parametrize(
+    ("record", "expected"),
+    [
+        (
+            {
+                "id": "pay_1",
+                "status": "paid",
+                "is_void": True,
+                "approved_at": "2026-01-01T00:00:00Z",
+                "approval_deadline": "2026-01-01T00:00:00Z",
+                "totals": {"cash_requirement": "100.00"},
+                "items": [],
+            },
+            {"is_void", "approved_at", "approval_deadline", "totals"},
+        ),
+        (
+            {
+                "id": "pyt_1",
+                "status": "paid",
+                "type": "net_pay",
+                "parent_type": "payroll",
+                "parent_id": "pay_1",
+                "payment_attempts": [],
+            },
+            {"type", "parent_type", "parent_id"},
+        ),
+    ],
+)
+@pytest.mark.anyio
+async def test_check_api_list_summary_keeps_identifying_fields(
+    mock_api, ctx, record, expected
+):
+    mock_api.get("/things").mock(
+        return_value=httpx.Response(
+            200, json={"next": None, "previous": None, "results": [record]}
+        )
+    )
+    result = await check_api_list(ctx, "/things")
+    row = result["results"][0]
+    assert expected <= set(row)
+    assert {"items", "payment_attempts"}.isdisjoint(row)

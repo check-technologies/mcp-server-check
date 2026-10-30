@@ -53,7 +53,10 @@ async def list_external_payrolls(
     if pay_schedule is not None:
         params["pay_schedule"] = pay_schedule
     params["include_items"] = str(include_items).lower()
-    return await check_api_list(ctx, "/external_payrolls", params=params)
+    # A summary would drop the items asked for.
+    return await check_api_list(
+        ctx, "/external_payrolls", params=params, summarize=not include_items
+    )
 
 
 async def get_external_payroll(
