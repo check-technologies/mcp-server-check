@@ -26,6 +26,7 @@ from mcp_server_check.tools.tax import (
     list_filings,
     list_taxes,
     request_tax_package,
+    simulate_unpublish_employee_tax_statement,
     update_company_tax_params,
     update_employee_tax_statement_override,
     update_employee_tax_elections,
@@ -357,6 +358,18 @@ async def test_delete_employee_tax_statement_override(mock_api, ctx):
         ctx, override_id="ets_ovr_001"
     )
     assert result["id"] == "ets_ovr_001"
+
+
+@pytest.mark.anyio
+async def test_simulate_unpublish_employee_tax_statement(mock_api, ctx):
+    route = mock_api.post("/employee_tax_statements/ets_001/simulate/unpublish").mock(
+        return_value=httpx.Response(200, json={"id": "ets_001", "published_at": None})
+    )
+    result = await simulate_unpublish_employee_tax_statement(
+        ctx, statement_id="ets_001"
+    )
+    assert result["id"] == "ets_001"
+    assert route.called
 
 
 @pytest.mark.anyio
