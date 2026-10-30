@@ -72,7 +72,8 @@ async def create_payroll_item(
     Args:
         payroll: The Check payroll ID.
         employee: The Check employee ID.
-        payment_method: Payment method — "direct_deposit" or "manual".
+        payment_method: Payment method — "direct_deposit", "manual", or "cash_app"
+            (requires ENABLE_CASH_APP_PAYOUTS for the partner).
         earnings: List of earning dicts. Each requires "workplace" and may include
             "type", "earning_code", "description", "earning_rate", "amount", "hours",
             "piece_units", "metadata".
@@ -113,7 +114,8 @@ async def update_payroll_item(
 
     Args:
         payroll_item_id: The Check payroll item ID.
-        payment_method: Payment method — "direct_deposit" or "manual".
+        payment_method: Payment method — "direct_deposit", "manual", or "cash_app"
+            (requires ENABLE_CASH_APP_PAYOUTS for the partner).
         earnings: List of earning dicts (see create_payroll_item for shape).
         reimbursements: List of reimbursement dicts (see create_payroll_item for shape).
         benefit_overrides: List of benefit override dicts. Each requires "benefit" and

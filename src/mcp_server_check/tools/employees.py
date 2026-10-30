@@ -125,7 +125,8 @@ async def create_employee(
         workplaces: List of workplace IDs where the employee works.
         primary_workplace: Workplace ID of the employee's primary workplace.
         ssn: Employee's Social Security Number. Only last four digits available after set.
-        payment_method_preference: "direct_deposit" or "manual".
+        payment_method_preference: "direct_deposit", "manual", or "cash_app"
+            (requires ENABLE_CASH_APP_PAYOUTS for the partner).
         default_net_pay_split: ID of employee's default net pay split.
         metadata: Arbitrary key-value object stored on the employee.
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
@@ -187,7 +188,8 @@ async def update_employee(
         workplaces: List of workplace IDs where the employee works.
         primary_workplace: Workplace ID of the employee's primary workplace.
         ssn: Employee's Social Security Number.
-        payment_method_preference: "direct_deposit" or "manual".
+        payment_method_preference: "direct_deposit", "manual", or "cash_app"
+            (requires ENABLE_CASH_APP_PAYOUTS for the partner).
         default_net_pay_split: ID of employee's default net pay split.
         active: Whether the employee is active. Pass false to deactivate.
         metadata: Arbitrary key-value object stored on the employee.
