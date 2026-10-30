@@ -4,7 +4,7 @@
 
 > **Terms of Service** — By using this MCP server to access the Check API, you agree to the [MCP Usage Terms](TERMS_OF_SERVICE.md), which are in addition to your existing agreement with Check.
 
-An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 286 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
+An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 288 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
 
@@ -257,9 +257,9 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 ## Available Tools
 
-286 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
+288 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
 
-### Companies (26 tools)
+### Companies (28 tools)
 
 | Tool | Method | Description |
 |---|---|---|
@@ -282,6 +282,8 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 | `start_implementation` | POST | Start implementation for a company |
 | `cancel_implementation` | POST | Cancel implementation |
 | `request_embedded_setup` | POST | Request embedded setup |
+| `simulate_publish_contractor_tax_statements` | POST | Simulate publishing contractor 1099s (sandbox only) |
+| `simulate_unpublish_contractor_tax_statements` | POST | Simulate unpublishing contractor 1099s (sandbox only) |
 
 ### Employees (17 tools)
 

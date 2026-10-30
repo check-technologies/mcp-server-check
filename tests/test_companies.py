@@ -12,6 +12,8 @@ from mcp_server_check.tools.companies import (
     list_companies,
     list_signatories,
     onboard_company,
+    simulate_publish_contractor_tax_statements,
+    simulate_unpublish_contractor_tax_statements,
     start_implementation,
     update_company,
 )
@@ -350,3 +352,26 @@ async def test_start_implementation(mock_api, ctx):
     )
     result = await start_implementation(ctx, company_id="com_001")
     assert result["id"] == "com_001"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("tool", "path"),
+    [
+        (
+            simulate_publish_contractor_tax_statements,
+            "simulate/publish_contractor_tax_statements",
+        ),
+        (
+            simulate_unpublish_contractor_tax_statements,
+            "simulate/unpublish_contractor_tax_statements",
+        ),
+    ],
+)
+async def test_simulate_contractor_tax_statements(mock_api, ctx, tool, path):
+    route = mock_api.post(f"/companies/com_001/{path}").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    result = await tool(ctx, company_id="com_001")
+    assert result == {}
+    assert route.called
