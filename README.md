@@ -4,7 +4,7 @@
 
 > **Terms of Service** — By using this MCP server to access the Check API, you agree to the [MCP Usage Terms](TERMS_OF_SERVICE.md), which are in addition to your existing agreement with Check.
 
-An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 286 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
+An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 289 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
 
@@ -239,9 +239,9 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 ## Available Tools
 
-286 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
+289 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
 
-### Companies (26 tools)
+### Companies (28 tools)
 
 | Tool | Method | Description |
 |---|---|---|
@@ -264,6 +264,8 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 | `start_implementation` | POST | Start implementation for a company |
 | `cancel_implementation` | POST | Cancel implementation |
 | `request_embedded_setup` | POST | Request embedded setup |
+| `simulate_publish_employee_tax_statements` | POST | Simulate publishing employee W-2s for a company (sandbox); optional `notify_only` sends the notification without publishing drafts |
+| `simulate_publish_contractor_tax_statements` | POST | Simulate publishing contractor 1099s for a company (sandbox); optional `notify_only` sends the notification without publishing drafts |
 
 ### Employees (17 tools)
 
@@ -518,7 +520,7 @@ Asynchronous reporting. `create_report_run` returns a `run_` ID, `get_report_run
 | `refund_payment` | POST | Refund a payment |
 | `cancel_payment` | POST | Cancel a payment |
 
-### Tax (31 tools)
+### Tax (32 tools)
 
 Tax parameters, elections (including tax exemptions), filings, statements, packages, and tax reference data.
 
@@ -552,6 +554,7 @@ Tax parameters, elections (including tax exemptions), filings, statements, packa
 | **Employee Tax Statements** | | |
 | `list_employee_tax_statements` | GET | List employee tax statements |
 | `get_employee_tax_statement` | GET | Get a specific tax statement |
+| `simulate_employee_tax_statement_publish` | POST | Simulate publishing a draft employee tax statement (sandbox); optional `notify_only` sends the notification without publishing |
 | **Employee Tax Statement Overrides** | | |
 | `list_employee_tax_statement_overrides` | GET | List W-2 supplement overrides (requires company or employee filter) |
 | `get_employee_tax_statement_override` | GET | Get a specific override |

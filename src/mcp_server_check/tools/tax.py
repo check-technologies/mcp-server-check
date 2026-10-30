@@ -619,6 +619,28 @@ async def get_employee_tax_statement(ctx: Ctx, statement_id: str) -> dict:
     return await check_api_get(ctx, f"/employee_tax_statements/{statement_id}")
 
 
+async def simulate_employee_tax_statement_publish(
+    ctx: Ctx,
+    statement_id: str,
+    notify_only: bool | None = None,
+) -> dict:
+    """Simulate publishing a draft employee tax statement (sandbox only).
+
+    Starts the publish workflow for a draft W-2 (or W-2VI) without mailing.
+    The statement must be a draft with statement data populated.
+
+    Args:
+        statement_id: The employee tax statement ID (e.g. "ets_xxxxx").
+        notify_only: When true, send only the publish notification and leave the
+            tax statement as a draft. Defaults to false (publish the statement).
+    """
+    return await check_api_post(
+        ctx,
+        f"/employee_tax_statements/{statement_id}/simulate/publish",
+        data=build_body({}, notify_only=notify_only),
+    )
+
+
 # --- Employee Tax Statement Overrides ---
 
 
@@ -883,4 +905,5 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
         add_annotated_tool(mcp, create_employee_tax_statement_overrides)
         add_annotated_tool(mcp, update_employee_tax_statement_override)
         add_annotated_tool(mcp, delete_employee_tax_statement_override)
+        add_annotated_tool(mcp, simulate_employee_tax_statement_publish)
         add_annotated_tool(mcp, request_tax_package)
