@@ -619,6 +619,22 @@ async def get_employee_tax_statement(ctx: Ctx, statement_id: str) -> dict:
     return await check_api_get(ctx, f"/employee_tax_statements/{statement_id}")
 
 
+async def simulate_unpublish_employee_tax_statement(
+    ctx: Ctx, statement_id: str
+) -> dict:
+    """Simulate unpublishing an employee tax statement (sandbox only).
+
+    Reverts a published statement to draft and removes its employee tax document.
+    Only available in sandbox and non-production environments.
+
+    Args:
+        statement_id: The Check employee tax statement ID (e.g. "ets_xxxxx").
+    """
+    return await check_api_post(
+        ctx, f"/employee_tax_statements/{statement_id}/simulate/unpublish"
+    )
+
+
 # --- Employee Tax Statement Overrides ---
 
 
@@ -883,4 +899,5 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
         add_annotated_tool(mcp, create_employee_tax_statement_overrides)
         add_annotated_tool(mcp, update_employee_tax_statement_override)
         add_annotated_tool(mcp, delete_employee_tax_statement_override)
+        add_annotated_tool(mcp, simulate_unpublish_employee_tax_statement)
         add_annotated_tool(mcp, request_tax_package)
