@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -12,6 +14,7 @@ from mcp_server_check.tools.contractors import (
     list_contractor_payments_for_contractor,
     list_contractors,
     onboard_contractor,
+    update_contractor,
 )
 
 BASE_URL = "https://sandbox.checkhq.com"
@@ -45,6 +48,22 @@ async def test_create_contractor(mock_api, ctx):
     )
     result = await create_contractor(ctx, company="com_001")
     assert result["id"] == "ctr_new"
+
+
+@pytest.mark.anyio
+async def test_update_contractor_mailing_address(mock_api, ctx):
+    mock_api.patch("/contractors/ctr_001").mock(
+        return_value=httpx.Response(200, json={"id": "ctr_001"})
+    )
+    mailing = {
+        "line1": "PO Box 456",
+        "city": "Albany",
+        "state": "NY",
+        "postal_code": "12201",
+    }
+    await update_contractor(ctx, contractor_id="ctr_001", mailing_address=mailing)
+    body = json.loads(mock_api.patch("/contractors/ctr_001").calls.last.request.content)
+    assert body["mailing_address"] == mailing
 
 
 @pytest.mark.anyio
