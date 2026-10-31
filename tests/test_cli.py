@@ -11,6 +11,8 @@ import respx
 from click.testing import CliRunner
 
 from mcp_server_check.cli import cli
+from mcp_server_check.cli.codegen import _get_param_help
+from mcp_server_check.tools.employees import update_employee
 
 BASE_URL = "https://sandbox.checkhq.com"
 RUNNER_ENV = {"CHECK_API_KEY": "sk_test_123"}
@@ -62,6 +64,14 @@ def test_companies_help():
     assert "list" in result.output
     assert "get" in result.output
     assert "create" in result.output
+
+
+def test_option_help_includes_continuation_lines():
+    help_text = _get_param_help(update_employee, "w2_electronic_consent_provided")
+    assert help_text.endswith(
+        "Set to true only after the employee has given that consent. "
+        "Omit to leave it unchanged."
+    )
 
 
 # ---------------------------------------------------------------------------
