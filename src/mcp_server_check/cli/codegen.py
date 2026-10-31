@@ -149,14 +149,25 @@ def _is_id_param(name: str) -> bool:
 
 
 def _get_param_help(func: Callable, param_name: str) -> str | None:
-    """Extract a parameter's help text from the function's docstring."""
+    """Extract a parameter's help text from the function's docstring.
+
+    Lines indented deeper than the ``name:`` line continue its entry.
+    """
     doc = func.__doc__
     if not doc:
         return None
-    for line in doc.split("\n"):
+    lines = doc.split("\n")
+    for i, line in enumerate(lines):
         stripped = line.strip()
-        if stripped.startswith(f"{param_name}:"):
-            return stripped[len(param_name) + 1 :].strip()
+        if not stripped.startswith(f"{param_name}:"):
+            continue
+        indent = len(line) - len(line.lstrip())
+        parts = [stripped[len(param_name) + 1 :].strip()]
+        for cont in lines[i + 1 :]:
+            if not cont.strip() or len(cont) - len(cont.lstrip()) <= indent:
+                break
+            parts.append(cont.strip())
+        return " ".join(p for p in parts if p)
     return None
 
 

@@ -114,6 +114,36 @@ async def test_update_employee(mock_api, ctx):
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("consent", [True, False, None])
+@pytest.mark.parametrize(
+    ("tool", "method", "path", "kwargs"),
+    [
+        (
+            create_employee,
+            "post",
+            "/employees",
+            {"company": "com_001", "first_name": "Jane", "last_name": "Doe"},
+        ),
+        (update_employee, "patch", "/employees/emp_001", {"employee_id": "emp_001"}),
+    ],
+)
+async def test_employee_w2_electronic_consent(
+    mock_api, ctx, tool, method, path, kwargs, consent
+):
+    route = getattr(mock_api, method)(path).mock(
+        return_value=httpx.Response(200, json={"id": "emp_001"})
+    )
+    if consent is not None:
+        kwargs = {**kwargs, "w2_electronic_consent_provided": consent}
+    await tool(ctx, **kwargs)
+    body = json.loads(route.calls.last.request.content)
+    if consent is None:
+        assert "w2_electronic_consent_provided" not in body
+    else:
+        assert body["w2_electronic_consent_provided"] is consent
+
+
+@pytest.mark.anyio
 async def test_onboard_employee(mock_api, ctx):
     mock_api.post("/employees/emp_001/onboard").mock(
         return_value=httpx.Response(200, json={"id": "emp_001", "onboard": "complete"})

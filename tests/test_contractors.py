@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -12,6 +14,7 @@ from mcp_server_check.tools.contractors import (
     list_contractor_payments_for_contractor,
     list_contractors,
     onboard_contractor,
+    update_contractor,
 )
 
 BASE_URL = "https://sandbox.checkhq.com"
@@ -45,6 +48,37 @@ async def test_create_contractor(mock_api, ctx):
     )
     result = await create_contractor(ctx, company="com_001")
     assert result["id"] == "ctr_new"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("consent", [True, False, None])
+@pytest.mark.parametrize(
+    ("tool", "method", "path", "kwargs"),
+    [
+        (create_contractor, "post", "/contractors", {"company": "com_001"}),
+        (
+            update_contractor,
+            "patch",
+            "/contractors/ctr_001",
+            {"contractor_id": "ctr_001"},
+        ),
+    ],
+)
+async def test_contractor_1099_nec_electronic_consent(
+    mock_api, ctx, tool, method, path, kwargs, consent
+):
+    route = getattr(mock_api, method)(path).mock(
+        return_value=httpx.Response(200, json={"id": "ctr_001"})
+    )
+    if consent is not None:
+        kwargs = {**kwargs, "nec_1099_electronic_consent_provided": consent}
+    await tool(ctx, **kwargs)
+    body = json.loads(route.calls.last.request.content)
+    assert "nec_1099_electronic_consent_provided" not in body
+    if consent is None:
+        assert "1099_nec_electronic_consent_provided" not in body
+    else:
+        assert body["1099_nec_electronic_consent_provided"] is consent
 
 
 @pytest.mark.anyio
