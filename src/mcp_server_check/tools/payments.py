@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
+    build_body,
     build_params,
     check_api_get,
     check_api_list,
@@ -100,13 +101,33 @@ async def list_payment_attempts(
     )
 
 
-async def retry_payment(ctx: Ctx, payment_id: str) -> dict:
+async def retry_payment(
+    ctx: Ctx,
+    payment_id: str,
+    bank_account: str | None = None,
+    payment_type: str | None = None,
+) -> dict:
     """Retry a failed payment.
 
+    A failed credit to an employee or contractor can only be retried to a
+    different bank account: add one for the worker (create_bank_account),
+    then pass it as bank_account. Retrying without it fails with "Cannot retry
+    a failed credit payment without a new bank account." A failed funding
+    debit can be retried as is, or as a wire with payment_type "wire" (not
+    together with bank_account).
+
     Args:
-        payment_id: The Check payment ID.
+        payment_id: The Check payment ID (e.g. "pyt_xxxxx").
+        bank_account: Bank account ID (e.g. "bnk_xxxxx") to send the retry to.
+            Required for a failed credit; must belong to the same worker.
+        payment_type: Rail for the retry: "ach", "instant", or "wire".
     """
-    return await check_api_post(ctx, f"/payments/{payment_id}/retry")
+    return await check_api_post(
+        ctx,
+        f"/payments/{payment_id}/retry",
+        data=build_body({}, bank_account=bank_account, payment_type=payment_type)
+        or None,
+    )
 
 
 async def refund_payment(ctx: Ctx, payment_id: str) -> dict:
@@ -116,6 +137,41 @@ async def refund_payment(ctx: Ctx, payment_id: str) -> dict:
         payment_id: The Check payment ID.
     """
     return await check_api_post(ctx, f"/payments/{payment_id}/refund")
+
+
+# --- Sandbox simulation ---
+
+
+async def simulate_complete_payment(ctx: Ctx, payment_id: str) -> dict:
+    """Simulate one payment settling (sandbox only).
+
+    Settles a single pending employee, contractor, or funding payment on a
+    payroll whose simulation_mode is "manual", leaving the payroll's other
+    payments untouched. The payment must be pending. Returns
+    ``{"success": true}``; read the payment back with get_payment.
+
+    Args:
+        payment_id: The Check payment ID (e.g. "pyt_xxxxx"). Find a worker's
+            credit with list_payments: the one whose parent is their payroll
+            item or contractor payment.
+    """
+    return await check_api_post(ctx, f"/payments/{payment_id}/simulate/complete")
+
+
+async def simulate_fail_payment(ctx: Ctx, payment_id: str) -> dict:
+    """Simulate one payment failing (sandbox only).
+
+    Fails a single pending payment on a payroll whose simulation_mode is
+    "manual": the payment and its payroll item or contractor payment move to
+    "failed" with ``can_retry`` true, and the payroll becomes "partially_paid"
+    once its other payments settle. This is the explicit replacement for the
+    "Barry BadAccount" sentinel. Returns ``{"success": true}``. To retry, add
+    a new bank account for the worker and call retry_payment with it.
+
+    Args:
+        payment_id: The Check payment ID (e.g. "pyt_xxxxx").
+    """
+    return await check_api_post(ctx, f"/payments/{payment_id}/simulate/fail")
 
 
 async def cancel_payment(ctx: Ctx, payment_id: str) -> dict:
@@ -135,3 +191,5 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
         add_annotated_tool(mcp, retry_payment)
         add_annotated_tool(mcp, refund_payment)
         add_annotated_tool(mcp, cancel_payment)
+        add_annotated_tool(mcp, simulate_complete_payment)
+        add_annotated_tool(mcp, simulate_fail_payment)

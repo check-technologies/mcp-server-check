@@ -123,6 +123,7 @@ async def create_payroll(
     contractor_payments: list[dict] | None = None,
     metadata: dict | None = None,
     bank_account: str | None = None,
+    simulation_mode: str | None = None,
     idempotency_key: str | None = None,
 ) -> dict:
     """Create a new payroll.
@@ -149,6 +150,15 @@ async def create_payroll(
             "workplace", "paper_check_number".
         metadata: Arbitrary key-value object stored on the payroll.
         bank_account: ID of the bank account to fund the payroll.
+        simulation_mode: Sandbox only. "automatic" (the default) lets the sandbox
+            move the payroll through processing and payment on its own after
+            approval. "manual" holds it so you drive each step with
+            simulate_start_processing, simulate_complete_funding or
+            simulate_fail_funding, simulate_complete_disbursements, and the
+            per-payment simulate_complete_payment / simulate_fail_payment tools;
+            those simulate tools reject an "automatic" payroll. The field only
+            exists for partners with payroll simulation enabled; otherwise it is
+            ignored and the payroll shows no simulation_mode.
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
 
     The response omits inlined items and contractor payments (see get_payroll);
@@ -174,6 +184,7 @@ async def create_payroll(
             contractor_payments=contractor_payments,
             metadata=metadata,
             bank_account=bank_account,
+            simulation_mode=simulation_mode,
         ),
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
@@ -197,6 +208,7 @@ async def update_payroll(
     metadata: dict | None = None,
     bank_account: str | None = None,
     correction: str | None = None,
+    simulation_mode: str | None = None,
 ) -> dict:
     """Update an existing payroll.
 
@@ -219,6 +231,9 @@ async def update_payroll(
         bank_account: ID of the bank account to fund the payroll.
         correction: Check correction ID (e.g. "cor_xxxxx"). On update, send only to
             restate the payroll's current correction; a different value is rejected.
+        simulation_mode: Sandbox only. "automatic" or "manual"; see create_payroll.
+            Switch a payroll to "manual" before approving it to step its
+            processing and payments with the simulate_* tools.
 
     The response omits inlined items and contractor payments (see get_payroll).
     """
@@ -241,6 +256,7 @@ async def update_payroll(
             metadata=metadata,
             bank_account=bank_account,
             correction=correction,
+            simulation_mode=simulation_mode,
         ),
     )
     return shape_payroll(result)
@@ -345,8 +361,13 @@ async def get_payroll_paper_checks_report(ctx: Ctx, payroll_id: str) -> dict:
 async def simulate_start_processing(ctx: Ctx, payroll_id: str) -> dict:
     """Simulate starting payroll processing (sandbox only).
 
+    Moves an approved, pending payroll to "processing". Only works on a
+    payroll whose simulation_mode is "manual" (set it on create_payroll or
+    update_payroll before approving); an "automatic" payroll advances on its
+    own and this call is rejected with a 400.
+
     Args:
-        payroll_id: The Check payroll ID.
+        payroll_id: The Check payroll ID (e.g. "pay_xxxxx").
     """
     return shape_payroll(
         await check_api_post(ctx, f"/payrolls/{payroll_id}/simulate/start_processing")
@@ -356,8 +377,14 @@ async def simulate_start_processing(ctx: Ctx, payroll_id: str) -> dict:
 async def simulate_complete_funding(ctx: Ctx, payroll_id: str) -> dict:
     """Simulate completing payroll funding (sandbox only).
 
+    Settles the funding debit of a "processing" payroll with simulation_mode
+    "manual", so its employee and contractor payments become pending credits.
+    From there, simulate_complete_disbursements settles every payment at once,
+    or simulate_complete_payment / simulate_fail_payment settle or fail one
+    payment at a time.
+
     Args:
-        payroll_id: The Check payroll ID.
+        payroll_id: The Check payroll ID (e.g. "pay_xxxxx").
     """
     return shape_payroll(
         await check_api_post(ctx, f"/payrolls/{payroll_id}/simulate/complete_funding")
@@ -367,8 +394,11 @@ async def simulate_complete_funding(ctx: Ctx, payroll_id: str) -> dict:
 async def simulate_fail_funding(ctx: Ctx, payroll_id: str) -> dict:
     """Simulate failing payroll funding (sandbox only).
 
+    Fails the funding debit of a "processing" payroll with simulation_mode
+    "manual", moving the payroll to "failed".
+
     Args:
-        payroll_id: The Check payroll ID.
+        payroll_id: The Check payroll ID (e.g. "pay_xxxxx").
     """
     return shape_payroll(
         await check_api_post(ctx, f"/payrolls/{payroll_id}/simulate/fail_funding")
@@ -378,8 +408,13 @@ async def simulate_fail_funding(ctx: Ctx, payroll_id: str) -> dict:
 async def simulate_complete_disbursements(ctx: Ctx, payroll_id: str) -> dict:
     """Simulate completing payroll disbursements (sandbox only).
 
+    Settles every outstanding payment of a funded payroll with simulation_mode
+    "manual", moving it to "paid". To fail or settle a single employee or
+    contractor payment instead, use simulate_fail_payment or
+    simulate_complete_payment on that payment.
+
     Args:
-        payroll_id: The Check payroll ID.
+        payroll_id: The Check payroll ID (e.g. "pay_xxxxx").
     """
     return shape_payroll(
         await check_api_post(
