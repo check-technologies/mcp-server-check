@@ -653,6 +653,39 @@ async def request_embedded_setup(ctx: Ctx, company_id: str) -> dict:
     return await check_api_post(ctx, f"/companies/{company_id}/request_embedded_setup")
 
 
+# --- Simulation ---
+
+
+async def simulate_publish_contractor_tax_statements(ctx: Ctx, company_id: str) -> dict:
+    """Simulate publishing contractor 1099 tax statements for a company (sandbox only).
+
+    Requires the ENABLE_CONTRACTOR_TAX_STATEMENTS feature flag on the API. Returns
+    an empty body on success.
+
+    Args:
+        company_id: The Check company ID (e.g. "com_xxxxx").
+    """
+    return await check_api_post(
+        ctx, f"/companies/{company_id}/simulate/publish_contractor_tax_statements"
+    )
+
+
+async def simulate_unpublish_contractor_tax_statements(
+    ctx: Ctx, company_id: str
+) -> dict:
+    """Simulate unpublishing contractor 1099 tax statements for a company (sandbox only).
+
+    Requires the ENABLE_CONTRACTOR_TAX_STATEMENTS feature flag on the API. Returns
+    an empty body on success.
+
+    Args:
+        company_id: The Check company ID (e.g. "com_xxxxx").
+    """
+    return await check_api_post(
+        ctx, f"/companies/{company_id}/simulate/unpublish_contractor_tax_statements"
+    )
+
+
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, list_companies)
     add_annotated_tool(mcp, search_companies)
@@ -675,3 +708,5 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
         add_annotated_tool(mcp, start_implementation)
         add_annotated_tool(mcp, cancel_implementation)
         add_annotated_tool(mcp, request_embedded_setup)
+        add_annotated_tool(mcp, simulate_publish_contractor_tax_statements)
+        add_annotated_tool(mcp, simulate_unpublish_contractor_tax_statements)
