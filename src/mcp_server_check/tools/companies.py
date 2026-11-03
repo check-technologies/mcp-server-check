@@ -623,6 +623,54 @@ async def update_enrollment_profile(
     )
 
 
+# --- Simulation ---
+
+
+async def simulate_publish_employee_tax_statements(
+    ctx: Ctx,
+    company_id: str,
+    notify_only: bool | None = None,
+) -> dict:
+    """Simulate publishing employee tax statements (W-2s) for a company (sandbox only).
+
+    Marks draft employee tax statements for the company as published and sends the
+    employer published notification, without running production filing flows. Requires
+    draft statements to publish; otherwise the API returns a validation error.
+
+    Args:
+        company_id: The Check company ID (for example "com_xxxxx").
+        notify_only: When true, send only the publish notification and leave the tax
+            statements as drafts. Defaults to false (publish statements).
+    """
+    return await check_api_post(
+        ctx,
+        f"/companies/{company_id}/simulate/publish_employee_tax_statements",
+        data=build_body({}, notify_only=notify_only),
+    )
+
+
+async def simulate_publish_contractor_tax_statements(
+    ctx: Ctx,
+    company_id: str,
+    notify_only: bool | None = None,
+) -> dict:
+    """Simulate publishing contractor 1099 tax statements for a company (sandbox only).
+
+    Requires the ENABLE_CONTRACTOR_TAX_STATEMENTS feature flag on the API. Returns
+    an empty body on success.
+
+    Args:
+        company_id: The Check company ID (for example "com_xxxxx").
+        notify_only: When true, send only the publish notification and leave the tax
+            statements as drafts. Defaults to false (publish statements).
+    """
+    return await check_api_post(
+        ctx,
+        f"/companies/{company_id}/simulate/publish_contractor_tax_statements",
+        data=build_body({}, notify_only=notify_only),
+    )
+
+
 # --- Implementation ---
 
 
@@ -675,3 +723,5 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
         add_annotated_tool(mcp, start_implementation)
         add_annotated_tool(mcp, cancel_implementation)
         add_annotated_tool(mcp, request_embedded_setup)
+        add_annotated_tool(mcp, simulate_publish_employee_tax_statements)
+        add_annotated_tool(mcp, simulate_publish_contractor_tax_statements)

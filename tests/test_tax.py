@@ -26,6 +26,7 @@ from mcp_server_check.tools.tax import (
     list_filings,
     list_taxes,
     request_tax_package,
+    simulate_employee_tax_statement_publish,
     update_company_tax_params,
     update_employee_tax_statement_override,
     update_employee_tax_elections,
@@ -382,6 +383,18 @@ async def test_list_employee_tax_statements_with_filters(mock_api, ctx):
     assert req.url.params["year"] == "2025"
     assert req.url.params["form"] == "vi_w2vi"
     assert req.url.params["published_from"] == "2026-01-15T00:00:00Z"
+
+
+@pytest.mark.anyio
+async def test_simulate_employee_tax_statement_publish_notify_only(mock_api, ctx):
+    route = mock_api.post("/employee_tax_statements/ets_001/simulate/publish").mock(
+        return_value=httpx.Response(200, json={"id": "ets_001", "published": False})
+    )
+    result = await simulate_employee_tax_statement_publish(
+        ctx, statement_id="ets_001", notify_only=True
+    )
+    assert result["id"] == "ets_001"
+    assert json.loads(route.calls.last.request.content) == {"notify_only": True}
 
 
 @pytest.mark.anyio
