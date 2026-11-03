@@ -297,3 +297,49 @@ async def test_write_tools_omit_inlined_items_from_their_responses(mock_api, ctx
         assert "items" not in result
         assert result["items_count"] == 3
         assert result["contractor_payments_count"] == 1
+
+
+@pytest.mark.anyio
+async def test_create_payroll_sends_simulation_mode(mock_api, ctx):
+    route = mock_api.post("/payrolls").mock(
+        return_value=httpx.Response(
+            201, json={"id": "pay_new", "simulation_mode": "manual"}
+        )
+    )
+    result = await create_payroll(
+        ctx,
+        company="com_001",
+        period_start="2026-01-01",
+        period_end="2026-01-15",
+        payday="2026-01-17",
+        simulation_mode="manual",
+    )
+    assert result["simulation_mode"] == "manual"
+    assert json.loads(route.calls.last.request.content)["simulation_mode"] == "manual"
+
+
+@pytest.mark.anyio
+async def test_create_payroll_omits_simulation_mode_by_default(mock_api, ctx):
+    route = mock_api.post("/payrolls").mock(
+        return_value=httpx.Response(201, json={"id": "pay_new"})
+    )
+    await create_payroll(
+        ctx,
+        company="com_001",
+        period_start="2026-01-01",
+        period_end="2026-01-15",
+        payday="2026-01-17",
+    )
+    assert "simulation_mode" not in json.loads(route.calls.last.request.content)
+
+
+@pytest.mark.anyio
+async def test_update_payroll_sends_simulation_mode(mock_api, ctx):
+    route = mock_api.patch("/payrolls/pay_001").mock(
+        return_value=httpx.Response(
+            200, json={"id": "pay_001", "simulation_mode": "manual"}
+        )
+    )
+    result = await update_payroll(ctx, payroll_id="pay_001", simulation_mode="manual")
+    assert result["simulation_mode"] == "manual"
+    assert json.loads(route.calls.last.request.content) == {"simulation_mode": "manual"}
