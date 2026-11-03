@@ -498,7 +498,7 @@ async def list_filings(
     year: int | None = None,
     period: str | None = None,
     status: str | None = None,
-    correction: str | None = None,
+    correction: list[str] | None = None,
 ) -> dict:
     """List filings, optionally filtered by company.
 
@@ -513,8 +513,9 @@ async def list_filings(
         year: Filter by tax year.
         period: Filter by filing period (e.g. "annual", "q1", "q2", "q3", "q4", "january", etc.).
         status: Filter by filing status ("pending", "blocked", "submitted", "filed", or "inapplicable").
-        correction: Filter to filings produced by this correction session (e.g. "cor_xxxxx").
-            Requires the corrections API for the provider.
+        correction: Filter to filings produced by these correction sessions (e.g. "cor_xxxxx").
+            Multiple values are OR'd (max 500 per request). Requires the corrections API for
+            the provider.
     """
     return await check_api_list(
         ctx,
@@ -582,6 +583,7 @@ async def list_employee_tax_statements(
     year: int | None = None,
     form: str | None = None,
     published_from: str | None = None,
+    correction: list[str] | None = None,
 ) -> dict:
     """List employee tax statements, optionally filtered by employee.
 
@@ -594,6 +596,10 @@ async def list_employee_tax_statements(
         form: Filter by tax form ("fed_w2" or "vi_w2vi").
         published_from: ISO-8601 datetime lower bound on published_at (inclusive),
             e.g. "2026-01-15T00:00:00Z".
+        correction: Filter to tax statements produced by these correction sessions
+            (e.g. "cor_xxxxx"). Multiple values are OR'd (max 500 per request). At least
+            one of employee, company, or correction is required. Requires the corrections
+            API for the provider.
     """
     return await check_api_list(
         ctx,
@@ -606,6 +612,7 @@ async def list_employee_tax_statements(
             year=year,
             form=form,
             published_from=published_from,
+            correction=correction,
         ),
     )
 
