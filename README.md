@@ -4,7 +4,7 @@
 
 > **Terms of Service** — By using this MCP server to access the Check API, you agree to the [MCP Usage Terms](TERMS_OF_SERVICE.md), which are in addition to your existing agreement with Check.
 
-An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 286 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
+An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 296 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
 
@@ -239,9 +239,9 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 ## Available Tools
 
-286 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
+296 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
 
-### Companies (26 tools)
+### Companies (30 tools)
 
 | Tool | Method | Description |
 |---|---|---|
@@ -264,6 +264,10 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 | `start_implementation` | POST | Start implementation for a company |
 | `cancel_implementation` | POST | Cancel implementation |
 | `request_embedded_setup` | POST | Request embedded setup |
+| `simulate_publish_employee_tax_statements` | POST | Publish a company's draft W-2s for the current season, without mailing (sandbox only) |
+| `simulate_unpublish_employee_tax_statements` | POST | Revert a company's published W-2s to draft (sandbox only) |
+| `simulate_publish_contractor_tax_statements` | POST | Publish a company's draft 1099s for the current season (sandbox only) |
+| `simulate_unpublish_contractor_tax_statements` | POST | Revert a company's published 1099s to draft (sandbox only) |
 
 ### Employees (17 tools)
 
@@ -518,7 +522,7 @@ Asynchronous reporting. `create_report_run` returns a `run_` ID, `get_report_run
 | `refund_payment` | POST | Refund a payment |
 | `cancel_payment` | POST | Cancel a payment |
 
-### Tax (31 tools)
+### Tax (37 tools)
 
 Tax parameters, elections (including tax exemptions), filings, statements, packages, and tax reference data.
 
@@ -552,6 +556,13 @@ Tax parameters, elections (including tax exemptions), filings, statements, packa
 | **Employee Tax Statements** | | |
 | `list_employee_tax_statements` | GET | List employee tax statements |
 | `get_employee_tax_statement` | GET | Get a specific tax statement |
+| `simulate_publish_employee_tax_statement` | POST | Publish one draft W-2 without mailing (sandbox only) |
+| `simulate_unpublish_employee_tax_statement` | POST | Revert one published W-2 to draft (sandbox only) |
+| **Contractor Tax Statements** | | |
+| `list_contractor_tax_statements` | GET | List 1099 statements (requires contractor or company filter) |
+| `get_contractor_tax_statement` | GET | Get a specific contractor tax statement |
+| `simulate_publish_contractor_tax_statement` | POST | Publish one draft 1099 (sandbox only) |
+| `simulate_unpublish_contractor_tax_statement` | POST | Revert one published 1099 to draft (sandbox only) |
 | **Employee Tax Statement Overrides** | | |
 | `list_employee_tax_statement_overrides` | GET | List W-2 supplement overrides (requires company or employee filter) |
 | `get_employee_tax_statement_override` | GET | Get a specific override |

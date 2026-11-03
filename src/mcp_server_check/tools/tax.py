@@ -619,6 +619,133 @@ async def get_employee_tax_statement(ctx: Ctx, statement_id: str) -> dict:
     return await check_api_get(ctx, f"/employee_tax_statements/{statement_id}")
 
 
+async def simulate_publish_employee_tax_statement(ctx: Ctx, statement_id: str) -> dict:
+    """Publish one draft employee tax statement (W-2) in the sandbox.
+
+    Sandbox only. The statement must be a draft with its statement data
+    populated. Starts the publish workflow for just this statement, with
+    mailing skipped, and returns the statement. Publishing runs in the
+    background, so the returned ``published_at`` may still be null: re-read
+    with get_employee_tax_statement until it is set. To publish every draft a
+    company has, use simulate_publish_employee_tax_statements instead.
+
+    Args:
+        statement_id: The employee tax statement ID (e.g. "ets_xxxxx").
+    """
+    return await check_api_post(
+        ctx, f"/employee_tax_statements/{statement_id}/simulate/publish"
+    )
+
+
+async def simulate_unpublish_employee_tax_statement(
+    ctx: Ctx, statement_id: str
+) -> dict:
+    """Revert one published employee tax statement (W-2) to draft.
+
+    Sandbox only. Clears ``published_at`` and removes the statement's W-2
+    document, so it can be published again. Returns the updated statement.
+
+    Args:
+        statement_id: The employee tax statement ID (e.g. "ets_xxxxx").
+    """
+    return await check_api_post(
+        ctx, f"/employee_tax_statements/{statement_id}/simulate/unpublish"
+    )
+
+
+# --- Contractor Tax Statements ---
+
+
+async def list_contractor_tax_statements(
+    ctx: Ctx,
+    contractor: str | None = None,
+    company: str | None = None,
+    year: int | None = None,
+    publication_status: str | None = None,
+    published_from: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
+) -> dict:
+    """List contractor tax statements (1099s) for a contractor or a company.
+
+    Either contractor or company is required; the API rejects an unscoped
+    list. Partners without contractor tax statements enabled get a 404.
+
+    Args:
+        contractor: Filter to statements for this Check contractor ID
+            (e.g. "ctr_xxxxx").
+        company: Filter to statements for this company ID (e.g. "com_xxxxx").
+        year: Filter by tax year.
+        publication_status: "draft" or "published".
+        published_from: ISO-8601 datetime lower bound on published_at
+            (inclusive), e.g. "2026-01-15T00:00:00Z".
+        limit: Maximum number of results to return.
+        cursor: Pagination cursor.
+    """
+    return await check_api_list(
+        ctx,
+        "/contractor_tax_statements",
+        params=build_params(
+            contractor=contractor,
+            company=company,
+            year=year,
+            publication_status=publication_status,
+            published_from=published_from,
+            limit=limit,
+            cursor=cursor,
+        ),
+    )
+
+
+async def get_contractor_tax_statement(ctx: Ctx, statement_id: str) -> dict:
+    """Get a specific contractor tax statement (1099).
+
+    The result carries ``publication_status`` ("draft" or "published"),
+    ``published_at``, the delivery method, and ``document``: the contractor
+    tax document ID that download_contractor_tax_document reads.
+
+    Args:
+        statement_id: The contractor tax statement ID (e.g. "cts_xxxxx").
+    """
+    return await check_api_get(ctx, f"/contractor_tax_statements/{statement_id}")
+
+
+async def simulate_publish_contractor_tax_statement(
+    ctx: Ctx, statement_id: str
+) -> dict:
+    """Publish one draft contractor tax statement (1099) in the sandbox.
+
+    Sandbox only. The statement must be a draft that is ready to publish.
+    Starts the publish workflow for just this statement and returns it.
+    Publishing runs in the background, so the returned ``published_at`` may
+    still be null: re-read with get_contractor_tax_statement until it is set.
+    To publish every draft a company has, use
+    simulate_publish_contractor_tax_statements instead.
+
+    Args:
+        statement_id: The contractor tax statement ID (e.g. "cts_xxxxx").
+    """
+    return await check_api_post(
+        ctx, f"/contractor_tax_statements/{statement_id}/simulate/publish"
+    )
+
+
+async def simulate_unpublish_contractor_tax_statement(
+    ctx: Ctx, statement_id: str
+) -> dict:
+    """Revert one published contractor tax statement (1099) to draft.
+
+    Sandbox only. Clears ``published_at`` so the statement can be published
+    again. Returns the updated statement.
+
+    Args:
+        statement_id: The contractor tax statement ID (e.g. "cts_xxxxx").
+    """
+    return await check_api_post(
+        ctx, f"/contractor_tax_statements/{statement_id}/simulate/unpublish"
+    )
+
+
 # --- Employee Tax Statement Overrides ---
 
 
@@ -863,6 +990,9 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     # Employee Tax Statements
     add_annotated_tool(mcp, list_employee_tax_statements)
     add_annotated_tool(mcp, get_employee_tax_statement)
+    # Contractor Tax Statements
+    add_annotated_tool(mcp, list_contractor_tax_statements)
+    add_annotated_tool(mcp, get_contractor_tax_statement)
     # Employee Tax Statement Overrides
     add_annotated_tool(mcp, list_employee_tax_statement_overrides)
     add_annotated_tool(mcp, get_employee_tax_statement_override)
@@ -884,3 +1014,8 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
         add_annotated_tool(mcp, update_employee_tax_statement_override)
         add_annotated_tool(mcp, delete_employee_tax_statement_override)
         add_annotated_tool(mcp, request_tax_package)
+        # Sandbox simulation: tax statement publishing
+        add_annotated_tool(mcp, simulate_publish_employee_tax_statement)
+        add_annotated_tool(mcp, simulate_unpublish_employee_tax_statement)
+        add_annotated_tool(mcp, simulate_publish_contractor_tax_statement)
+        add_annotated_tool(mcp, simulate_unpublish_contractor_tax_statement)
