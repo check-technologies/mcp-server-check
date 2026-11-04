@@ -9,7 +9,13 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
-from mcp_server_check.helpers import Ctx, check_api_get
+from mcp_server_check.helpers import (
+    Ctx,
+    build_params,
+    check_api_get,
+    check_api_list,
+    merge_metadata_filter_params,
+)
 from mcp_server_check.tool_factory import Field, Resource, generate_tools
 
 # ---------------------------------------------------------------------------
@@ -58,7 +64,33 @@ _pay_schedules = Resource(
 )
 _pay_schedule_tools = generate_tools(_pay_schedules)
 
-list_pay_schedules = _pay_schedule_tools.list_fn
+
+async def list_pay_schedules(
+    ctx: Ctx,
+    company: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
+    metadata: dict[str, str] | None = None,
+) -> dict:
+    """List pay schedules, optionally filtered by company.
+
+    Args:
+        company: The Check company ID.
+        limit: Maximum number of results to return.
+        cursor: Pagination cursor from a previous response.
+        metadata: Return only pay schedules whose metadata contains every given key and value
+            (for example {"external_id": "123"}). Multiple keys are combined with AND.
+    """
+    return await check_api_list(
+        ctx,
+        "/pay_schedules",
+        params=merge_metadata_filter_params(
+            build_params(company=company, limit=limit, cursor=cursor),
+            metadata,
+        ),
+    )
+
+
 get_pay_schedule = _pay_schedule_tools.get_fn
 create_pay_schedule = _pay_schedule_tools.create_fn
 update_pay_schedule = _pay_schedule_tools.update_fn

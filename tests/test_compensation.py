@@ -34,6 +34,19 @@ async def test_list_pay_schedules(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_list_pay_schedules_with_metadata_filter(mock_api, ctx):
+    route = mock_api.get("/pay_schedules").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": []},
+        )
+    )
+    await list_pay_schedules(ctx, metadata={"plan": "biweekly-a"})
+    req = route.calls[0].request
+    assert req.url.params["metadata[plan]"] == "biweekly-a"
+
+
+@pytest.mark.anyio
 async def test_create_pay_schedule(mock_api, ctx):
     route = mock_api.post("/pay_schedules").mock(
         return_value=httpx.Response(201, json={"id": "psc_new"})
