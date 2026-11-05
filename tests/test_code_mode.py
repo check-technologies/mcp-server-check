@@ -339,6 +339,11 @@ async def test_get_stubs_without_arguments_returns_catalog(code_server):
     assert "list_workplaces, " in catalog
     assert "create_workplace*" in catalog  # write tools are marked
     assert "async def" not in catalog  # names only, not signatures
+    # The catalog opens every code-mode session, so it carries the planning
+    # guidance header-opt-in clients never get from the server instructions.
+    assert "Plan one program for the whole job" in catalog
+    assert "asyncio.gather" in catalog
+    assert "writes in a second program" in catalog
     assert len(catalog) < 20_000
 
 

@@ -164,6 +164,23 @@ def _render_typed_dicts() -> str:
     return "\n".join(out)
 
 
+# Strategy, not mechanics: the stub header says how to call a tool, this says
+# how many calls belong in one program. The catalog is the first thing every
+# code-mode client reads, including ones that opt in by header and so never
+# see the server's code-mode instructions. Without it a model treats run_code
+# as "run_tool with batching" and spends a model turn and a fresh sandbox on
+# every hop of a read chain.
+_CATALOG_GUIDANCE = (
+    "Plan one program for the whole job, not one call per program: inside the",
+    "program, follow IDs from one result into the next call, run independent",
+    "calls with asyncio.gather, page with next_cursor, and return only what the",
+    "answer needs. Every program costs a fresh sandbox and a model turn, so a",
+    "read chain of several calls belongs in one program. Keep reads and writes",
+    "apart: read and plan in one program, confirm with the user, then run the",
+    "writes in a second program whose writes argument names them.",
+)
+
+
 def render_catalog(
     entries: Iterable[ToolEntry], descriptions: Mapping[str, str]
 ) -> str:
@@ -179,6 +196,8 @@ def render_catalog(
         f'"""Toolsets of the `{MODULE_NAME}` module. `*` marks a write tool, which',
         "run_code's writes argument must name. For signatures call",
         "get_stubs(tools=[...]), get_stubs(toolset=...), or get_stubs(query=...).",
+        "",
+        *_CATALOG_GUIDANCE,
         '"""',
     ]
     for toolset, group in sorted(by_toolset.items()):
