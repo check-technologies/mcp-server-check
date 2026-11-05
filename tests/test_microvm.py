@@ -98,6 +98,29 @@ dict(Counter(states))
 
 
 @pytest.mark.anyio
+async def test_asyncio_and_json_need_no_import(mock_api, monkeypatch):
+    """The stub header says to use asyncio.gather, so it must already be in
+    scope: a Checkmate turn lost two programs to NameError on `asyncio` before
+    its first call."""
+    for cid in ("com_1", "com_2"):
+        mock_api.get(f"/companies/{cid}").mock(
+            return_value=httpx.Response(200, json={"id": cid, "legal_name": cid})
+        )
+    code = """
+a, b = await asyncio.gather(
+    check.get_company(company_id="com_1"),
+    check.get_company(company_id="com_2"),
+)
+json.loads(json.dumps([a["id"], b["id"]]))
+"""
+    is_error, payload = await _run_in_microvm(monkeypatch, code)
+
+    assert not is_error, payload
+    assert payload["result"] == ["com_1", "com_2"]
+    assert [c["tool"] for c in payload["calls"]] == ["get_company", "get_company"]
+
+
+@pytest.mark.anyio
 async def test_api_error_is_catchable(mock_api, monkeypatch):
     mock_api.get("/companies/com_missing").mock(
         return_value=httpx.Response(404, json={"error": "Not found"})

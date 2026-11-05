@@ -112,9 +112,10 @@ CODE_MODE_INSTRUCTIONS = """\
 ## Code Mode
 This server runs in code mode: every Check API call happens inside a Python \
 program you write and run with run_code. A single call is a one-line program.
-- The `check` module is already imported. It has one async function per \
-Check tool, named as get_stubs lists them. Call them with keyword arguments \
-and `await` them; use asyncio.gather for independent calls.
+- The `check` module is already imported, and so are `asyncio` and `json`. \
+`check` has one async function per Check tool, named as get_stubs lists \
+them. Call them with keyword arguments and `await` them; use asyncio.gather \
+for independent calls.
 - Only the program's last expression, what it prints, and a trace of the tool \
 calls it made come back. Filter, join, and aggregate inside the program and \
 return a small result.
@@ -461,10 +462,10 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
     ) -> ToolResult:
         """Run a Python program against the Check API in a sandbox.
 
-        Write ordinary async Python. The `check` module is already imported
-        and has one async function per Check tool, named as get_stubs lists
-        them; call them with keyword arguments and `await` them, and
-        use asyncio.gather for independent calls. Top-level `await` is
+        Write ordinary async Python. The `check` module is already imported,
+        as are `asyncio` and `json`. `check` has one async function per Check
+        tool, named as get_stubs lists them; call them with keyword arguments
+        and `await` them, and use asyncio.gather for independent calls. Top-level `await` is
         allowed. The value of the program's last expression is
         returned along with anything it printed and a trace of every tool call
         it made. Only what you return or print reaches the conversation, so
