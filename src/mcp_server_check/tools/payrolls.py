@@ -145,7 +145,9 @@ async def create_payroll(
             payroll takes its pay_frequency from the schedule, and payday must
             fall on the schedule.
         off_cycle_options: Off-cycle config dict with keys: force_supplemental_withholding
-            (bool), apply_benefits (bool), apply_post_tax_deductions (bool).
+            (bool), apply_post_tax_deductions (bool). All three are required whenever
+            the dict is passed; Check API rejects a partial one. Omit the dict to take
+            the defaults, all false.
         items: List of payroll item dicts. Each requires "employee" and may include
             "payment_method", "earnings" (list), "reimbursements" (list),
             "benefit_overrides" (list), "post_tax_deduction_overrides" (list),
@@ -234,7 +236,9 @@ async def update_payroll(
             payroll takes its pay_frequency from the schedule, and payday must
             fall on the schedule.
         off_cycle_options: Off-cycle config dict with keys: force_supplemental_withholding
-            (bool), apply_benefits (bool), apply_post_tax_deductions (bool).
+            (bool), apply_post_tax_deductions (bool). All three are required whenever
+            the dict is passed; Check API rejects a partial one. Omit the dict to take
+            the defaults, all false.
         items: List of payroll item dicts (see create_payroll for shape).
         contractor_payments: List of contractor payment dicts (see create_payroll for shape).
         metadata: Arbitrary key-value object stored on the payroll.
