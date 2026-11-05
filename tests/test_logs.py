@@ -59,6 +59,20 @@ async def test_list_logs_status_class_filter(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_list_logs_api_key_filter(mock_api, ctx):
+    route = mock_api.get("/logs").mock(
+        return_value=httpx.Response(
+            200, json={"next": None, "previous": None, "results": []}
+        )
+    )
+    await list_logs(ctx, api_key=["key_abc", "key_def"])
+    assert route.calls[0].request.url.params.get_list("api_key") == [
+        "key_abc",
+        "key_def",
+    ]
+
+
+@pytest.mark.anyio
 async def test_list_logs_id_filter(mock_api, ctx):
     route = mock_api.get("/logs").mock(
         return_value=httpx.Response(
