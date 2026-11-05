@@ -42,7 +42,8 @@ _STUB_HEADER = f'''\
 """The `{MODULE_NAME}` module, already imported in programs run with run_code.
 
 Every function is async: `await {MODULE_NAME}.list_companies(limit=100)`. Use
-asyncio.gather for independent calls. A failed Check API call raises
+asyncio.gather for independent calls; `asyncio` and `json` are already
+imported, like `{MODULE_NAME}`. A failed Check API call raises
 RuntimeError whose message is a JSON object with "status_code" and "detail".
 Throttled calls, and reads whose connection dropped, are retried for you. List
 results carry "results",

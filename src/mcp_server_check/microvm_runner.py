@@ -103,7 +103,16 @@ async def run_program(ws, code: str, tools: list[str]) -> dict:
 
     reader = asyncio.create_task(read_replies())
     out = io.StringIO()
-    namespace = {"__name__": "__main__", "check": module}
+    # The stub header tells programs to use asyncio.gather and to return
+    # values the server serializes, so both modules are in scope from the
+    # start: a program that forgets `import asyncio` otherwise dies on its
+    # first gather before making a single call.
+    namespace = {
+        "__name__": "__main__",
+        "check": module,
+        "asyncio": asyncio,
+        "json": json,
+    }
     try:
         with contextlib.redirect_stdout(out):
             program = compile_program(code)
