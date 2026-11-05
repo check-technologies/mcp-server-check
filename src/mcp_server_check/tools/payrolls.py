@@ -136,9 +136,14 @@ async def create_payroll(
         type: Payroll type — "regular", "off_cycle", or "amendment". Default: "regular".
         processing_period: Processing period — "three_day", "two_day", or "one_day".
         pay_frequency: Pay frequency — "weekly", "biweekly", "semimonthly", "monthly",
-            "quarterly", or "annually". Default: "biweekly".
+            "quarterly", or "annually". Default: "biweekly". Omit when passing
+            pay_schedule.
         funding_payment_method: Funding method — "ach" or "wire". Default: "ach".
-        pay_schedule: ID of the pay schedule this payroll relates to.
+        pay_schedule: ID of the pay schedule this payroll relates to. Pass this or
+            pay_frequency, not both: Check API rejects a payroll that sets both
+            ("Payroll may not have 'pay_frequency' and 'pay_schedule'"). The
+            payroll takes its pay_frequency from the schedule, and payday must
+            fall on the schedule.
         off_cycle_options: Off-cycle config dict with keys: force_supplemental_withholding
             (bool), apply_benefits (bool), apply_post_tax_deductions (bool).
         items: List of payroll item dicts. Each requires "employee" and may include
@@ -220,9 +225,14 @@ async def update_payroll(
         type: Payroll type — "regular", "off_cycle", or "amendment".
         processing_period: Processing period — "three_day", "two_day", or "one_day".
         pay_frequency: Pay frequency — "weekly", "biweekly", "semimonthly", "monthly",
-            "quarterly", or "annually".
+            "quarterly", or "annually". Omit when the payroll has or is given a
+            pay_schedule.
         funding_payment_method: Funding method — "ach" or "wire".
-        pay_schedule: ID of the pay schedule this payroll relates to.
+        pay_schedule: ID of the pay schedule this payroll relates to. Pass this or
+            pay_frequency, not both: Check API rejects a payroll that sets both
+            ("Payroll may not have 'pay_frequency' and 'pay_schedule'"). The
+            payroll takes its pay_frequency from the schedule, and payday must
+            fall on the schedule.
         off_cycle_options: Off-cycle config dict with keys: force_supplemental_withholding
             (bool), apply_benefits (bool), apply_post_tax_deductions (bool).
         items: List of payroll item dicts (see create_payroll for shape).
