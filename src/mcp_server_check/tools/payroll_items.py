@@ -189,6 +189,34 @@ async def get_payroll_item_paper_check(ctx: Ctx, payroll_item_id: str) -> dict:
     return await check_api_get(ctx, f"/payroll_items/{payroll_item_id}/paper_check")
 
 
+async def gross_up_payroll_item(
+    ctx: Ctx,
+    payroll_item_id: str,
+    earnings: list[dict],
+    idempotency_key: str | None = None,
+) -> dict:
+    """Gross up a payroll item earning so take-home pay equals the requested net amount.
+
+    Requires the provider's payroll-item gross-up feature to be enabled. The payroll
+    must be off-cycle with apply_benefits and apply_post_tax_deductions both false.
+
+    Args:
+        payroll_item_id: The Check payroll item ID (e.g. "itm_xxxxx").
+        earnings: Exactly one earning dict. Requires "net_amount" (decimal string,
+            minimum "0.01") and "workplace". Identify the earning with "type" or
+            "earning_code" (same as update_payroll_item). Omit "amount" and
+            "earning_rate"; gross-up calculates the gross from net_amount.
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
+    """
+    body = {"earnings": earnings}
+    return await check_api_post(
+        ctx,
+        f"/payroll_items/{payroll_item_id}/gross_up",
+        data=body,
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
+    )
+
+
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, list_payroll_items)
     add_annotated_tool(mcp, get_payroll_item)
@@ -199,3 +227,4 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
         add_annotated_tool(mcp, bulk_update_payroll_items)
         add_annotated_tool(mcp, delete_payroll_item)
         add_annotated_tool(mcp, bulk_delete_payroll_items)
+        add_annotated_tool(mcp, gross_up_payroll_item)
