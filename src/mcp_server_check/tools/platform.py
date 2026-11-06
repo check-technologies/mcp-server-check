@@ -550,11 +550,6 @@ async def list_requirements(
 ) -> dict:
     """List requirements, optionally filtered by company.
 
-    On API version 2026-10-01 and later, tax parameter requirements (requirement
-    values beginning with tax_parameters_, such as tax_parameters_fed or
-    tax_parameters_ca) are omitted from list results. Filtering by those
-    requirement values on 2026-10-01 or later returns a validation error.
-
     Args:
         company: Filter to requirements belonging to this Check company ID (e.g. "com_xxxxx").
         limit: Maximum number of results to return.
