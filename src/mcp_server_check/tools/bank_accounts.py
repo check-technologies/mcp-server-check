@@ -66,6 +66,7 @@ async def create_bank_account(
     ctx: Ctx,
     raw_bank_account: dict | None = None,
     plaid_bank_account: dict | None = None,
+    cash_app_bank_account: dict | None = None,
     employee: str | None = None,
     company: str | None = None,
     contractor: str | None = None,
@@ -74,14 +75,20 @@ async def create_bank_account(
 ) -> dict:
     """Create a new bank account.
 
-    Provide either raw_bank_account or plaid_bank_account, plus exactly one of
-    employee, company, or contractor to indicate who owns the account.
+    Provide exactly one of raw_bank_account, plaid_bank_account, or
+    cash_app_bank_account (Cash App payouts must be enabled for the partner),
+    plus exactly one of employee, company, or contractor to indicate who owns
+    the account. Cash App bank accounts may only be created for an employee or
+    contractor, not a company.
 
     Args:
         raw_bank_account: Bank account details dict with keys: account_number (required),
             routing_number (required), subtype (required — "checking" or "savings"),
             institution_name (optional).
         plaid_bank_account: Plaid token dict with key: plaid_processor_token (required).
+        cash_app_bank_account: Cash App account dict with key: square_id (required).
+            Optionally include account_number and routing_number together (both numeric;
+            4–17 and 9 digits respectively) or omit both.
         employee: ID of the employee who owns this account.
         company: ID of the company who owns this account.
         contractor: ID of the contractor who owns this account.
@@ -93,6 +100,8 @@ async def create_bank_account(
         body["raw_bank_account"] = raw_bank_account
     if plaid_bank_account is not None:
         body["plaid_bank_account"] = plaid_bank_account
+    if cash_app_bank_account is not None:
+        body["cash_app_bank_account"] = cash_app_bank_account
     if employee is not None:
         body["employee"] = employee
     if company is not None:
@@ -116,6 +125,8 @@ async def update_bank_account(
     metadata: dict | None = None,
 ) -> dict:
     """Update a bank account.
+
+    Cash App bank accounts cannot be updated; do not send cash_app_bank_account on PATCH.
 
     Args:
         bank_account_id: The Check bank account ID.
