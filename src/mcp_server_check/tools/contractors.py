@@ -8,6 +8,7 @@ from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.types import Address, FormParameter
 from mcp_server_check.helpers import (
     Ctx,
+    apply_clear_mailing_address,
     build_body,
     build_params,
     check_api_get,
@@ -184,6 +185,7 @@ async def update_contractor(
     payment_method_preference: str | None = None,
     address: Address | None = None,
     mailing_address: Address | None = None,
+    clear_mailing_address: bool | None = None,
     nec_1099_electronic_consent_provided: bool | None = None,
     metadata: dict | None = None,
 ) -> dict:
@@ -210,40 +212,41 @@ async def update_contractor(
         mailing_address: Envelope-only mailing address (not used for tax).
             Same keys as address. Requires the payee mailing address feature
             on the provider.
+        clear_mailing_address: Pass true to remove the contractor's mailing
+            address (sends mailing_address as null). Cannot be combined with
+            mailing_address.
         nec_1099_electronic_consent_provided: Whether the contractor has agreed to
             receive their 1099-NEC electronically instead of on paper. Set to true
             only after the contractor has given that consent. Omit to leave it
             unchanged. Sent to the API as 1099_nec_electronic_consent_provided.
         metadata: Arbitrary key-value object stored on the contractor.
     """
-    return await check_api_patch(
-        ctx,
-        f"/contractors/{contractor_id}",
-        data=build_body(
-            {},
-            type=type,
-            first_name=first_name,
-            middle_name=middle_name,
-            last_name=last_name,
-            business_name=business_name,
-            dob=dob,
-            start_date=start_date,
-            termination_date=termination_date,
-            workplaces=workplaces,
-            primary_workplace=primary_workplace,
-            email=email,
-            ssn=ssn,
-            ein=ein,
-            default_net_pay_split=default_net_pay_split,
-            payment_method_preference=payment_method_preference,
-            address=address,
-            mailing_address=mailing_address,
-            metadata=metadata,
-            **{
-                "1099_nec_electronic_consent_provided": nec_1099_electronic_consent_provided
-            },
-        ),
+    body = build_body(
+        {},
+        type=type,
+        first_name=first_name,
+        middle_name=middle_name,
+        last_name=last_name,
+        business_name=business_name,
+        dob=dob,
+        start_date=start_date,
+        termination_date=termination_date,
+        workplaces=workplaces,
+        primary_workplace=primary_workplace,
+        email=email,
+        ssn=ssn,
+        ein=ein,
+        default_net_pay_split=default_net_pay_split,
+        payment_method_preference=payment_method_preference,
+        address=address,
+        mailing_address=mailing_address,
+        metadata=metadata,
+        **{
+            "1099_nec_electronic_consent_provided": nec_1099_electronic_consent_provided
+        },
     )
+    apply_clear_mailing_address(body, mailing_address, clear_mailing_address)
+    return await check_api_patch(ctx, f"/contractors/{contractor_id}", data=body)
 
 
 async def onboard_contractor(ctx: Ctx, contractor_id: str) -> dict:
