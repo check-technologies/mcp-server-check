@@ -204,8 +204,10 @@ async def gross_up_payroll_item(
         payroll_item_id: The Check payroll item ID (e.g. "itm_xxxxx").
         earnings: Exactly one earning dict. Requires "net_amount" (decimal string,
             minimum "0.01") and "workplace". Identify the earning with "type" or
-            "earning_code" (same as update_payroll_item). Omit "amount" and
-            "earning_rate"; gross-up calculates the gross from net_amount.
+            "earning_code" (same as update_payroll_item). Only include keys the payroll
+            item PATCH accepts for earnings on your API version—extra keys are rejected.
+            Omit "amount" and "earning_rate"; gross-up calculates the gross from
+            net_amount.
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     body = {"earnings": earnings}
