@@ -8,6 +8,7 @@ from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.types import Address, FormParameter
 from mcp_server_check.helpers import (
     Ctx,
+    apply_clear_mailing_address,
     build_body,
     build_params,
     check_api_get,
@@ -101,6 +102,7 @@ async def create_employee(
     start_date: str | None = None,
     termination_date: str | None = None,
     residence: Address | None = None,
+    mailing_address: Address | None = None,
     workplaces: list[str] | None = None,
     primary_workplace: str | None = None,
     ssn: str | None = None,
@@ -123,6 +125,9 @@ async def create_employee(
         termination_date: Most recent termination date (YYYY-MM-DD).
         residence: Residence address with keys: line1, line2, city, state,
             postal_code, country.
+        mailing_address: Envelope-only mailing address (not used for tax).
+            Same keys as residence. Requires the payee mailing address feature
+            on the provider.
         workplaces: List of workplace IDs where the employee works.
         primary_workplace: Workplace ID of the employee's primary workplace.
         ssn: Employee's Social Security Number. Only last four digits available after set.
@@ -145,6 +150,7 @@ async def create_employee(
             start_date=start_date,
             termination_date=termination_date,
             residence=residence,
+            mailing_address=mailing_address,
             workplaces=workplaces,
             primary_workplace=primary_workplace,
             ssn=ssn,
@@ -168,6 +174,8 @@ async def update_employee(
     start_date: str | None = None,
     termination_date: str | None = None,
     residence: Address | None = None,
+    mailing_address: Address | None = None,
+    clear_mailing_address: bool | None = None,
     workplaces: list[str] | None = None,
     primary_workplace: str | None = None,
     ssn: str | None = None,
@@ -190,6 +198,12 @@ async def update_employee(
         termination_date: Most recent termination date (YYYY-MM-DD).
         residence: Residence address with keys: line1, line2, city, state,
             postal_code, country.
+        mailing_address: Envelope-only mailing address (not used for tax).
+            Same keys as residence. Requires the payee mailing address feature
+            on the provider.
+        clear_mailing_address: Pass true to remove the employee's mailing
+            address (sends mailing_address as null). Cannot be combined with
+            mailing_address.
         workplaces: List of workplace IDs where the employee works.
         primary_workplace: Workplace ID of the employee's primary workplace.
         ssn: Employee's Social Security Number.
@@ -201,29 +215,28 @@ async def update_employee(
             the employee has given that consent. Omit to leave it unchanged.
         metadata: Arbitrary key-value object stored on the employee.
     """
-    return await check_api_patch(
-        ctx,
-        f"/employees/{employee_id}",
-        data=build_body(
-            {},
-            first_name=first_name,
-            middle_name=middle_name,
-            last_name=last_name,
-            email=email,
-            dob=dob,
-            start_date=start_date,
-            termination_date=termination_date,
-            residence=residence,
-            workplaces=workplaces,
-            primary_workplace=primary_workplace,
-            ssn=ssn,
-            payment_method_preference=payment_method_preference,
-            default_net_pay_split=default_net_pay_split,
-            active=active,
-            w2_electronic_consent_provided=w2_electronic_consent_provided,
-            metadata=metadata,
-        ),
+    body = build_body(
+        {},
+        first_name=first_name,
+        middle_name=middle_name,
+        last_name=last_name,
+        email=email,
+        dob=dob,
+        start_date=start_date,
+        termination_date=termination_date,
+        residence=residence,
+        mailing_address=mailing_address,
+        workplaces=workplaces,
+        primary_workplace=primary_workplace,
+        ssn=ssn,
+        payment_method_preference=payment_method_preference,
+        default_net_pay_split=default_net_pay_split,
+        active=active,
+        w2_electronic_consent_provided=w2_electronic_consent_provided,
+        metadata=metadata,
     )
+    apply_clear_mailing_address(body, mailing_address, clear_mailing_address)
+    return await check_api_patch(ctx, f"/employees/{employee_id}", data=body)
 
 
 async def onboard_employee(ctx: Ctx, employee_id: str) -> dict:

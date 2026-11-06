@@ -209,6 +209,25 @@ def build_body(required: dict, **optional: object) -> dict:
     return body
 
 
+def apply_clear_mailing_address(
+    body: dict, mailing_address: dict | None, clear: bool | None
+) -> None:
+    """Put an explicit ``"mailing_address": null`` in ``body`` when ``clear`` is
+    true. ``build_body`` drops ``None`` values, so this is the only way to send
+    the null the API treats as "remove the mailing address".
+
+    Raises ``ValueError`` when a new mailing address and the clear flag are
+    passed together, since the request would be contradictory.
+    """
+    if not clear:
+        return
+    if mailing_address is not None:
+        raise ValueError(
+            "Pass either mailing_address or clear_mailing_address, not both."
+        )
+    body["mailing_address"] = None
+
+
 def build_params(**kwargs: object) -> dict | None:
     """Build query parameters from keyword arguments, dropping ``None`` values.
 
