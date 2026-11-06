@@ -88,7 +88,7 @@ async def test_list_external_payrolls_include_items_true_is_sent(mock_api, ctx):
             json={
                 "next": None,
                 "previous": None,
-                "results": [{"id": "ep_001", "items": [{"id": "itm_1"}]}],
+                "results": [{"id": "pay_001", "items": [{"id": "itm_1"}]}],
             },
         )
     )
