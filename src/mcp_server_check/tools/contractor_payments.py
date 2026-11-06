@@ -72,7 +72,8 @@ async def create_contractor_payment(
     Args:
         contractor: The Check contractor ID.
         payroll: The Check payroll ID.
-        payment_method: How the contractor will be paid — "direct_deposit" or "manual".
+        payment_method: How the contractor will be paid — "direct_deposit", "manual",
+            or "cash_app" (requires ENABLE_CASH_APP_PAYOUTS for the partner).
             Default: "direct_deposit".
         amount: The amount to pay the contractor (e.g. "1500.00"). Default: "0.00".
         reimbursement_amount: Reimbursement amount (e.g. "50.00"). Default: "0.00".
@@ -118,7 +119,8 @@ async def update_contractor_payment(
     Args:
         contractor_payment_id: The Check contractor payment ID.
         contractor: The Check contractor ID.
-        payment_method: How the contractor will be paid — "direct_deposit" or "manual".
+        payment_method: How the contractor will be paid — "direct_deposit", "manual",
+            or "cash_app" (requires ENABLE_CASH_APP_PAYOUTS for the partner).
         amount: The amount to pay the contractor (e.g. "1500.00").
         reimbursement_amount: Reimbursement amount (e.g. "50.00").
         workplace: Workplace ID associated with this payment.

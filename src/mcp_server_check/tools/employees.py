@@ -126,7 +126,8 @@ async def create_employee(
         workplaces: List of workplace IDs where the employee works.
         primary_workplace: Workplace ID of the employee's primary workplace.
         ssn: Employee's Social Security Number. Only last four digits available after set.
-        payment_method_preference: "direct_deposit" or "manual".
+        payment_method_preference: "direct_deposit", "manual", or "cash_app"
+            (requires ENABLE_CASH_APP_PAYOUTS for the partner).
         default_net_pay_split: ID of employee's default net pay split.
         w2_electronic_consent_provided: Whether the employee has agreed to receive
             their W-2 electronically instead of on paper. Set to true only after
@@ -193,7 +194,8 @@ async def update_employee(
         workplaces: List of workplace IDs where the employee works.
         primary_workplace: Workplace ID of the employee's primary workplace.
         ssn: Employee's Social Security Number.
-        payment_method_preference: "direct_deposit" or "manual".
+        payment_method_preference: "direct_deposit", "manual", or "cash_app"
+            (requires ENABLE_CASH_APP_PAYOUTS for the partner).
         default_net_pay_split: ID of employee's default net pay split.
         active: Whether the employee is active. Pass false to deactivate.
         w2_electronic_consent_provided: Whether the employee has agreed to receive

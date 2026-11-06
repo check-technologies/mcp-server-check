@@ -120,7 +120,8 @@ async def create_contractor(
         ssn: Contractor's Social Security Number.
         ein: Contractor's Employer Identification Number (for businesses).
         default_net_pay_split: ID of contractor's default net pay split.
-        payment_method_preference: "direct_deposit" or "manual".
+        payment_method_preference: "direct_deposit", "manual", or "cash_app"
+            (requires ENABLE_CASH_APP_PAYOUTS for the partner).
         address: Address with keys: line1, line2, city, state, postal_code, country.
         nec_1099_electronic_consent_provided: Whether the contractor has agreed to
             receive their 1099-NEC electronically instead of on paper. Set to true
@@ -199,7 +200,8 @@ async def update_contractor(
         ssn: Contractor's Social Security Number.
         ein: Contractor's Employer Identification Number (for businesses).
         default_net_pay_split: ID of contractor's default net pay split.
-        payment_method_preference: "direct_deposit" or "manual".
+        payment_method_preference: "direct_deposit", "manual", or "cash_app"
+            (requires ENABLE_CASH_APP_PAYOUTS for the partner).
         address: Address with keys: line1, line2, city, state, postal_code, country.
         nec_1099_electronic_consent_provided: Whether the contractor has agreed to
             receive their 1099-NEC electronically instead of on paper. Set to true
