@@ -254,7 +254,7 @@ async def test_list_filings_with_filters(mock_api, ctx):
         year=2025,
         period="q1",
         status="blocked",
-        correction="cor_abc",
+        correction=["cor_abc", "cor_def"],
     )
     assert result["results"] == [{"id": "com_fil_001"}]
     req = mock_api.get("/filings").calls.last.request
@@ -262,7 +262,7 @@ async def test_list_filings_with_filters(mock_api, ctx):
     assert req.url.params["year"] == "2025"
     assert req.url.params["period"] == "q1"
     assert req.url.params["status"] == "blocked"
-    assert req.url.params["correction"] == "cor_abc"
+    assert req.url.params.get_list("correction") == ["cor_abc", "cor_def"]
 
 
 @pytest.mark.anyio
@@ -388,6 +388,23 @@ async def test_list_employee_tax_statements_with_filters(mock_api, ctx):
     assert req.url.params["year"] == "2025"
     assert req.url.params["form"] == "vi_w2vi"
     assert req.url.params["published_from"] == "2026-01-15T00:00:00Z"
+
+
+@pytest.mark.anyio
+async def test_list_employee_tax_statements_correction_filter(mock_api, ctx):
+    mock_api.get("/employee_tax_statements").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "ets_001"}]},
+        )
+    )
+    result = await list_employee_tax_statements(
+        ctx,
+        correction=["cor_abc", "cor_def"],
+    )
+    assert result["results"] == [{"id": "ets_001"}]
+    req = mock_api.get("/employee_tax_statements").calls.last.request
+    assert req.url.params.get_list("correction") == ["cor_abc", "cor_def"]
 
 
 @pytest.mark.anyio
