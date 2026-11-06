@@ -12,6 +12,10 @@ from mcp_server_check.tools.companies import (
     list_companies,
     list_signatories,
     onboard_company,
+    simulate_publish_contractor_tax_statements,
+    simulate_publish_employee_tax_statements,
+    simulate_unpublish_contractor_tax_statements,
+    simulate_unpublish_employee_tax_statements,
     start_implementation,
     update_company,
 )
@@ -350,3 +354,53 @@ async def test_start_implementation(mock_api, ctx):
     )
     result = await start_implementation(ctx, company_id="com_001")
     assert result["id"] == "com_001"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("tool", "action"),
+    [
+        (simulate_publish_employee_tax_statements, "publish_employee_tax_statements"),
+        (
+            simulate_unpublish_employee_tax_statements,
+            "unpublish_employee_tax_statements",
+        ),
+        (
+            simulate_publish_contractor_tax_statements,
+            "publish_contractor_tax_statements",
+        ),
+        (
+            simulate_unpublish_contractor_tax_statements,
+            "unpublish_contractor_tax_statements",
+        ),
+    ],
+)
+async def test_simulate_tax_statement_publishing(mock_api, ctx, tool, action):
+    """The company-level simulate actions answer 200 with an empty body."""
+    route = mock_api.post(f"/companies/com_001/simulate/{action}").mock(
+        return_value=httpx.Response(200, content=b"")
+    )
+    result = await tool(ctx, company_id="com_001")
+    assert route.called
+    assert result == {"success": True}
+
+
+@pytest.mark.anyio
+async def test_simulate_publish_employee_tax_statements_passes_errors_through(
+    mock_api, ctx
+):
+    mock_api.post("/companies/com_001/simulate/publish_employee_tax_statements").mock(
+        return_value=httpx.Response(
+            400,
+            json={
+                "error": {
+                    "type": "validation_error",
+                    "message": "No draft employee tax statements to publish for 2026.",
+                }
+            },
+        )
+    )
+    result = await simulate_publish_employee_tax_statements(ctx, company_id="com_001")
+    assert result["error"] is True
+    assert result["status_code"] == 400
+    assert "No draft" in result["detail"]["error"]["message"]

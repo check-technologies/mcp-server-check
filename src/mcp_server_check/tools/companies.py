@@ -653,6 +653,82 @@ async def request_embedded_setup(ctx: Ctx, company_id: str) -> dict:
     return await check_api_post(ctx, f"/companies/{company_id}/request_embedded_setup")
 
 
+# --- Sandbox simulation: tax statements ---
+
+
+async def simulate_publish_employee_tax_statements(ctx: Ctx, company_id: str) -> dict:
+    """Publish a company's draft employee tax statements (W-2s) in the sandbox.
+
+    Sandbox only. Starts the publish workflow for every draft employee tax
+    statement the company has for the current tax statement season, with
+    mailing skipped, and returns ``{"success": true}``. Publishing runs in the
+    background: list_employee_tax_statements shows each statement's
+    ``published_at`` once it lands, and its W-2 then appears under
+    list_employee_tax_documents. Fails with a validation error when the
+    company has no draft statements for the season. To publish one statement
+    instead, use simulate_publish_employee_tax_statement with its ``ets_`` ID.
+
+    Args:
+        company_id: The Check company ID (e.g. "com_xxxxx").
+    """
+    return await check_api_post(
+        ctx, f"/companies/{company_id}/simulate/publish_employee_tax_statements"
+    )
+
+
+async def simulate_unpublish_employee_tax_statements(ctx: Ctx, company_id: str) -> dict:
+    """Revert a company's published employee tax statements (W-2s) to draft.
+
+    Sandbox only. Unpublishes every employee tax statement the company has
+    published for the current tax statement season, removing their W-2
+    documents, so the publish flow can be exercised again. Returns
+    ``{"success": true}``, or a validation error when nothing is published.
+
+    Args:
+        company_id: The Check company ID (e.g. "com_xxxxx").
+    """
+    return await check_api_post(
+        ctx, f"/companies/{company_id}/simulate/unpublish_employee_tax_statements"
+    )
+
+
+async def simulate_publish_contractor_tax_statements(ctx: Ctx, company_id: str) -> dict:
+    """Publish a company's draft contractor tax statements (1099s) in the sandbox.
+
+    Sandbox only. Starts the publish workflow for every draft contractor tax
+    statement the company has for the current tax statement season and
+    returns ``{"success": true}``. Publishing runs in the background: check
+    list_contractor_tax_statements for ``published_at``. Fails with a
+    validation error when the company has nothing publishable, and 404s for
+    partners without contractor tax statements enabled. To publish one
+    statement instead, use simulate_publish_contractor_tax_statement.
+
+    Args:
+        company_id: The Check company ID (e.g. "com_xxxxx").
+    """
+    return await check_api_post(
+        ctx, f"/companies/{company_id}/simulate/publish_contractor_tax_statements"
+    )
+
+
+async def simulate_unpublish_contractor_tax_statements(
+    ctx: Ctx, company_id: str
+) -> dict:
+    """Revert a company's published contractor tax statements (1099s) to draft.
+
+    Sandbox only. Unpublishes every contractor tax statement the company has
+    published for the current tax statement season. Returns
+    ``{"success": true}``, a validation error when nothing is published, or
+    404 for partners without contractor tax statements enabled.
+
+    Args:
+        company_id: The Check company ID (e.g. "com_xxxxx").
+    """
+    return await check_api_post(
+        ctx, f"/companies/{company_id}/simulate/unpublish_contractor_tax_statements"
+    )
+
+
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, list_companies)
     add_annotated_tool(mcp, search_companies)
@@ -675,3 +751,7 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
         add_annotated_tool(mcp, start_implementation)
         add_annotated_tool(mcp, cancel_implementation)
         add_annotated_tool(mcp, request_embedded_setup)
+        add_annotated_tool(mcp, simulate_publish_employee_tax_statements)
+        add_annotated_tool(mcp, simulate_unpublish_employee_tax_statements)
+        add_annotated_tool(mcp, simulate_publish_contractor_tax_statements)
+        add_annotated_tool(mcp, simulate_unpublish_contractor_tax_statements)

@@ -72,6 +72,7 @@ _WRITE_KEYWORDS = (
     "add_",
     "remove_",
     "void_",
+    "gross_up_",
 )
 # Writes whose names read like reads: preview_payroll is a GET, but
 # preview_correction starts a dry run and changes the correction's state.

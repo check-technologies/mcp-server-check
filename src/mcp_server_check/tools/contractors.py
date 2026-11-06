@@ -99,6 +99,7 @@ async def create_contractor(
     payment_method_preference: str | None = None,
     address: Address | None = None,
     mailing_address: Address | None = None,
+    nec_1099_electronic_consent_provided: bool | None = None,
     metadata: dict | None = None,
     idempotency_key: str | None = None,
 ) -> dict:
@@ -125,6 +126,10 @@ async def create_contractor(
         mailing_address: Envelope-only mailing address (not used for tax).
             Same keys as address. Requires the payee mailing address feature
             on the provider.
+        nec_1099_electronic_consent_provided: Whether the contractor has agreed to
+            receive their 1099-NEC electronically instead of on paper. Set to true
+            only after the contractor has given that consent. Sent to the API as
+            1099_nec_electronic_consent_provided.
         metadata: Arbitrary key-value object stored on the contractor.
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
@@ -151,6 +156,9 @@ async def create_contractor(
             address=address,
             mailing_address=mailing_address,
             metadata=metadata,
+            **{
+                "1099_nec_electronic_consent_provided": nec_1099_electronic_consent_provided
+            },
         ),
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
@@ -176,6 +184,7 @@ async def update_contractor(
     payment_method_preference: str | None = None,
     address: Address | None = None,
     mailing_address: Address | None = None,
+    nec_1099_electronic_consent_provided: bool | None = None,
     metadata: dict | None = None,
 ) -> dict:
     """Update an existing contractor.
@@ -201,6 +210,10 @@ async def update_contractor(
         mailing_address: Envelope-only mailing address (not used for tax).
             Same keys as address. Requires the payee mailing address feature
             on the provider.
+        nec_1099_electronic_consent_provided: Whether the contractor has agreed to
+            receive their 1099-NEC electronically instead of on paper. Set to true
+            only after the contractor has given that consent. Omit to leave it
+            unchanged. Sent to the API as 1099_nec_electronic_consent_provided.
         metadata: Arbitrary key-value object stored on the contractor.
     """
     return await check_api_patch(
@@ -226,6 +239,9 @@ async def update_contractor(
             address=address,
             mailing_address=mailing_address,
             metadata=metadata,
+            **{
+                "1099_nec_electronic_consent_provided": nec_1099_electronic_consent_provided
+            },
         ),
     )
 

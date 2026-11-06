@@ -256,7 +256,8 @@ async def _check_api_request(
     """Make a request to the Check API with shared error handling.
 
     parse turns a successful response into the tool result; the default decodes
-    a JSON body.
+    a JSON body. A 204 or an empty 200 body (the sandbox simulate actions on
+    companies answer that way) becomes ``{"success": True}``.
     """
     check_ctx = ctx.request_context.lifespan_context
     headers: dict[str, str] = {"User-Agent": check_ctx.user_agent}
@@ -269,7 +270,7 @@ async def _check_api_request(
             method, path, params=params, json=data, headers=headers or None
         )
         response.raise_for_status()
-        if response.status_code == 204:
+        if response.status_code == 204 or not response.content:
             return {"success": True}
         return parse(response)
     except httpx.HTTPStatusError as e:

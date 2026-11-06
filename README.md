@@ -4,7 +4,7 @@
 
 > **Terms of Service** — By using this MCP server to access the Check API, you agree to the [MCP Usage Terms](TERMS_OF_SERVICE.md), which are in addition to your existing agreement with Check.
 
-An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 286 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
+An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 299 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
 
@@ -41,7 +41,7 @@ CHECK_API_KEY=your-key uv run mcp-server-check
 
 ### Sandbox vs Production
 
-By default the server connects to the **Check sandbox** (`https://sandbox.checkhq.com`), which is safe for testing and development. The sandbox supports simulation endpoints (e.g. `simulate_start_processing`, `simulate_complete_funding`) that let you advance payrolls through processing states without real money movement.
+By default the server connects to the **Check sandbox** (`https://sandbox.checkhq.com`), which is safe for testing and development. The sandbox supports simulation endpoints (e.g. `simulate_start_processing`, `simulate_complete_funding`, `simulate_fail_payment`) that let you advance payrolls through processing states, and settle or fail individual payments, without real money movement. Create the payroll with `simulation_mode: "manual"` to drive it yourself; the default `"automatic"` mode advances on its own.
 
 To point at production, set:
 
@@ -239,9 +239,9 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 ## Available Tools
 
-286 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
+299 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
 
-### Companies (26 tools)
+### Companies (30 tools)
 
 | Tool | Method | Description |
 |---|---|---|
@@ -264,6 +264,10 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 | `start_implementation` | POST | Start implementation for a company |
 | `cancel_implementation` | POST | Cancel implementation |
 | `request_embedded_setup` | POST | Request embedded setup |
+| `simulate_publish_employee_tax_statements` | POST | Publish a company's draft W-2s for the current season, without mailing (sandbox only) |
+| `simulate_unpublish_employee_tax_statements` | POST | Revert a company's published W-2s to draft (sandbox only) |
+| `simulate_publish_contractor_tax_statements` | POST | Publish a company's draft 1099s for the current season (sandbox only) |
+| `simulate_unpublish_contractor_tax_statements` | POST | Revert a company's published 1099s to draft (sandbox only) |
 
 ### Employees (17 tools)
 
@@ -326,12 +330,12 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 | `get_payroll_paper_checks` | GET | Get paper checks for a payroll |
 | `get_payroll_cash_requirement_report` | GET | Get cash requirement report |
 | `get_payroll_paper_checks_report` | GET | Get paper checks report |
-| `simulate_start_processing` | POST | Simulate starting processing (sandbox) |
+| `simulate_start_processing` | POST | Simulate starting processing (sandbox; payroll needs `simulation_mode: "manual"`) |
 | `simulate_complete_funding` | POST | Simulate completing funding (sandbox) |
 | `simulate_fail_funding` | POST | Simulate failing funding (sandbox) |
 | `simulate_complete_disbursements` | POST | Simulate completing disbursements (sandbox) |
 
-### Payroll Items (8 tools)
+### Payroll Items (9 tools)
 
 | Tool | Method | Description |
 |---|---|---|
@@ -343,6 +347,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 | `delete_payroll_item` | DELETE | Delete a payroll item |
 | `bulk_delete_payroll_items` | DELETE | Bulk delete payroll items |
 | `get_payroll_item_paper_check` | GET | Get paper check for a payroll item |
+| `gross_up_payroll_item` | POST | Gross up an earning to a target net amount |
 
 ### Contractor Payments (6 tools)
 
@@ -507,18 +512,20 @@ Asynchronous reporting. `create_report_run` returns a `run_` ID, `get_report_run
 | `list_logs` | GET | List API request logs; filter by path, method, status code/class, log ID, idempotency key, and time range |
 | `get_log` | GET | Get the full record for a single API request log |
 
-### Payments (6 tools)
+### Payments (8 tools)
 
 | Tool | Method | Description |
 |---|---|---|
 | `list_payments` | GET | List payments |
 | `get_payment` | GET | Get a specific payment |
 | `list_payment_attempts` | GET | List payment attempts |
-| `retry_payment` | POST | Retry a failed payment |
+| `retry_payment` | POST | Retry a failed payment, to a new `bank_account` or by `payment_type` |
 | `refund_payment` | POST | Refund a payment |
 | `cancel_payment` | POST | Cancel a payment |
+| `simulate_complete_payment` | POST | Settle one pending payment (sandbox, manual simulation mode) |
+| `simulate_fail_payment` | POST | Fail one pending payment so it can be retried (sandbox, manual simulation mode) |
 
-### Tax (31 tools)
+### Tax (37 tools)
 
 Tax parameters, elections (including tax exemptions), filings, statements, packages, and tax reference data.
 
@@ -552,6 +559,13 @@ Tax parameters, elections (including tax exemptions), filings, statements, packa
 | **Employee Tax Statements** | | |
 | `list_employee_tax_statements` | GET | List employee tax statements |
 | `get_employee_tax_statement` | GET | Get a specific tax statement |
+| `simulate_publish_employee_tax_statement` | POST | Publish one draft W-2 without mailing (sandbox only) |
+| `simulate_unpublish_employee_tax_statement` | POST | Revert one published W-2 to draft (sandbox only) |
+| **Contractor Tax Statements** | | |
+| `list_contractor_tax_statements` | GET | List 1099 statements (requires contractor or company filter) |
+| `get_contractor_tax_statement` | GET | Get a specific contractor tax statement |
+| `simulate_publish_contractor_tax_statement` | POST | Publish one draft 1099 (sandbox only) |
+| `simulate_unpublish_contractor_tax_statement` | POST | Revert one published 1099 to draft (sandbox only) |
 | **Employee Tax Statement Overrides** | | |
 | `list_employee_tax_statement_overrides` | GET | List W-2 supplement overrides (requires company or employee filter) |
 | `get_employee_tax_statement_override` | GET | Get a specific override |

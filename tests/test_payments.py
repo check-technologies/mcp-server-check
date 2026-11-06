@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -11,6 +13,8 @@ from mcp_server_check.tools.payments import (
     list_payment_attempts,
     list_payments,
     retry_payment,
+    simulate_complete_payment,
+    simulate_fail_payment,
 )
 
 
@@ -102,6 +106,53 @@ async def test_retry_payment(mock_api, ctx):
     )
     result = await retry_payment(ctx, payment_id="pyt_001")
     assert result["id"] == "pyt_001"
+    assert mock_api.post("/payments/pyt_001/retry").calls.last.request.content == b""
+
+
+@pytest.mark.anyio
+async def test_retry_payment_to_new_bank_account(mock_api, ctx):
+    route = mock_api.post("/payments/pyt_001/retry").mock(
+        return_value=httpx.Response(200, json={"id": "pyt_001", "status": "pending"})
+    )
+    result = await retry_payment(ctx, payment_id="pyt_001", bank_account="bnk_new")
+    assert result["status"] == "pending"
+    assert json.loads(route.calls.last.request.content) == {"bank_account": "bnk_new"}
+
+
+@pytest.mark.anyio
+async def test_retry_payment_by_wire(mock_api, ctx):
+    route = mock_api.post("/payments/pyt_001/retry").mock(
+        return_value=httpx.Response(200, json={"id": "pyt_001"})
+    )
+    await retry_payment(ctx, payment_id="pyt_001", payment_type="wire")
+    assert json.loads(route.calls.last.request.content) == {"payment_type": "wire"}
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("tool", "action"),
+    [(simulate_complete_payment, "complete"), (simulate_fail_payment, "fail")],
+)
+async def test_simulate_payment_outcome(mock_api, ctx, tool, action):
+    """The payment simulate actions answer 200 with an empty body."""
+    route = mock_api.post(f"/payments/pyt_001/simulate/{action}").mock(
+        return_value=httpx.Response(200, content=b"")
+    )
+    result = await tool(ctx, payment_id="pyt_001")
+    assert route.called
+    assert result == {"success": True}
+
+
+@pytest.mark.anyio
+async def test_simulate_fail_payment_passes_errors_through(mock_api, ctx):
+    mock_api.post("/payments/pyt_001/simulate/fail").mock(
+        return_value=httpx.Response(
+            400, json=["Payment must be pending to simulate outcome"]
+        )
+    )
+    result = await simulate_fail_payment(ctx, payment_id="pyt_001")
+    assert result["error"] is True
+    assert result["status_code"] == 400
 
 
 @pytest.mark.anyio

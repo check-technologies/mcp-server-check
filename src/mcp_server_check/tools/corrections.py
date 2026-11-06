@@ -219,8 +219,12 @@ async def add_payroll_to_correction(
         payday: Payday date (YYYY-MM-DD). Must be before today, on or after the
             company's start_date, and in the correction's tax year.
         pay_frequency: Pay frequency — "weekly", "biweekly", "semimonthly", "monthly",
-            "quarterly", or "annually".
-        pay_schedule: ID of the pay schedule this payroll relates to.
+            "quarterly", or "annually". Omit when passing pay_schedule.
+        pay_schedule: ID of the pay schedule this payroll relates to. Pass this or
+            pay_frequency, not both: Check API rejects a payroll that sets both
+            ("Payroll may not have 'pay_frequency' and 'pay_schedule'"). The
+            payroll takes its pay_frequency from the schedule, and payday must
+            fall on the schedule.
         items: List of payroll item dicts (see create_payroll for shape). Each must
             use "payment_method": "manual". When set, the tool sends
             ?include_items=true so Check API writes them.

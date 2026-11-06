@@ -638,6 +638,22 @@ async def test_void_payroll_requires_subset():
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("tool_name", ["create_payroll", "update_payroll"])
+async def test_off_cycle_options_require_all_three_keys(tool_name):
+    # Check API rejects an off_cycle_options object missing any key, so the
+    # schema must not tell the model the keys are optional.
+    server = _make_all_tools_server(ToolFilter())
+    tool = next(t for t in await server.list_tools() if t.name == tool_name)
+    prop = tool.parameters["properties"]["off_cycle_options"]
+    options = next(o for o in prop["anyOf"] if "properties" in o)
+    assert set(options["required"]) == {
+        "force_supplemental_withholding",
+        "apply_benefits",
+        "apply_post_tax_deductions",
+    }
+
+
+@pytest.mark.anyio
 @pytest.mark.usefixtures("corrections_in_preview")
 async def test_dynamic_mode_hides_preview_toolset_by_default():
     server = _make_dynamic_server(ToolFilter())

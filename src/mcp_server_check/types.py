@@ -38,8 +38,13 @@ class FormParameter(TypedDict):
     """Form field value."""
 
 
-class OffCycleOptions(TypedDict, total=False):
-    """Options for an off-cycle payroll."""
+class OffCycleOptions(TypedDict):
+    """Options for an off-cycle payroll.
+
+    Check API requires all three keys whenever the object is sent; leaving one
+    out is a 400 ("This field is required."). Omit the object entirely to take
+    the defaults, all false.
+    """
 
     force_supplemental_withholding: bool
     """Whether to use supplemental withholding rates."""

@@ -1,6 +1,6 @@
 # Check CLI
 
-A command-line interface for the [Check Payroll API](https://docs.checkhq.com/). The CLI exposes the same 286 tools as the MCP server, organized as resource-oriented commands similar to the [Stripe CLI](https://docs.stripe.com/cli).
+A command-line interface for the [Check Payroll API](https://docs.checkhq.com/). The CLI exposes the same 299 tools as the MCP server, organized as resource-oriented commands similar to the [Stripe CLI](https://docs.stripe.com/cli).
 
 ## Installation
 
@@ -69,7 +69,7 @@ There are 21 resource groups, each with multiple commands:
 
 | Group | Examples |
 |---|---|
-| `companies` | `list`, `get`, `create`, `update`, `onboard`, `get-paydays` |
+| `companies` | `list`, `get`, `create`, `update`, `onboard`, `get-paydays`, `simulate-publish-employee-tax-statements` |
 | `employees` | `list`, `get`, `create`, `update`, `onboard`, `list-paystubs` |
 | `payrolls` | `list`, `get`, `create`, `approve`, `preview`, `simulate-start-processing` |
 | `contractors` | `list`, `get`, `create`, `update`, `onboard` |
@@ -78,7 +78,7 @@ There are 21 resource groups, each with multiple commands:
 | `tax` | `get-company-params`, `list-employee-elections`, `list-filings`, `list-taxes` |
 | `agencies` | `list`, `get` |
 | `payments` | `list`, `get`, `retry`, `refund`, `cancel` |
-| `payroll-items` | `list`, `get`, `create`, `update`, `delete` |
+| `payroll-items` | `list`, `get`, `create`, `update`, `delete`, `gross-up` |
 | `contractor-payments` | `list`, `get`, `create`, `delete` |
 | `external-payrolls` | `list`, `get`, `create`, `approve` |
 | `webhooks` | `list-configs`, `create-config`, `ping-config`, `retry-events` |
