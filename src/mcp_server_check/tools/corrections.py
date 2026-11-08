@@ -291,8 +291,9 @@ async def add_external_payroll(
         items: List of external payroll item dicts. Each may include "employee",
             "earnings" (list), "reimbursements" (list), "taxes" (list of dicts
             with "tax" and "amount"; optionally "taxable_wages" and
-            "gross_taxable_wages" as monetary strings — both must be set
-            together), "benefits" (list), "post_tax_deductions" (list).
+            "gross_taxable_wages" as monetary strings; set both together, and
+            on every tax in the item or on none), "benefits" (list),
+            "post_tax_deductions" (list).
         contractor_payments: List of contractor payment dicts. Each may include
             "contractor", "amount", "reimbursement_amount".
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
