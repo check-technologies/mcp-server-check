@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
@@ -183,6 +185,33 @@ async def cancel_payment(ctx: Ctx, payment_id: str) -> dict:
     return await check_api_post(ctx, f"/payments/{payment_id}/cancel")
 
 
+async def reverse_payment(
+    ctx: Ctx,
+    payment_id: str,
+    reason: str,
+    idempotency_key: str | None = None,
+) -> dict:
+    """Reverse a completed payout payment.
+
+    Requires the corrections API for your Check account. Use GET payment to read
+    can_reverse and reversal_deadline before calling.
+
+    Args:
+        payment_id: The Check payment ID (e.g. "pyt_xxxxx").
+        reason: Why the payout is being reversed — "duplicate",
+            "incorrect_amount", or "incorrect_receiving_account".
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
+            The Check API requires one for this action; a random key is
+            generated when omitted.
+    """
+    return await check_api_post(
+        ctx,
+        f"/payments/{payment_id}/reverse",
+        data={"reason": reason},
+        headers={"X-Idempotency-Key": idempotency_key or str(uuid.uuid4())},
+    )
+
+
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, list_payments)
     add_annotated_tool(mcp, get_payment)
@@ -191,5 +220,6 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
         add_annotated_tool(mcp, retry_payment)
         add_annotated_tool(mcp, refund_payment)
         add_annotated_tool(mcp, cancel_payment)
+        add_annotated_tool(mcp, reverse_payment)
         add_annotated_tool(mcp, simulate_complete_payment)
         add_annotated_tool(mcp, simulate_fail_payment)
