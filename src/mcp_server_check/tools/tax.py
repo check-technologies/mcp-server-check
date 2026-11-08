@@ -610,7 +610,8 @@ async def request_tax_package(
         employee_tax_statements: Employee tax statement IDs to include
             (e.g. ["ets_xxxxx"]).
         contractor_tax_statements: Contractor tax statement IDs to include
-            (e.g. ["cts_xxxxx"]).
+            (e.g. ["cts_xxxxx"]). Ignored unless contractor tax statements
+            are enabled for your account.
         filings: Company filing IDs to include employer copies for
             (e.g. ["com_fil_xxxxx"]).
     """
