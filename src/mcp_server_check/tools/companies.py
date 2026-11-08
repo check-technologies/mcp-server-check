@@ -208,13 +208,13 @@ async def onboard_company(
     company_id: str,
     field_permissions: dict[str, str] | None = None,
 ) -> dict:
-    """Onboard a company, transitioning it to active status.
+    """Onboard a company and return an onboarding link for it.
 
     Args:
         company_id: The Check company ID.
         field_permissions: Optional map of lockable fields to access levels for
             the minted onboard link. Keys must be one of "company:legal_name",
-            "company:trade_name", "company:address", or
+            "company:trade_name", "company:address", "company:phone", or
             "company_tax_param:federal_ein"; values are "read" or "read_write"
             ("read_write" is a no-op). Omitted fields remain editable in the
             embedded flow.
