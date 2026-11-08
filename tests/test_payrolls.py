@@ -60,6 +60,45 @@ async def test_list_payrolls_with_filters(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_list_payrolls_summarizes_by_default(mock_api, ctx):
+    mock_api.get("/payrolls").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "next": None,
+                "previous": None,
+                "results": [{"id": "pay_001", "items": [{"id": "itm_1"}]}],
+            },
+        )
+    )
+    result = await list_payrolls(ctx)
+    assert result["results"] == [{"id": "pay_001"}]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("include", "inlined"),
+    [
+        ("include_items", "items"),
+        ("include_contractor_payments", "contractor_payments"),
+    ],
+)
+async def test_list_payrolls_keeps_what_was_asked_for(mock_api, ctx, include, inlined):
+    mock_api.get("/payrolls").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "next": None,
+                "previous": None,
+                "results": [{"id": "pay_001", inlined: [{"id": "x"}]}],
+            },
+        )
+    )
+    result = await list_payrolls(ctx, **{include: True})
+    assert result["results"][0][inlined] == [{"id": "x"}]
+
+
+@pytest.mark.anyio
 async def test_create_payroll(mock_api, ctx):
     route = mock_api.post("/payrolls").mock(
         return_value=httpx.Response(201, json={"id": "pay_new"})
