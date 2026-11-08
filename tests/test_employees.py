@@ -101,6 +101,68 @@ async def test_create_employee(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_create_employee_with_mailing_address(mock_api, ctx):
+    mock_api.post("/employees").mock(
+        return_value=httpx.Response(
+            201,
+            json={"id": "emp_new", "first_name": "Jane", "last_name": "Doe"},
+        )
+    )
+    mailing = {
+        "line1": "PO Box 456",
+        "city": "Albany",
+        "state": "NY",
+        "postal_code": "12201",
+    }
+    await create_employee(
+        ctx,
+        company="com_001",
+        first_name="Jane",
+        last_name="Doe",
+        mailing_address=mailing,
+    )
+    body = json.loads(mock_api.post("/employees").calls.last.request.content)
+    assert body["mailing_address"] == mailing
+
+
+@pytest.mark.anyio
+async def test_update_employee_clear_mailing_address(mock_api, ctx):
+    mock_api.patch("/employees/emp_001").mock(
+        return_value=httpx.Response(200, json={"id": "emp_001"})
+    )
+    await update_employee(ctx, employee_id="emp_001", clear_mailing_address=True)
+    body = json.loads(mock_api.patch("/employees/emp_001").calls.last.request.content)
+    assert body == {"mailing_address": None}
+
+
+@pytest.mark.anyio
+async def test_update_employee_clear_mailing_address_false_is_noop(mock_api, ctx):
+    mock_api.patch("/employees/emp_001").mock(
+        return_value=httpx.Response(200, json={"id": "emp_001"})
+    )
+    await update_employee(
+        ctx, employee_id="emp_001", first_name="Jane", clear_mailing_address=False
+    )
+    body = json.loads(mock_api.patch("/employees/emp_001").calls.last.request.content)
+    assert body == {"first_name": "Jane"}
+
+
+@pytest.mark.anyio
+async def test_update_employee_rejects_mailing_address_with_clear(mock_api, ctx):
+    route = mock_api.patch("/employees/emp_001").mock(
+        return_value=httpx.Response(200, json={"id": "emp_001"})
+    )
+    with pytest.raises(ValueError, match="not both"):
+        await update_employee(
+            ctx,
+            employee_id="emp_001",
+            mailing_address={"line1": "PO Box 456"},
+            clear_mailing_address=True,
+        )
+    assert not route.called
+
+
+@pytest.mark.anyio
 async def test_update_employee(mock_api, ctx):
     mock_api.patch("/employees/emp_001").mock(
         return_value=httpx.Response(200, json={"id": "emp_001", "first_name": "Janet"})
