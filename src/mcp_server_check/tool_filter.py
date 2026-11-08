@@ -61,6 +61,7 @@ _WRITE_KEYWORDS = (
     "retry_",
     "refund_",
     "cancel_",
+    "reverse_",
     "start_implementation",
     "cancel_implementation",
     "request_embedded_setup",
@@ -87,6 +88,7 @@ _DESTRUCTIVE_PREFIXES = (
     "simulate_",
     "refund_",
     "cancel_",
+    "reverse_",
 )
 _DESTRUCTIVE_EXACT = frozenset(
     {
@@ -116,6 +118,7 @@ _MONEY_MOVEMENT_EXACT = frozenset(
         "retry_payment",
         "refund_payment",
         "cancel_payment",
+        "reverse_payment",
         # Funding/payout destinations: adding or repointing a bank account
         # reroutes where pay is drawn from or sent to.
         "create_bank_account",

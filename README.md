@@ -123,9 +123,9 @@ Opting in works the same in sandbox and production, and either the server or the
 
 Two flags remove whole categories of tools from a deployment. Unlike `CHECK_EXCLUDE_TOOLS`, they do not need updating as tools are added.
 
-`CHECK_EXCLUDE_MONEY_MOVEMENT=1` removes the tools that move funds or change where funds are drawn from and sent to: `approve_payroll`, `retry_payment`, `refund_payment`, `cancel_payment`, and `create`/`update`/`delete_bank_account`.
+`CHECK_EXCLUDE_MONEY_MOVEMENT=1` removes the tools that move funds or change where funds are drawn from and sent to: `approve_payroll`, `retry_payment`, `refund_payment`, `cancel_payment`, `reverse_payment`, and `create`/`update`/`delete_bank_account`.
 
-`CHECK_EXCLUDE_DESTRUCTIVE=1` removes tools with irreversible effects — everything matching `delete_`, `bulk_delete_`, `approve_`, `cancel_`, `refund_`, `simulate_`, plus `start_implementation`, `cancel_implementation`, `sync_accounting`, and `reopen_correction`.
+`CHECK_EXCLUDE_DESTRUCTIVE=1` removes tools with irreversible effects — everything matching `delete_`, `bulk_delete_`, `approve_`, `cancel_`, `refund_`, `reverse_`, `simulate_`, plus `start_implementation`, `cancel_implementation`, `sync_accounting`, and `reopen_correction`.
 
 ```bash
 CHECK_EXCLUDE_MONEY_MOVEMENT=1 CHECK_EXCLUDE_DESTRUCTIVE=1 CHECK_API_KEY=your-key uv run mcp-server-check
@@ -512,7 +512,7 @@ Asynchronous reporting. `create_report_run` returns a `run_` ID, `get_report_run
 | `list_logs` | GET | List API request logs; filter by path, method, status code/class, log ID, idempotency key, and time range |
 | `get_log` | GET | Get the full record for a single API request log |
 
-### Payments (8 tools)
+### Payments (9 tools)
 
 | Tool | Method | Description |
 |---|---|---|
@@ -522,6 +522,7 @@ Asynchronous reporting. `create_report_run` returns a `run_` ID, `get_report_run
 | `retry_payment` | POST | Retry a failed payment, to a new `bank_account` or by `payment_type` |
 | `refund_payment` | POST | Refund a payment |
 | `cancel_payment` | POST | Cancel a payment |
+| `reverse_payment` | POST | Reverse a completed payout (corrections API) |
 | `simulate_complete_payment` | POST | Settle one pending payment (sandbox, manual simulation mode) |
 | `simulate_fail_payment` | POST | Fail one pending payment so it can be retried (sandbox, manual simulation mode) |
 
