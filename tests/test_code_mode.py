@@ -320,6 +320,98 @@ async def test_server_can_refuse_code_mode_opt_in(monkeypatch, dynamic_server):
     assert "not available" in result.content[0].text
 
 
+# --- request headers narrow the env filter ---
+
+TOOLS_HEADER = {"x-mcp-tools": "list_companies,approve_payroll,list_employees"}
+
+
+def _env_server(monkeypatch, tool_mode: str, **env: str) -> CheckMCP:
+    monkeypatch.setenv("CHECK_API_KEY", "test-key")
+    monkeypatch.delenv("CHECK_API_BASE_URL", raising=False)
+    monkeypatch.setenv("CHECK_CODE_TIMEOUT_SECS", "20")
+    for name in ("CHECK_TOOLSETS", "CHECK_TOOLS", "CHECK_CODE_MODE"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    server = CheckMCP("Test Env Filter", lifespan=lifespan)
+    setup_tools(server, tool_mode=tool_mode)
+    return server
+
+
+@pytest.mark.anyio
+async def test_tools_header_stays_inside_env_toolsets_static_mode(monkeypatch):
+    server = _env_server(monkeypatch, "all", CHECK_TOOLSETS="companies")
+    _attach_request(monkeypatch, _FakeRequest(headers=TOOLS_HEADER))
+    async with Client(server) as client:
+        names = {t.name for t in await client.list_tools()}
+        assert names == {"list_companies"}
+        for name in ("approve_payroll", "list_employees"):
+            result = await client.call_tool(name, {}, raise_on_error=False)
+            assert result.is_error
+            assert "not available in the current configuration" in (
+                result.content[0].text
+            )
+
+
+@pytest.mark.anyio
+async def test_tools_header_stays_inside_env_toolsets_dynamic_mode(monkeypatch):
+    server = _env_server(monkeypatch, "dynamic", CHECK_TOOLSETS="companies")
+    _attach_request(monkeypatch, _FakeRequest(headers=TOOLS_HEADER))
+    async with Client(server) as client:
+        for query in ("approve payroll", "list employees", "list companies"):
+            result = await client.call_tool("search_tools", {"query": query})
+            found = {r["name"] for r in json.loads(result.content[0].text)}
+            assert found <= {"list_companies"}, query
+        for name in ("approve_payroll", "list_employees"):
+            result = await client.call_tool(
+                "run_tool",
+                {"tool_name": name, "arguments": {"payroll_id": "pay_1"}},
+                raise_on_error=False,
+            )
+            assert result.is_error
+            assert "not available in the current configuration" in (
+                result.content[0].text
+            )
+
+
+@pytest.mark.anyio
+async def test_tools_header_stays_inside_env_toolsets_code_mode(monkeypatch):
+    server = _env_server(
+        monkeypatch, "dynamic", CHECK_TOOLSETS="companies", CHECK_CODE_MODE="1"
+    )
+    _attach_request(monkeypatch, _FakeRequest(headers=TOOLS_HEADER))
+    async with Client(server) as client:
+        result = await client.call_tool(
+            "get_stubs", {"tools": ["approve_payroll", "list_employees"]}
+        )
+        assert "def approve_payroll(" not in result.content[0].text
+        assert "def list_employees(" not in result.content[0].text
+        catalog = (await client.call_tool("get_stubs", {})).content[0].text
+        assert "list_companies" in catalog
+        assert "approve_payroll" not in catalog
+        assert "list_employees" not in catalog
+    is_error, payload = await _run(server, "1", writes=["approve_payroll"])
+    assert is_error
+    assert "not available" in payload["detail"]
+    is_error, payload = await _run(server, "await check.list_employees()")
+    assert is_error
+    assert "list_employees" in json.dumps(payload)
+
+
+@pytest.mark.anyio
+async def test_toolsets_header_narrows_env_tools(monkeypatch):
+    server = _env_server(
+        monkeypatch, "all", CHECK_TOOLS="list_companies,get_company,list_employees"
+    )
+    _attach_request(monkeypatch, _FakeRequest(headers={"x-mcp-toolsets": "companies"}))
+    async with Client(server) as client:
+        names = {t.name for t in await client.list_tools()}
+        assert names == {"list_companies", "get_company"}
+        result = await client.call_tool("list_employees", {}, raise_on_error=False)
+        assert result.is_error
+        assert "not available in the current configuration" in result.content[0].text
+
+
 @pytest.mark.anyio
 async def test_get_stubs_by_toolset(code_server):
     async with Client(code_server) as client:
