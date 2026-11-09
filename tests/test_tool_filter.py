@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from dataclasses import replace
 from unittest import mock
 
 import pytest
@@ -604,7 +605,103 @@ class TestDirectorySafeProfile:
             assert tf.is_tool_allowed(name, toolset) is True, name
 
 
+# One value per ToolFilter field for each side of a merge. The client's
+# allowlists name tools and toolsets outside the server's, so a merge that let
+# a client widen the server shows up as an extra allowed probe.
+SERVER_FIELDS: dict[str, object] = {
+    "toolsets": frozenset({"companies"}),
+    "tools": frozenset({"list_companies", "get_company"}),
+    "exclude_tools": frozenset({"get_company"}),
+    "read_only": True,
+    "exclude_money_movement": True,
+    "exclude_destructive": True,
+    "preview_toolsets": frozenset({"corrections"}),
+    "code_mode": True,
+}
+CLIENT_FIELDS: dict[str, object] = {
+    "toolsets": frozenset({"employees", "payrolls", "corrections"}),
+    "tools": frozenset(
+        {
+            "list_companies",
+            "list_employees",
+            "approve_payroll",
+            "delete_company",
+            "list_corrections",
+        }
+    ),
+    "exclude_tools": frozenset({"list_companies"}),
+    "read_only": True,
+    "exclude_money_movement": True,
+    "exclude_destructive": True,
+    "preview_toolsets": frozenset({"corrections"}),
+    "code_mode": True,
+}
+MERGE_PROBES = [
+    ("list_companies", "companies"),
+    ("get_company", "companies"),
+    ("create_company", "companies"),
+    ("delete_company", "companies"),
+    ("list_employees", "employees"),
+    ("approve_payroll", "payrolls"),
+    ("list_corrections", "corrections"),
+]
+
+
 class TestMerge:
+    @pytest.mark.usefixtures("corrections_in_preview")
+    @pytest.mark.parametrize("client_field", sorted(CLIENT_FIELDS))
+    @pytest.mark.parametrize("server_field", sorted(SERVER_FIELDS))
+    def test_merge_allows_only_what_both_sides_allow(self, server_field, client_field):
+        """For every pairing of fields, the merge allows a tool only when both
+        sides do. The opt-ins are a union, so each side is judged with them."""
+        server = ToolFilter(**{server_field: SERVER_FIELDS[server_field]})
+        client = ToolFilter(**{client_field: CLIENT_FIELDS[client_field]})
+        merged = server.merge(client)
+
+        assert merged.preview_toolsets == (
+            server.preview_toolsets | client.preview_toolsets
+        )
+        assert merged.code_mode == (server.code_mode or client.code_mode)
+
+        server = replace(server, preview_toolsets=merged.preview_toolsets)
+        client = replace(client, preview_toolsets=merged.preview_toolsets)
+        for tool, toolset in MERGE_PROBES:
+            assert merged.is_tool_allowed(tool, toolset) == (
+                server.is_tool_allowed(tool, toolset)
+                and client.is_tool_allowed(tool, toolset)
+            ), tool
+        for toolset in sorted(TOOLSETS):
+            assert merged.is_toolset_allowed(toolset) == (
+                server.is_toolset_allowed(toolset)
+                and client.is_toolset_allowed(toolset)
+            ), toolset
+
+    def test_header_tools_stay_inside_env_toolsets(self):
+        env = ToolFilter(toolsets=frozenset({"companies"}))
+        header = ToolFilter(tools=frozenset({"list_companies", "approve_payroll"}))
+        for merged in (env.merge(header), header.merge(env)):
+            assert merged.is_tool_allowed("list_companies", "companies") is True
+            assert merged.is_tool_allowed("get_company", "companies") is False
+            assert merged.is_tool_allowed("approve_payroll", "payrolls") is False
+            assert merged.is_toolset_allowed("payrolls") is False
+
+    def test_header_toolsets_narrow_env_tools(self):
+        env = ToolFilter(tools=frozenset({"list_companies", "list_employees"}))
+        header = ToolFilter(toolsets=frozenset({"companies"}))
+        merged = env.merge(header)
+        assert merged.is_tool_allowed("list_companies", "companies") is True
+        assert merged.is_tool_allowed("list_employees", "employees") is False
+
+    def test_env_tools_and_toolsets_keep_working_after_merge(self):
+        """An env filter that sets both keeps tools independent of toolsets."""
+        env = ToolFilter(
+            toolsets=frozenset({"companies"}),
+            tools=frozenset({"list_employees"}),
+        )
+        merged = env.merge(ToolFilter(read_only=True))
+        assert merged.is_tool_allowed("list_employees", "employees") is True
+        assert merged.is_tool_allowed("list_companies", "companies") is False
+
     def test_merge_defaults_returns_default(self):
         a = ToolFilter()
         b = ToolFilter()
@@ -616,7 +713,8 @@ class TestMerge:
         header = ToolFilter(toolsets=frozenset({"companies"}))
         merged = env.merge(header)
         assert merged.read_only is True
-        assert merged.toolsets == frozenset({"companies"})
+        assert merged.is_toolset_allowed("companies") is True
+        assert merged.is_toolset_allowed("employees") is False
 
     def test_merge_header_cannot_relax_read_only(self):
         """Header sending read_only=False cannot override env read_only=True."""
@@ -634,25 +732,27 @@ class TestMerge:
         env = ToolFilter(toolsets=frozenset({"companies", "employees"}))
         header = ToolFilter(toolsets=frozenset({"companies", "payrolls"}))
         merged = env.merge(header)
-        assert merged.toolsets == frozenset({"companies"})
+        assert {t for t in TOOLSETS if merged.is_toolset_allowed(t)} == {"companies"}
 
     def test_merge_env_toolsets_restricts_when_header_none(self):
         env = ToolFilter(toolsets=frozenset({"companies"}))
         header = ToolFilter()  # toolsets=None means "all"
         merged = env.merge(header)
-        assert merged.toolsets == frozenset({"companies"})
+        assert {t for t in TOOLSETS if merged.is_toolset_allowed(t)} == {"companies"}
 
     def test_merge_header_toolsets_restricts_when_env_none(self):
         env = ToolFilter()  # toolsets=None means "all"
         header = ToolFilter(toolsets=frozenset({"companies"}))
         merged = env.merge(header)
-        assert merged.toolsets == frozenset({"companies"})
+        assert {t for t in TOOLSETS if merged.is_toolset_allowed(t)} == {"companies"}
 
     def test_merge_intersects_tools(self):
         env = ToolFilter(tools=frozenset({"list_companies", "get_company"}))
         header = ToolFilter(tools=frozenset({"list_companies", "create_company"}))
         merged = env.merge(header)
-        assert merged.tools == frozenset({"list_companies"})
+        assert merged.is_tool_allowed("list_companies", "companies") is True
+        assert merged.is_tool_allowed("get_company", "companies") is False
+        assert merged.is_tool_allowed("create_company", "companies") is False
 
     def test_merge_exclude_money_movement_or(self):
         """A client cannot relax an exclusion the server set."""
@@ -679,8 +779,18 @@ class TestMerge:
         header = ToolFilter(toolsets=frozenset({"companies", "payrolls"}))
         query = ToolFilter(read_only=True)
         merged = env.merge(header).merge(query)
-        assert merged.toolsets == frozenset({"companies"})
+        assert {t for t in TOOLSETS if merged.is_toolset_allowed(t)} == {"companies"}
         assert merged.read_only is True
+
+    def test_merge_keeps_each_allowlist_through_chained_merges(self):
+        """active_tool_filter merges headers, then query params, onto env."""
+        env = ToolFilter(toolsets=frozenset({"companies"}))
+        header = ToolFilter(tools=frozenset({"list_companies", "list_employees"}))
+        query = ToolFilter(read_only=True)
+        merged = env.merge(header).merge(query)
+        assert merged.is_tool_allowed("list_companies", "companies") is True
+        assert merged.is_tool_allowed("list_employees", "employees") is False
+        assert merged.is_tool_allowed("get_company", "companies") is False
 
     def test_merge_query_param_cannot_relax_env(self):
         """read_only=False from query params cannot override read_only=True from env."""
@@ -701,7 +811,8 @@ class TestMerge:
             read_only=False,
         )
         merged = env.merge(header)
-        assert merged.toolsets == frozenset({"companies"})
+        assert {t for t in TOOLSETS if merged.is_toolset_allowed(t)} == {"companies"}
+        assert merged.is_tool_allowed("list_employees", "employees") is False
         assert merged.read_only is True
         assert merged.exclude_tools == frozenset({"some_sensitive_tool"})
 

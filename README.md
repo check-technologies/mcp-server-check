@@ -145,7 +145,7 @@ X-MCP-Exclude-Money-Movement: true
 X-MCP-Exclude-Destructive: true
 ```
 
-Header and environment settings are merged, taking the most restrictive value for each. A client can narrow what the server exposes but never widen it: if the server sets `CHECK_READ_ONLY=1` or a category exclusion, no header can turn it off. Preview toolsets and [code mode](#code-mode-experimental) are the exceptions: either side can opt in.
+Header and query-parameter settings are merged with the environment settings, taking the most restrictive value for each. They can narrow what the environment configuration exposes but never widen it: a tool is listed and callable only when both the environment settings and the request allow it. If the server sets `CHECK_TOOLSETS=companies`, an `X-MCP-Tools` header cannot reach a tool outside `companies`; if it sets `CHECK_READ_ONLY=1` or a category exclusion, no header can turn it off. The precedence above applies within each side, so the server's `tools` and the client's `tools` each override only their own side's `toolsets`. Preview toolsets and [code mode](#code-mode-experimental) are the exceptions: either side can opt in.
 
 ### Dynamic Tool Mode (Default)
 

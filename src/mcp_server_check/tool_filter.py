@@ -167,6 +167,22 @@ def _parse_bool(value: str | None) -> bool:
 
 
 @dataclass(frozen=True)
+class Allowlist:
+    """One configuration source's tools and toolsets allowlist."""
+
+    tools: frozenset[str] | None = None
+    toolsets: frozenset[str] | None = None
+
+    def allows_tool(self, tool_name: str, toolset_name: str) -> bool:
+        if self.tools is not None:
+            return tool_name in self.tools
+        return self.toolsets is None or toolset_name in self.toolsets
+
+    def allows_toolset(self, toolset_name: str) -> bool:
+        return self.toolsets is None or toolset_name in self.toolsets
+
+
+@dataclass(frozen=True)
 class ToolFilter:
     """Immutable filter configuration for tool visibility.
 
@@ -181,6 +197,10 @@ class ToolFilter:
     - tools, when set, acts as an allowlist independent of toolsets.
     - toolsets, when set, limits tools to those in the named toolsets.
 
+    allowlists holds the tools/toolsets allowlists of merged filters. A tool
+    must pass each of them as well as this filter's own tools/toolsets, so
+    one source's tools cannot override another source's toolsets.
+
     code_mode is not a visibility rule for Check tools: it exposes the
     run_code and get_stubs meta-tools in dynamic mode. Like preview_toolsets
     it is an opt-in, so a request header can turn it on.
@@ -194,6 +214,7 @@ class ToolFilter:
     exclude_destructive: bool = False
     preview_toolsets: frozenset[str] = frozenset()
     code_mode: bool = False
+    allowlists: tuple[Allowlist, ...] = ()
 
     def __post_init__(self) -> None:
         if self.toolsets is not None:
@@ -220,11 +241,16 @@ class ToolFilter:
             or toolset_name in self.preview_toolsets
         )
 
+    def _all_allowlists(self) -> tuple[Allowlist, ...]:
+        if self.tools is None and self.toolsets is None:
+            return self.allowlists
+        return (*self.allowlists, Allowlist(tools=self.tools, toolsets=self.toolsets))
+
     def is_toolset_allowed(self, toolset_name: str) -> bool:
         """Determine whether a toolset as a whole should be visible."""
         if not self.is_preview_enabled(toolset_name):
             return False
-        return self.toolsets is None or toolset_name in self.toolsets
+        return all(a.allows_toolset(toolset_name) for a in self._all_allowlists())
 
     def is_tool_allowed(self, tool_name: str, toolset_name: str) -> bool:
         """Determine whether a tool should be visible given this filter."""
@@ -247,15 +273,10 @@ class ToolFilter:
         if self.read_only and is_write_tool(tool_name):
             return False
 
-        # Individual tool allowlist (independent of toolsets)
-        if self.tools is not None:
-            return tool_name in self.tools
-
-        # Toolset allowlist
-        if self.toolsets is not None:
-            return toolset_name in self.toolsets
-
-        return True
+        # Each source's tools (or, without tools, toolsets) allowlist must pass
+        return all(
+            a.allows_tool(tool_name, toolset_name) for a in self._all_allowlists()
+        )
 
     def merge(self, other: ToolFilter) -> ToolFilter:
         """Merge two filters, taking the most restrictive value for each field.
@@ -264,34 +285,18 @@ class ToolFilter:
         override (HTTP headers) so that the policy acts as a floor that
         cannot be relaxed by the client.
 
+        The tools/toolsets allowlists of both sides are kept separately in
+        allowlists, and a tool must pass every one of them. The merged
+        filter's own tools and toolsets are None, so they do not describe
+        the effective limit; ask is_tool_allowed or is_toolset_allowed.
+
         preview_toolsets and code_mode are the exceptions: they are opt-ins,
         so either side can enable them. A server that must keep a preview
         toolset hidden can still do so with toolsets or exclude_tools, and one
         that must keep code mode off can exclude run_code and get_stubs.
         """
-        # toolsets: intersect when both set; keep the one that's set if only one is
-        if self.toolsets is not None and other.toolsets is not None:
-            merged_toolsets = self.toolsets & other.toolsets
-        elif self.toolsets is not None:
-            merged_toolsets = self.toolsets
-        elif other.toolsets is not None:
-            merged_toolsets = other.toolsets
-        else:
-            merged_toolsets = None
-
-        # tools: intersect when both set; keep the one that's set if only one is
-        if self.tools is not None and other.tools is not None:
-            merged_tools = self.tools & other.tools
-        elif self.tools is not None:
-            merged_tools = self.tools
-        elif other.tools is not None:
-            merged_tools = other.tools
-        else:
-            merged_tools = None
-
         return ToolFilter(
-            toolsets=merged_toolsets,
-            tools=merged_tools,
+            allowlists=self._all_allowlists() + other._all_allowlists(),
             exclude_tools=self.exclude_tools | other.exclude_tools,
             read_only=self.read_only or other.read_only,
             exclude_money_movement=self.exclude_money_movement
