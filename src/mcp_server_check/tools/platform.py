@@ -456,23 +456,6 @@ async def list_accounting_sync_attempts(
     )
 
 
-# --- Company Groups ---
-
-
-async def list_company_groups(
-    ctx: Ctx, limit: int | None = None, cursor: str | None = None
-) -> dict:
-    """List company groups.
-
-    Args:
-        limit: Maximum number of results to return.
-        cursor: Pagination cursor.
-    """
-    return await check_api_list(
-        ctx, "/company_groups", params=build_params(limit=limit, cursor=cursor)
-    )
-
-
 # --- Addresses ---
 
 
@@ -615,8 +598,6 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, list_accounting_accounts)
     add_annotated_tool(mcp, get_accounting_mappings)
     add_annotated_tool(mcp, list_accounting_sync_attempts)
-    # Company Groups
-    add_annotated_tool(mcp, list_company_groups)
     # Addresses
     add_annotated_tool(mcp, validate_address)
     # Setups

@@ -4,7 +4,7 @@
 
 > **Terms of Service** — By using this MCP server to access the Check API, you agree to the [MCP Usage Terms](TERMS_OF_SERVICE.md), which are in addition to your existing agreement with Check.
 
-An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 299 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
+An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 308 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
 
@@ -68,7 +68,7 @@ The server supports fine-grained tool filtering, configurable via environment va
 
 #### Toolsets
 
-There are 21 toolsets, one per API module: `agencies`, `bank_accounts`, `companies`, `compensation`, `components`, `contractor_payments`, `contractors`, `documents`, `employees`, `external_payrolls`, `forms`, `logs`, `payments`, `payroll_items`, `payrolls`, `platform`, `report_runs`, `tax`, `webhooks`, `workflows`, `workplaces`.
+There are 24 toolsets, one per API module: `agencies`, `bank_accounts`, `companies`, `company_groups`, `compensation`, `components`, `contractor_payments`, `contractors`, `corrections`, `documents`, `employees`, `external_payrolls`, `forms`, `logs`, `payments`, `payroll_items`, `payrolls`, `platform`, `report_runs`, `tax`, `users`, `webhooks`, `workflows`, `workplaces`.
 
 Enable only specific toolsets:
 
@@ -239,7 +239,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 ## Available Tools
 
-299 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
+308 tools organized across 23 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
 
 ### Companies (30 tools)
 
@@ -603,9 +603,29 @@ The counterparties Check files and remits to (IRS, state revenue departments). G
 | `get_webhook_delivery` | GET | Get a webhook delivery |
 | `retry_webhook_delivery` | POST | Re-enqueue a webhook delivery (sandbox only) |
 
-### Platform (28 tools)
+### Users (2 tools)
 
-Notifications, communications, usage, integrations, accounting, company groups, addresses, setups, and requirements.
+| Tool | Method | Description |
+|---|---|---|
+| `list_users` | GET | List Console users |
+| `get_user` | GET | Get a Console user by `usr_` ID |
+
+### Company Groups (8 tools)
+
+| Tool | Method | Description |
+|---|---|---|
+| `list_company_groups` | GET | List company groups |
+| `get_company_group` | GET | Get a company group |
+| `create_company_group` | POST | Create a company group |
+| `update_company_group` | PATCH | Update a company group; a sent membership list replaces it |
+| `add_company_group_companies` | POST | Add companies to a company group |
+| `remove_company_group_companies` | POST | Remove companies from a company group |
+| `add_company_group_users` | POST | Add users to a company group |
+| `remove_company_group_users` | POST | Remove users from a company group |
+
+### Platform (27 tools)
+
+Notifications, communications, usage, integrations, accounting, addresses, setups, and requirements.
 
 | Tool | Method | Description |
 |---|---|---|
@@ -635,8 +655,6 @@ Notifications, communications, usage, integrations, accounting, company groups, 
 | `toggle_accounting_mappings` | POST | Toggle accounting mappings |
 | `sync_accounting` | POST | Queue payrolls to sync to QuickBooks |
 | `list_accounting_sync_attempts` | GET | List sync attempts with status and failure reason |
-| **Company Groups** | | |
-| `list_company_groups` | GET | List company groups |
 | **Addresses** | | |
 | `validate_address` | POST | Validate an address |
 | **Setups** | | |

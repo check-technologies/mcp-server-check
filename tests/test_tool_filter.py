@@ -818,14 +818,15 @@ class TestMerge:
 
 
 class TestToolsets:
-    def test_has_22_toolsets(self):
-        assert len(TOOLSETS) == 22
+    def test_has_24_toolsets(self):
+        assert len(TOOLSETS) == 24
 
     def test_known_toolsets(self):
         expected = {
             "agencies",
             "bank_accounts",
             "companies",
+            "company_groups",
             "compensation",
             "components",
             "contractor_payments",
@@ -842,6 +843,7 @@ class TestToolsets:
             "platform",
             "report_runs",
             "tax",
+            "users",
             "webhooks",
             "workflows",
             "workplaces",
