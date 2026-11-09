@@ -4,7 +4,7 @@
 
 > **Terms of Service** — By using this MCP server to access the Check API, you agree to the [MCP Usage Terms](TERMS_OF_SERVICE.md), which are in addition to your existing agreement with Check.
 
-An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 299 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
+An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 303 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
 
@@ -239,7 +239,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 ## Available Tools
 
-299 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
+303 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
 
 ### Companies (30 tools)
 
@@ -637,6 +637,10 @@ Notifications, communications, usage, integrations, accounting, company groups, 
 | `list_accounting_sync_attempts` | GET | List sync attempts with status and failure reason |
 | **Company Groups** | | |
 | `list_company_groups` | GET | List company groups |
+| `add_company_group_companies` | POST | Add companies to a company group |
+| `remove_company_group_companies` | POST | Remove companies from a company group |
+| `add_company_group_users` | POST | Add users to a company group |
+| `remove_company_group_users` | POST | Remove users from a company group |
 | **Addresses** | | |
 | `validate_address` | POST | Validate an address |
 | **Setups** | | |

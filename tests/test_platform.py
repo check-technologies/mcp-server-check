@@ -8,6 +8,8 @@ import httpx
 import pytest
 
 from mcp_server_check.tools.platform import (
+    add_company_group_companies,
+    add_company_group_users,
     create_communication,
     get_accounting_mappings,
     get_applied_for_ids_report,
@@ -22,6 +24,8 @@ from mcp_server_check.tools.platform import (
     list_usage_records,
     list_usage_summaries,
     refresh_accounting_accounts,
+    remove_company_group_companies,
+    remove_company_group_users,
     sync_accounting,
     validate_address,
 )
@@ -334,3 +338,47 @@ async def test_get_applied_for_ids_report(mock_api, ctx):
     )
     result = await get_applied_for_ids_report(ctx)
     assert result["report"] == "data"
+
+
+@pytest.mark.anyio
+async def test_add_company_group_companies(mock_api, ctx):
+    route = mock_api.post("/company_groups/pcg_1/add_companies").mock(
+        return_value=httpx.Response(200, json={"id": "pcg_1"})
+    )
+    result = await add_company_group_companies(ctx, "pcg_1", companies=["com_1"])
+    assert result["id"] == "pcg_1"
+    assert json.loads(route.calls.last.request.content) == {"companies": ["com_1"]}
+
+
+@pytest.mark.anyio
+async def test_remove_company_group_users_sends_idempotency_key(mock_api, ctx):
+    route = mock_api.post("/company_groups/pcg_1/remove_users").mock(
+        return_value=httpx.Response(200, json={"id": "pcg_1"})
+    )
+    await remove_company_group_users(
+        ctx, "pcg_1", users=["usr_1"], idempotency_key="idem-1"
+    )
+    assert route.calls.last.request.headers["X-Idempotency-Key"] == "idem-1"
+    assert json.loads(route.calls.last.request.content) == {"users": ["usr_1"]}
+
+
+@pytest.mark.anyio
+async def test_add_company_group_users(mock_api, ctx):
+    route = mock_api.post("/company_groups/pcg_1/add_users").mock(
+        return_value=httpx.Response(200, json={"id": "pcg_1"})
+    )
+    result = await add_company_group_users(ctx, "pcg_1", users=["usr_1", "usr_2"])
+    assert result["id"] == "pcg_1"
+    assert json.loads(route.calls.last.request.content) == {
+        "users": ["usr_1", "usr_2"]
+    }
+
+
+@pytest.mark.anyio
+async def test_remove_company_group_companies(mock_api, ctx):
+    route = mock_api.post("/company_groups/pcg_1/remove_companies").mock(
+        return_value=httpx.Response(200, json={"id": "pcg_1"})
+    )
+    result = await remove_company_group_companies(ctx, "pcg_1", companies=["com_2"])
+    assert result["id"] == "pcg_1"
+    assert route.called

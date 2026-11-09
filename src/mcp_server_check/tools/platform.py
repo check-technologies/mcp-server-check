@@ -473,6 +473,100 @@ async def list_company_groups(
     )
 
 
+async def add_company_group_companies(
+    ctx: Ctx,
+    company_group_id: str,
+    companies: list[str],
+    idempotency_key: str | None = None,
+) -> dict:
+    """Add companies to a company group.
+
+    Companies already in the group are left unchanged.
+
+    Args:
+        company_group_id: The company group ID (e.g. "pcg_xxxxx").
+        companies: Check company IDs to add (e.g. ["com_xxxxx"]).
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
+    """
+    return await check_api_post(
+        ctx,
+        f"/company_groups/{company_group_id}/add_companies",
+        data=build_body({"companies": companies}),
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
+    )
+
+
+async def remove_company_group_companies(
+    ctx: Ctx,
+    company_group_id: str,
+    companies: list[str],
+    idempotency_key: str | None = None,
+) -> dict:
+    """Remove companies from a company group.
+
+    Companies not in the group are ignored.
+
+    Args:
+        company_group_id: The company group ID (e.g. "pcg_xxxxx").
+        companies: Check company IDs to remove (e.g. ["com_xxxxx"]).
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
+    """
+    return await check_api_post(
+        ctx,
+        f"/company_groups/{company_group_id}/remove_companies",
+        data=build_body({"companies": companies}),
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
+    )
+
+
+async def add_company_group_users(
+    ctx: Ctx,
+    company_group_id: str,
+    users: list[str],
+    idempotency_key: str | None = None,
+) -> dict:
+    """Add users to a company group.
+
+    Users already in the group are left unchanged. Each user ID must be a user
+    public ID (e.g. "usr_xxxxx") visible in list users responses.
+
+    Args:
+        company_group_id: The company group ID (e.g. "pcg_xxxxx").
+        users: User public IDs to add (e.g. ["usr_xxxxx"]).
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
+    """
+    return await check_api_post(
+        ctx,
+        f"/company_groups/{company_group_id}/add_users",
+        data=build_body({"users": users}),
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
+    )
+
+
+async def remove_company_group_users(
+    ctx: Ctx,
+    company_group_id: str,
+    users: list[str],
+    idempotency_key: str | None = None,
+) -> dict:
+    """Remove users from a company group.
+
+    Users not in the group are ignored. Each user ID must be a user public ID
+    (e.g. "usr_xxxxx") visible in list users responses.
+
+    Args:
+        company_group_id: The company group ID (e.g. "pcg_xxxxx").
+        users: User public IDs to remove (e.g. ["usr_xxxxx"]).
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
+    """
+    return await check_api_post(
+        ctx,
+        f"/company_groups/{company_group_id}/remove_users",
+        data=build_body({"users": users}),
+        headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
+    )
+
+
 # --- Addresses ---
 
 
@@ -634,3 +728,7 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
         add_annotated_tool(mcp, update_accounting_mappings)
         add_annotated_tool(mcp, toggle_accounting_mappings)
         add_annotated_tool(mcp, sync_accounting)
+        add_annotated_tool(mcp, add_company_group_companies)
+        add_annotated_tool(mcp, remove_company_group_companies)
+        add_annotated_tool(mcp, add_company_group_users)
+        add_annotated_tool(mcp, remove_company_group_users)
