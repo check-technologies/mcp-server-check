@@ -329,7 +329,16 @@ def _env_server(monkeypatch, tool_mode: str, **env: str) -> CheckMCP:
     monkeypatch.setenv("CHECK_API_KEY", "test-key")
     monkeypatch.delenv("CHECK_API_BASE_URL", raising=False)
     monkeypatch.setenv("CHECK_CODE_TIMEOUT_SECS", "20")
-    for name in ("CHECK_TOOLSETS", "CHECK_TOOLS", "CHECK_CODE_MODE"):
+    for name in (
+        "CHECK_TOOLSETS",
+        "CHECK_TOOLS",
+        "CHECK_EXCLUDE_TOOLS",
+        "CHECK_READ_ONLY",
+        "CHECK_EXCLUDE_MONEY_MOVEMENT",
+        "CHECK_EXCLUDE_DESTRUCTIVE",
+        "CHECK_PREVIEW_TOOLSETS",
+        "CHECK_CODE_MODE",
+    ):
         monkeypatch.delenv(name, raising=False)
     for name, value in env.items():
         monkeypatch.setenv(name, value)
@@ -362,6 +371,10 @@ async def test_tools_header_stays_inside_env_toolsets_dynamic_mode(monkeypatch):
             result = await client.call_tool("search_tools", {"query": query})
             found = {r["name"] for r in json.loads(result.content[0].text)}
             assert found <= {"list_companies"}, query
+        assert "list_companies" in found
+        result = await client.call_tool("list_toolsets", {})
+        toolsets = {r["toolset"] for r in json.loads(result.content[0].text)}
+        assert toolsets == {"companies"}
         for name in ("approve_payroll", "list_employees"):
             result = await client.call_tool(
                 "run_tool",
@@ -395,7 +408,8 @@ async def test_tools_header_stays_inside_env_toolsets_code_mode(monkeypatch):
     assert "not available" in payload["detail"]
     is_error, payload = await _run(server, "await check.list_employees()")
     assert is_error
-    assert "list_employees" in json.dumps(payload)
+    assert payload["calls"] == []
+    assert "has no attribute 'list_employees'" in payload["detail"]
 
 
 @pytest.mark.anyio
