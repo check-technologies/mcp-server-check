@@ -57,8 +57,20 @@ packages. The server already caps concurrent calls and retries throttled
 ones, so do not throttle.
 
 List results are summaries: each record keeps only the fields below, by ID
-prefix. Call the matching get_* tool for a full record.
+prefix. Call the matching get_* tool for a full record. search_* results are
+thinner still: the API returns only id and name fields, so anything else
+(pay_frequency, status, onboarding, email) needs the get_* tool.
 {{summary_fields}}
+
+Do the whole read chain in one program. When a lookup decides the next call,
+branch on its result inside the program instead of returning to look:
+
+    hits = (await {MODULE_NAME}.search_companies(term="Golden Crust"))["results"]
+    if len(hits) == 1:
+        company = await {MODULE_NAME}.get_company(company_id=hits[0]["id"])
+    else:
+        company = None  # return the hits so the user can pick one
+    {{"matches": hits, "company": company}}
 """
 
 from typing import Any
