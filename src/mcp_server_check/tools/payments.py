@@ -13,6 +13,7 @@ from mcp_server_check.helpers import (
     build_params,
     check_api_get,
     check_api_list,
+    check_api_patch,
     check_api_post,
 )
 
@@ -81,6 +82,34 @@ async def get_payment(ctx: Ctx, payment_id: str) -> dict:
         payment_id: The Check payment ID.
     """
     return await check_api_get(ctx, f"/payments/{payment_id}")
+
+
+async def report_cash_app_payout(
+    ctx: Ctx,
+    payment_attempt_id: str,
+    status: str,
+    idempotency_key: str | None = None,
+) -> dict:
+    """Report the outcome of a Cash App payout payment attempt.
+
+    Marks a Cash App payout as paid and completes the underlying payment. Requires
+    Cash App payouts to be enabled for your Check account. The request body accepts
+    only status; other fields are rejected. Replays with the same idempotency key
+    return the original outcome.
+
+    Args:
+        payment_attempt_id: The Check payment attempt ID (e.g. "pya_xxxxx").
+        status: Payout outcome. Currently only "paid" is supported.
+        idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
+            The Check API requires one for this action; a random key is
+            generated when omitted.
+    """
+    return await check_api_patch(
+        ctx,
+        f"/payment_attempts/{payment_attempt_id}",
+        data={"status": status},
+        headers={"X-Idempotency-Key": idempotency_key or str(uuid.uuid4())},
+    )
 
 
 async def list_payment_attempts(
@@ -223,3 +252,4 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
         add_annotated_tool(mcp, reverse_payment)
         add_annotated_tool(mcp, simulate_complete_payment)
         add_annotated_tool(mcp, simulate_fail_payment)
+        add_annotated_tool(mcp, report_cash_app_payout)

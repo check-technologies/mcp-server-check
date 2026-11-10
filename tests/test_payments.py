@@ -12,6 +12,7 @@ from mcp_server_check.tools.payments import (
     get_payment,
     list_payment_attempts,
     list_payments,
+    report_cash_app_payout,
     retry_payment,
     reverse_payment,
     simulate_complete_payment,
@@ -189,3 +190,20 @@ async def test_reverse_payment_defaults_idempotency_key(mock_api, ctx):
     )
     await reverse_payment(ctx, payment_id="pyt_001", reason="duplicate")
     assert route.calls.last.request.headers["X-Idempotency-Key"]
+
+
+@pytest.mark.anyio
+async def test_report_cash_app_payout(mock_api, ctx):
+    route = mock_api.patch("/payment_attempts/pya_001").mock(
+        return_value=httpx.Response(200, json={"id": "pya_001", "status": "paid"})
+    )
+    result = await report_cash_app_payout(
+        ctx,
+        payment_attempt_id="pya_001",
+        status="paid",
+        idempotency_key="idem-cash-app",
+    )
+    assert result["status"] == "paid"
+    request = route.calls.last.request
+    assert request.headers["X-Idempotency-Key"] == "idem-cash-app"
+    assert json.loads(request.content) == {"status": "paid"}

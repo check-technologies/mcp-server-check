@@ -507,9 +507,16 @@ async def check_api_post(
     )
 
 
-async def check_api_patch(ctx: Ctx, path: str, data: dict | list) -> dict:
+async def check_api_patch(
+    ctx: Ctx,
+    path: str,
+    data: dict | list,
+    headers: dict[str, str] | None = None,
+) -> dict:
     """Make a PATCH request to the Check API."""
-    return await _check_api_request(ctx, "PATCH", path, data=data)
+    return await _check_api_request(
+        ctx, "PATCH", path, data=data, extra_headers=headers
+    )
 
 
 async def check_api_put(ctx: Ctx, path: str, data: dict) -> dict:

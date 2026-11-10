@@ -77,7 +77,7 @@ _WRITE_KEYWORDS = (
 )
 # Writes whose names read like reads: preview_payroll is a GET, but
 # preview_correction starts a dry run and changes the correction's state.
-_WRITE_EXACT = frozenset({"preview_correction"})
+_WRITE_EXACT = frozenset({"preview_correction", "report_cash_app_payout"})
 
 # Tools that trigger irreversible real-world effects (deletion, approval, refunds).
 # CHECK_EXCLUDE_DESTRUCTIVE removes these from a deployment entirely.

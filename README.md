@@ -4,7 +4,7 @@
 
 > **Terms of Service** — By using this MCP server to access the Check API, you agree to the [MCP Usage Terms](TERMS_OF_SERVICE.md), which are in addition to your existing agreement with Check.
 
-An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 299 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
+An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 300 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
 
@@ -239,7 +239,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 ## Available Tools
 
-299 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
+300 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
 
 ### Companies (30 tools)
 
@@ -512,13 +512,14 @@ Asynchronous reporting. `create_report_run` returns a `run_` ID, `get_report_run
 | `list_logs` | GET | List API request logs; filter by path, method, status code/class, log ID, idempotency key, and time range |
 | `get_log` | GET | Get the full record for a single API request log |
 
-### Payments (9 tools)
+### Payments (10 tools)
 
 | Tool | Method | Description |
 |---|---|---|
 | `list_payments` | GET | List payments |
 | `get_payment` | GET | Get a specific payment |
 | `list_payment_attempts` | GET | List payment attempts |
+| `report_cash_app_payout` | PATCH | Report a Cash App payout attempt as paid (Cash App payouts feature) |
 | `retry_payment` | POST | Retry a failed payment, to a new `bank_account` or by `payment_type` |
 | `refund_payment` | POST | Refund a payment |
 | `cancel_payment` | POST | Cancel a payment |
