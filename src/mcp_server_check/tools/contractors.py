@@ -122,7 +122,7 @@ async def create_contractor(
         ssn: Contractor's Social Security Number.
         ein: Contractor's Employer Identification Number (for businesses).
         default_net_pay_split: ID of contractor's default net pay split.
-        payment_method_preference: "direct_deposit" or "manual".
+        payment_method_preference: "direct_deposit", "manual", or "cash_app".
         address: Address with keys: line1, line2, city, state, postal_code, country.
         mailing_address: Envelope-only mailing address (not used for tax).
             Same keys as address. Requires the payee mailing address feature
@@ -207,7 +207,7 @@ async def update_contractor(
         ssn: Contractor's Social Security Number.
         ein: Contractor's Employer Identification Number (for businesses).
         default_net_pay_split: ID of contractor's default net pay split.
-        payment_method_preference: "direct_deposit" or "manual".
+        payment_method_preference: "direct_deposit", "manual", or "cash_app".
         address: Address with keys: line1, line2, city, state, postal_code, country.
         mailing_address: Envelope-only mailing address (not used for tax).
             Same keys as address. Requires the payee mailing address feature
