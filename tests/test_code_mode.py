@@ -437,6 +437,31 @@ async def test_get_stubs_by_toolset(code_server):
 
 
 @pytest.mark.anyio
+async def test_get_stubs_header_shows_search_then_get_in_one_program(code_server):
+    """Every get_stubs answer, keyword queries included, opens with the header
+    that tells the model search_* results are thin and shows the branch that
+    chains into get_* inside the same program."""
+    async with Client(code_server) as client:
+        by_query = (
+            (await client.call_tool("get_stubs", {"query": "list companies"}))
+            .content[0]
+            .text
+        )
+        by_toolset = (
+            (await client.call_tool("get_stubs", {"toolset": "workplaces"}))
+            .content[0]
+            .text
+        )
+    for stubs in (by_query, by_toolset):
+        assert "search_* results are" in stubs
+        assert 'hits = (await check.search_companies(term="Golden Crust"))' in stubs
+        assert 'company = await check.get_company(company_id=hits[0]["id"])' in stubs
+        assert '{"matches": hits, "company": company}' in stubs
+        assert "{summary_fields}" not in stubs
+    assert "Results carry only id, legal_name, and trade_name" in by_query
+
+
+@pytest.mark.anyio
 async def test_get_stubs_without_arguments_returns_catalog(code_server):
     async with Client(code_server) as client:
         result = await client.call_tool("get_stubs", {})

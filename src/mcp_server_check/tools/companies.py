@@ -70,6 +70,10 @@ async def search_companies(
     Searches across legal name, trade name, and company ID using
     case-insensitive matching.
 
+    Results carry only id, legal_name, and trade_name. Anything else about
+    the company (pay_frequency, onboard status, address) needs get_company
+    on the returned id; in code mode, chain it in the same program.
+
     Args:
         term: Search term to match against company legal name, trade name, or ID.
         limit: Maximum number of results to return.

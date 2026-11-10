@@ -127,7 +127,8 @@ see what touched their account.
 and its tool names; get_stubs(tools=[...]), get_stubs(toolset=...), or \
 get_stubs(query="...") return signatures with docstrings.
 - Paginate with next_cursor until it is null. List results are summaries (key \
-fields only); call the get_* tool for a full record.
+fields only) and search_* results are only id and names; call the get_* tool \
+for a full record, in the same program as the lookup that found the id.
 - A failed API call raises RuntimeError whose message is a JSON object with \
 status_code and detail; catch it to continue. Throttled calls, and reads whose \
 connection dropped, are retried for you.

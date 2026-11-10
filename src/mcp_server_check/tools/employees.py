@@ -70,6 +70,10 @@ async def search_employees(
     middle name, last name, or employee ID using case-insensitive matching.
     All terms must match (AND logic).
 
+    Results carry only id and name fields. Anything else about the employee
+    (status, company, email, start_date) needs get_employee on the returned
+    id; in code mode, chain it in the same program.
+
     Args:
         term: Search term to match against employee name fields or ID.
         limit: Maximum number of results to return.

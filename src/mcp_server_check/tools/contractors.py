@@ -59,6 +59,10 @@ async def search_contractors(
     middle name, last name, business name, or contractor ID using
     case-insensitive matching. All terms must match (AND logic).
 
+    Results carry only id and name fields. Anything else about the
+    contractor (status, company, type) needs get_contractor on the returned
+    id; in code mode, chain it in the same program.
+
     Args:
         term: Search term to match against contractor name fields or ID.
         limit: Maximum number of results to return.
