@@ -51,13 +51,22 @@ async def get_webhook_config(ctx: Ctx, webhook_config_id: str) -> dict:
 async def create_webhook_config(
     ctx: Ctx,
     url: str,
+    event_types: list[str] | None = None,
     api_version: str | None = None,
     idempotency_key: str | None = None,
 ) -> dict:
     """Create a new webhook configuration.
 
+    A config receives only the event types in its event_types list. A config
+    created without event_types starts with an empty list and receives no
+    webhooks (other than pings) until some are selected.
+
     Args:
         url: The webhook endpoint URL.
+        event_types: Event type names the config should receive, in
+            "<topic>.<action>" form (e.g. ["employee.created", "payroll.updated"]).
+            Use list_webhook_event_types to see which names are selectable.
+            Omit to start with an empty selection.
         api_version: API version to serialize outbound webhook payloads at,
             independent of your account default. Accepts the same values as the
             Check-Version header (e.g. "2025-01-01", "2021-09-02"). Omit to
@@ -67,7 +76,7 @@ async def create_webhook_config(
     return await check_api_post(
         ctx,
         "/webhook_configs",
-        data=build_body({"url": url}, api_version=api_version),
+        data=build_body({"url": url}, event_types=event_types, api_version=api_version),
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
 
@@ -77,6 +86,7 @@ async def update_webhook_config(
     webhook_config_id: str,
     url: str | None = None,
     active: bool | None = None,
+    event_types: list[str] | None = None,
     api_version: str | None = None,
 ) -> dict:
     """Update a webhook configuration.
@@ -85,6 +95,12 @@ async def update_webhook_config(
         webhook_config_id: The Check webhook config ID.
         url: The webhook endpoint URL.
         active: Whether the webhook config is active.
+        event_types: Event type names the config should receive, in
+            "<topic>.<action>" form. The list you send replaces the whole
+            selection, so include every event type the config should keep; an
+            empty list deselects everything. Use list_webhook_event_types (with
+            webhook_config set to this config) to see which names are
+            selectable. Omit to leave the selection unchanged.
         api_version: API version to serialize outbound webhook payloads at,
             independent of your account default. Accepts the same values as the
             Check-Version header (e.g. "2025-01-01", "2021-09-02"). Omit to
@@ -93,7 +109,13 @@ async def update_webhook_config(
     return await check_api_patch(
         ctx,
         f"/webhook_configs/{webhook_config_id}",
-        data=build_body({}, url=url, active=active, api_version=api_version),
+        data=build_body(
+            {},
+            url=url,
+            active=active,
+            event_types=event_types,
+            api_version=api_version,
+        ),
     )
 
 
@@ -113,6 +135,37 @@ async def ping_webhook_config(ctx: Ctx, webhook_config_id: str) -> dict:
         webhook_config_id: The Check webhook config ID.
     """
     return await check_api_post(ctx, f"/webhook_configs/{webhook_config_id}/ping")
+
+
+async def list_webhook_event_types(
+    ctx: Ctx,
+    webhook_config: str | None = None,
+    api_version: str | None = None,
+) -> dict:
+    """List webhook event types and whether each can be selected on a config.
+
+    Each entry has type (e.g. "payroll.updated"), description, status
+    ("supported", "deprecated", or "retired"), selectable, unavailable_reason,
+    replacement, migration_guide_url, and retires_at. The response is not
+    paginated; entries are sorted by type.
+
+    By default the catalog is evaluated at your account's default API version.
+    Pass webhook_config to evaluate it at that config's API version (what that
+    config can select), or api_version to evaluate it at a specific version.
+    Not both.
+
+    Args:
+        webhook_config: Evaluate at this webhook config's API version (e.g. "whc_xxxxx").
+            Cannot be combined with api_version.
+        api_version: Evaluate at this API version. Accepts the same values as the
+            Check-Version header (e.g. "2025-01-01"). Cannot be combined with
+            webhook_config.
+    """
+    return await check_api_get(
+        ctx,
+        "/event_types",
+        params=build_params(webhook_config=webhook_config, api_version=api_version),
+    )
 
 
 async def list_webhook_deliveries(
@@ -184,6 +237,7 @@ async def retry_webhook_delivery(ctx: Ctx, webhook_delivery_id: str) -> dict:
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, list_webhook_configs)
     add_annotated_tool(mcp, get_webhook_config)
+    add_annotated_tool(mcp, list_webhook_event_types)
     add_annotated_tool(mcp, list_webhook_deliveries)
     add_annotated_tool(mcp, get_webhook_delivery)
     if not read_only:

@@ -81,7 +81,7 @@ There are 21 resource groups, each with multiple commands:
 | `payroll-items` | `list`, `get`, `create`, `update`, `delete`, `gross-up` |
 | `contractor-payments` | `list`, `get`, `create`, `delete` |
 | `external-payrolls` | `list`, `get`, `create`, `approve` |
-| `webhooks` | `list-configs`, `create-config`, `ping-config`, `retry-events` |
+| `webhooks` | `list-configs`, `list-event-types`, `create-config`, `update-config`, `ping-config`, `retry-delivery` |
 | `documents` | `list-company-tax-documents`, `download-employee-tax-document` |
 | `report-runs` | `list`, `get`, `create`, `download` |
 | `components` | `create-company-run-payroll-component`, `create-employee-profile-component` |
@@ -335,9 +335,13 @@ check report-runs download run_xxxxx
 # List webhook configs
 check webhooks list-configs
 
-# Create a webhook
+# See which event types a config can receive
+check webhooks list-event-types
+
+# Create a webhook that receives two event types
 check webhooks create-config \
   --url https://example.com/webhooks \
+  --event-types employee.created,payroll.updated \
   --environment sandbox
 
 # Test it

@@ -87,6 +87,7 @@ class TestIsWriteTool:
             "download_company_tax_document",
             "validate_address",
             "list_webhook_configs",
+            "list_webhook_event_types",
             "get_enrollment_profile",
         ],
     )

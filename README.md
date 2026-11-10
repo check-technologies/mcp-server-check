@@ -4,7 +4,7 @@
 
 > **Terms of Service** — By using this MCP server to access the Check API, you agree to the [MCP Usage Terms](TERMS_OF_SERVICE.md), which are in addition to your existing agreement with Check.
 
-An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 299 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
+An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 300 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
 
@@ -589,14 +589,15 @@ The counterparties Check files and remits to (IRS, state revenue departments). G
 | `list_agencies` | GET | List agencies; filter by jurisdiction or label |
 | `get_agency` | GET | Get a specific agency |
 
-### Webhooks (7 tools)
+### Webhooks (10 tools)
 
 | Tool | Method | Description |
 |---|---|---|
 | `list_webhook_configs` | GET | List webhook configurations |
 | `get_webhook_config` | GET | Get a specific webhook configuration |
-| `create_webhook_config` | POST | Create a webhook configuration |
-| `update_webhook_config` | PATCH | Update a webhook configuration |
+| `list_webhook_event_types` | GET | List webhook event types and whether each is selectable |
+| `create_webhook_config` | POST | Create a webhook configuration, optionally with `event_types` |
+| `update_webhook_config` | PATCH | Update a webhook configuration; `event_types` replaces the selection |
 | `delete_webhook_config` | DELETE | Delete a webhook configuration |
 | `ping_webhook_config` | POST | Send a test ping |
 | `list_webhook_deliveries` | GET | List webhook deliveries with status + attempts |
