@@ -27,7 +27,11 @@ from mcp_server_check.tools.companies import get_company, list_companies
 from mcp_server_check.tools.compensation import BENEFIT_TYPES
 from mcp_server_check.tools.employees import get_employee, list_employees
 from mcp_server_check.tools.payrolls import get_payroll, list_payrolls
-from mcp_server_check.tools.workplaces import get_workplace, list_workplaces
+from mcp_server_check.tools.workplaces import (
+    get_workplace,
+    list_workplaces,
+    search_workplaces,
+)
 
 BASE_URL = "https://sandbox.checkhq.com"
 
@@ -256,6 +260,25 @@ async def test_list_workplaces(mock_api, ctx):
 
     result = await list_workplaces(ctx)
     assert result["results"] == [{"id": "wrk_001"}]
+
+
+@pytest.mark.anyio
+async def test_search_workplaces(mock_api, ctx):
+    mock_api.get("/workplaces/search").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "next": None,
+                "previous": None,
+                "results": [{"id": "wrk_001", "name": "HQ"}],
+            },
+        )
+    )
+
+    result = await search_workplaces(ctx, term="hq")
+    assert result["results"] == [{"id": "wrk_001", "name": "HQ"}]
+    request = mock_api.calls.last.request
+    assert request.url.params.get("term") == "hq"
 
 
 @pytest.mark.anyio

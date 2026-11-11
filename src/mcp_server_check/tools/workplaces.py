@@ -44,6 +44,34 @@ async def list_workplaces(
     )
 
 
+async def search_workplaces(
+    ctx: Ctx,
+    term: str,
+    company: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
+) -> dict:
+    """Search workplaces by name, address, or ID.
+
+    Every word of the term must appear in the workplace's name, address
+    line 1, address line 2, city, state, or postal code, or begin its ID.
+    Matching is case-insensitive. All words must match (AND logic).
+
+    Results use the same representation and pagination as GET /workplaces.
+
+    Args:
+        term: Search term to match against workplace name, address fields, or ID.
+        company: Filter to workplaces belonging to this Check company ID (e.g. "com_xxxxx").
+        limit: Maximum number of results to return.
+        cursor: Pagination cursor from a previous response.
+    """
+    return await check_api_list(
+        ctx,
+        "/workplaces/search",
+        params=build_params(term=term, company=company, limit=limit, cursor=cursor),
+    )
+
+
 async def get_workplace(ctx: Ctx, workplace_id: str) -> dict:
     """Get details for a specific workplace.
 
@@ -121,6 +149,7 @@ async def update_workplace(
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, list_workplaces)
+    add_annotated_tool(mcp, search_workplaces)
     add_annotated_tool(mcp, get_workplace)
     if not read_only:
         add_annotated_tool(mcp, create_workplace)

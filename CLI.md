@@ -1,6 +1,6 @@
 # Check CLI
 
-A command-line interface for the [Check Payroll API](https://docs.checkhq.com/). The CLI exposes the same 299 tools as the MCP server, organized as resource-oriented commands similar to the [Stripe CLI](https://docs.stripe.com/cli).
+A command-line interface for the [Check Payroll API](https://docs.checkhq.com/). The CLI exposes the same 300 tools as the MCP server, organized as resource-oriented commands similar to the [Stripe CLI](https://docs.stripe.com/cli).
 
 ## Installation
 
@@ -89,7 +89,7 @@ There are 21 resource groups, each with multiple commands:
 | `logs` | `list`, `get` |
 | `platform` | `list-notifications`, `validate-address`, `list-accounting-integrations`, `sync-accounting` |
 | `workflows` | `get-company-overview`, `get-employee-snapshot`, `diagnose-payment` |
-| `workplaces` | `list`, `get`, `create`, `update` |
+| `workplaces` | `list`, `search`, `get`, `create`, `update` |
 
 Use `check <group> --help` to see all commands in a group.
 

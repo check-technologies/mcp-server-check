@@ -579,7 +579,7 @@ async def test_get_stubs_without_arguments_returns_catalog(code_server):
     async with Client(code_server) as client:
         result = await client.call_tool("get_stubs", {})
     catalog = result.content[0].text
-    assert "# ---- workplaces (4 tools) ----" in catalog
+    assert "# ---- workplaces (5 tools) ----" in catalog
     assert "list_workplaces, " in catalog
     assert "create_workplace*" in catalog  # write tools are marked
     assert "async def" not in catalog  # names only, not signatures

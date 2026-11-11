@@ -4,7 +4,7 @@
 
 > **Terms of Service** — By using this MCP server to access the Check API, you agree to the [MCP Usage Terms](TERMS_OF_SERVICE.md), which are in addition to your existing agreement with Check.
 
-An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 299 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
+An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 300 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
 
@@ -250,7 +250,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 ## Available Tools
 
-299 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
+300 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
 
 ### Companies (30 tools)
 
@@ -317,11 +317,12 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 | `submit_contractor_form` | POST | Submit a contractor form |
 | `reveal_contractor_ssn` | GET | Reveal contractor SSN/EIN |
 
-### Workplaces (4 tools)
+### Workplaces (5 tools)
 
 | Tool | Method | Description |
 |---|---|---|
 | `list_workplaces` | GET | List workplaces |
+| `search_workplaces` | GET | Search workplaces by name, address, or ID |
 | `get_workplace` | GET | Get details for a specific workplace |
 | `create_workplace` | POST | Create a new workplace |
 | `update_workplace` | PATCH | Update an existing workplace |
