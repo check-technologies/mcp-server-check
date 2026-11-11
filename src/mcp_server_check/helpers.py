@@ -209,23 +209,31 @@ def build_body(required: dict, **optional: object) -> dict:
     return body
 
 
-def apply_clear_mailing_address(
-    body: dict, mailing_address: dict | None, clear: bool | None
+def apply_clear_fields(
+    body: dict,
+    clear_fields: Sequence[str] | None,
+    clearable: frozenset[str],
 ) -> None:
-    """Put an explicit ``"mailing_address": null`` in ``body`` when ``clear`` is
-    true. ``build_body`` drops ``None`` values, so this is the only way to send
-    the null the API treats as "remove the mailing address".
-
-    Raises ``ValueError`` when a new mailing address and the clear flag are
-    passed together, since the request would be contradictory.
-    """
-    if not clear:
+    """Add explicit nulls for requested fields after validating them."""
+    if not clear_fields:
         return
-    if mailing_address is not None:
+
+    fields = set(clear_fields)
+    invalid = sorted(fields - clearable)
+    if invalid:
         raise ValueError(
-            "Pass either mailing_address or clear_mailing_address, not both."
+            f"clear_fields cannot clear {', '.join(invalid)}. "
+            f"Clearable fields: {', '.join(sorted(clearable))}."
         )
-    body["mailing_address"] = None
+
+    conflicts = sorted(fields & body.keys())
+    if conflicts:
+        raise ValueError(
+            f"Pass either a value or clear_fields for {', '.join(conflicts)}, not both."
+        )
+
+    for field_name in clear_fields:
+        body[field_name] = None
 
 
 def build_params(**kwargs: object) -> dict | None:
