@@ -203,7 +203,9 @@ class ToolFilter:
 
     code_mode is not a visibility rule for Check tools: it exposes the
     run_code and get_stubs meta-tools in dynamic mode. Like preview_toolsets
-    it is an opt-in, so a request header can turn it on.
+    it is an opt-in, so a request header can turn it on. hybrid_mode keeps
+    the dynamic meta-tools visible alongside them, so one request can call
+    run_tool for a single read and run_code for a chain; it implies code_mode.
     """
 
     toolsets: frozenset[str] | None = None
@@ -214,9 +216,12 @@ class ToolFilter:
     exclude_destructive: bool = False
     preview_toolsets: frozenset[str] = frozenset()
     code_mode: bool = False
+    hybrid_mode: bool = False
     allowlists: tuple[Allowlist, ...] = ()
 
     def __post_init__(self) -> None:
+        if self.hybrid_mode and not self.code_mode:
+            object.__setattr__(self, "code_mode", True)
         if self.toolsets is not None:
             invalid = self.toolsets - TOOLSETS
             if invalid:
@@ -290,8 +295,8 @@ class ToolFilter:
         filter's own tools and toolsets are None, so they do not describe
         the effective limit; ask is_tool_allowed or is_toolset_allowed.
 
-        preview_toolsets and code_mode are the exceptions: they are opt-ins,
-        so either side can enable them. A server that must keep a preview
+        preview_toolsets, code_mode, and hybrid_mode are the exceptions: they
+        are opt-ins, so either side can enable them. A server that must keep a preview
         toolset hidden can still do so with toolsets or exclude_tools, and one
         that must keep code mode off can exclude run_code and get_stubs.
         """
@@ -304,6 +309,7 @@ class ToolFilter:
             exclude_destructive=self.exclude_destructive or other.exclude_destructive,
             preview_toolsets=self.preview_toolsets | other.preview_toolsets,
             code_mode=self.code_mode or other.code_mode,
+            hybrid_mode=self.hybrid_mode or other.hybrid_mode,
         )
 
     @classmethod
@@ -324,6 +330,7 @@ class ToolFilter:
             preview_toolsets=_parse_comma_set(os.environ.get("CHECK_PREVIEW_TOOLSETS"))
             or frozenset(),
             code_mode=_parse_bool(os.environ.get("CHECK_CODE_MODE")),
+            hybrid_mode=_parse_bool(os.environ.get("CHECK_HYBRID_MODE")),
         )
 
     @classmethod
@@ -346,14 +353,15 @@ class ToolFilter:
             preview_toolsets=_parse_comma_set(get("x-mcp-preview-toolsets"))
             or frozenset(),
             code_mode=_parse_bool(get("x-mcp-code-mode")),
+            hybrid_mode=_parse_bool(get("x-mcp-hybrid-mode")),
         )
 
     @classmethod
     def from_query_params(cls, query_params: dict[str, str] | object) -> ToolFilter:
         """Build a ToolFilter from URL query parameters.
 
-        Supports ``read_only``, ``preview_toolsets``, and ``code_mode``, for
-        clients that can only be configured with a URL.
+        Supports ``read_only``, ``preview_toolsets``, ``code_mode``, and
+        ``hybrid_mode``, for clients that can only be configured with a URL.
 
         Args:
             query_params: A dict-like object (e.g. Starlette QueryParams)
@@ -366,4 +374,5 @@ class ToolFilter:
             read_only=_parse_bool(get("read_only")),
             preview_toolsets=_parse_comma_set(get("preview_toolsets")) or frozenset(),
             code_mode=_parse_bool(get("code_mode")),
+            hybrid_mode=_parse_bool(get("hybrid_mode")),
         )

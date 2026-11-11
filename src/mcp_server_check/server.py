@@ -142,13 +142,48 @@ running a program that declares writes, and keep reads and writes in separate \
 programs where you can.
 """
 
+HYBRID_MODE_INSTRUCTIONS = """\
+
+## Hybrid Mode
+This server runs in hybrid mode: the dynamic tools (search_tools, \
+list_toolsets, run_tool) and the code tools (get_stubs, run_code) are both \
+available. Pick by the shape of the work, not by habit:
+- One Check API call whose arguments you already have: run_tool. It costs \
+one round trip and no sandbox.
+- Two or more calls where one result feeds the next, a fan-out over a list \
+(every employee, every payroll), paging through results, or any filtering or \
+aggregation of a list: one run_code program. Follow IDs from one result into \
+the next call inside the program, run independent calls with asyncio.gather, \
+and return only what the answer needs. Do not run one call per program and \
+come back to think between hops, and do not run a chain as a series of \
+run_tool calls.
+- A search whose result decides the next read (search, then get the single \
+match): one program that branches on the result.
+- Writes: read and plan in one program (or with run_tool for a single read), \
+confirm with the user, then run the writes in a second run_code program that \
+names them in `writes`, or with run_tool for a single write.
+Discovery is shared: get_stubs returns signatures with docstrings for either \
+path, and search_tools returns the same tools as JSON schemas. One lookup is \
+enough; do not search twice for the same tool.
+- Inside run_code, the `check` module is already imported, with `asyncio` \
+and `json`; every tool is an async function named as get_stubs lists it. The \
+program's last expression is the result; the server serializes it. A failed \
+call raises RuntimeError whose message is a JSON object with status_code and \
+detail. List results are summaries and search_* results are only id and \
+names; call the get_* tool for a full record in the same program.
+- Tell the user which calls ran (tool, key arguments, any failures), always \
+for writes.
+"""
+
 
 # Dynamic mode registers both sets and shows one of them per request: the
 # dynamic tools, or, when the active filter has code_mode set (CHECK_CODE_MODE=1
 # for every request, the X-MCP-Code-Mode header or code_mode query parameter
 # for one), only the code-mode tools, so every API call goes through run_code.
-# CHECK_EXCLUDE_TOOLS still hides the code-mode tools, so a server can refuse
-# the opt-in.
+# hybrid_mode (CHECK_HYBRID_MODE=1, X-MCP-Hybrid-Mode, hybrid_mode=1) shows
+# both sets, so a request can call run_tool for one read and run_code for a
+# chain. CHECK_EXCLUDE_TOOLS still hides the code-mode tools, so a server can
+# refuse either opt-in.
 CODE_MODE_TOOLS: frozenset[str] = frozenset({"get_stubs", "run_code"})
 DYNAMIC_TOOLS: frozenset[str] = frozenset({"search_tools", "list_toolsets", "run_tool"})
 
@@ -167,8 +202,18 @@ def _code_mode_active(tf: ToolFilter) -> bool:
 
     A server that excludes the code-mode tools has refused the opt-in, so
     the dynamic tools stay available rather than leaving nothing to call.
+    Hybrid mode keeps them available on purpose.
     """
+    if tf.hybrid_mode:
+        return False
     return all(_code_mode_tool_allowed(tf, name) for name in CODE_MODE_TOOLS)
+
+
+def _hybrid_mode_active(tf: ToolFilter) -> bool:
+    """Whether this request shows the dynamic tools and the code tools together."""
+    return tf.hybrid_mode and all(
+        _code_mode_tool_allowed(tf, name) for name in CODE_MODE_TOOLS
+    )
 
 
 @asynccontextmanager
@@ -207,7 +252,7 @@ class CheckMCP(FastMCP):
 
     def _usable(self, tf: ToolFilter) -> ToolFilter:
         if tf.code_mode and not self._code_mode_available:
-            return dataclasses.replace(tf, code_mode=False)
+            return dataclasses.replace(tf, code_mode=False, hybrid_mode=False)
         return tf
 
     def active_tool_filter(self) -> ToolFilter:
@@ -302,7 +347,8 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
 
     Registers search_tools, list_toolsets, and run_tool, plus get_stubs and
     run_code. CheckMCP shows one set per request: the code-mode pair when the
-    request's filter has code_mode on, the dynamic trio otherwise.
+    request's filter has code_mode on, the dynamic trio otherwise, and both
+    sets when hybrid_mode is on.
     """
     index = ToolIndex()
     index.build()
@@ -649,8 +695,13 @@ def _create_server() -> CheckMCP:
     """Create and configure the MCP server from CHECK_TOOL_MODE and CHECK_CODE_MODE."""
     tool_mode = os.environ.get("CHECK_TOOL_MODE", "dynamic").lower()
     instructions = SERVER_INSTRUCTIONS
-    if tool_mode != "all" and ToolFilter.from_env().code_mode and code_mode_available():
-        instructions += CODE_MODE_INSTRUCTIONS
+    env_filter = ToolFilter.from_env()
+    if tool_mode != "all" and env_filter.code_mode and code_mode_available():
+        instructions += (
+            HYBRID_MODE_INSTRUCTIONS
+            if env_filter.hybrid_mode
+            else CODE_MODE_INSTRUCTIONS
+        )
     server = CheckMCP("Check Payroll API", instructions=instructions, lifespan=lifespan)
     setup_tools(server, tool_mode)
     return server
@@ -672,6 +723,12 @@ def main():
                 "CHECK_TOOL_MODE=dynamic)",
                 file=sys.stderr,
             )
+    elif mcp._static_filter.hybrid_mode:
+        print(
+            "Running in hybrid mode (search_tools, list_toolsets, run_tool + "
+            "get_stubs, run_code)",
+            file=sys.stderr,
+        )
     elif mcp._static_filter.code_mode:
         print(
             "Running in code mode (get_stubs + run_code)",

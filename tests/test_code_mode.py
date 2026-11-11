@@ -296,6 +296,119 @@ async def test_other_headers_leave_code_mode_off(monkeypatch, dynamic_server):
     assert "code mode is off" in result.content[0].text
 
 
+ALL_META_TOOLS = {"search_tools", "list_toolsets", "run_tool", "get_stubs", "run_code"}
+
+
+@pytest.fixture
+def hybrid_server(monkeypatch):
+    monkeypatch.setenv("CHECK_API_KEY", "test-key")
+    monkeypatch.delenv("CHECK_API_BASE_URL", raising=False)
+    monkeypatch.delenv("CHECK_CODE_MODE", raising=False)
+    monkeypatch.setenv("CHECK_CODE_TIMEOUT_SECS", "20")
+    monkeypatch.setenv("CHECK_HYBRID_MODE", "1")
+    server = CheckMCP("Test Hybrid", lifespan=lifespan)
+    setup_tools(server, tool_mode="dynamic")
+    return server
+
+
+class TestHybridModeFlag:
+    def test_env_implies_code_mode(self, monkeypatch):
+        monkeypatch.setenv("CHECK_HYBRID_MODE", "1")
+        monkeypatch.delenv("CHECK_CODE_MODE", raising=False)
+        tf = ToolFilter.from_env()
+        assert tf.hybrid_mode is True
+        assert tf.code_mode is True
+
+    def test_header_and_query_param(self):
+        assert ToolFilter.from_headers({"x-mcp-hybrid-mode": "1"}).hybrid_mode is True
+        assert ToolFilter.from_headers({"x-mcp-code-mode": "1"}).hybrid_mode is False
+        assert ToolFilter.from_query_params({"hybrid_mode": "true"}).hybrid_mode is True
+
+    def test_merge_is_an_opt_in(self):
+        merged = ToolFilter().merge(ToolFilter(hybrid_mode=True))
+        assert merged.hybrid_mode is True
+        assert merged.code_mode is True
+
+
+@pytest.mark.anyio
+async def test_hybrid_server_lists_and_runs_both_tool_sets(mock_api, hybrid_server):
+    """Hybrid mode shows the dynamic trio and the code pair together, and a
+    request can use either path."""
+    mock_api.get("/companies").mock(return_value=httpx.Response(200, json=COMPANIES))
+    async with Client(hybrid_server) as client:
+        names = {t.name for t in await client.list_tools()}
+        assert names == ALL_META_TOOLS
+        direct = await client.call_tool(
+            "run_tool", {"tool_name": "list_companies", "arguments": {}}
+        )
+        assert len(json.loads(direct.content[0].text)["results"]) == 2
+        program = await client.call_tool(
+            "run_code",
+            {"code": "page = await check.list_companies()\nlen(page['results'])"},
+        )
+        assert json.loads(program.content[0].text)["result"] == 2
+        stubs = await client.call_tool("get_stubs", {"toolset": "companies"})
+        assert "async def list_companies(" in stubs.content[0].text
+
+
+@pytest.mark.anyio
+async def test_hybrid_header_enables_both_sets_per_request(
+    mock_api, monkeypatch, dynamic_server
+):
+    mock_api.get("/companies").mock(return_value=httpx.Response(200, json=COMPANIES))
+    _attach_request(monkeypatch, _FakeRequest(headers={"x-mcp-hybrid-mode": "1"}))
+    async with Client(dynamic_server) as client:
+        names = {t.name for t in await client.list_tools()}
+        assert names == ALL_META_TOOLS
+        direct = await client.call_tool(
+            "run_tool", {"tool_name": "list_companies", "arguments": {}}
+        )
+        assert len(json.loads(direct.content[0].text)["results"]) == 2
+        program = await client.call_tool("run_code", {"code": "1 + 1"})
+        assert json.loads(program.content[0].text)["result"] == 2
+
+
+@pytest.mark.anyio
+async def test_hybrid_is_ignored_without_a_microvm_image(monkeypatch):
+    monkeypatch.setenv("CHECK_API_KEY", "test-key")
+    monkeypatch.setenv("CHECK_HYBRID_MODE", "1")
+    monkeypatch.delenv("CHECK_CODE_MICROVM_IMAGE", raising=False)
+    server = CheckMCP("Test", lifespan=lifespan)
+    setup_tools(server, tool_mode="dynamic")
+    assert server._static_filter.code_mode is False
+    assert server._static_filter.hybrid_mode is False
+    async with Client(server) as client:
+        names = {t.name for t in await client.list_tools()}
+    assert names == {"search_tools", "list_toolsets", "run_tool"}
+
+
+@pytest.mark.anyio
+async def test_server_can_refuse_hybrid_opt_in(monkeypatch, dynamic_server):
+    """Excluding the code tools leaves a hybrid request with the dynamic trio."""
+    dynamic_server._static_filter = ToolFilter(
+        exclude_tools=frozenset({"run_code", "get_stubs"})
+    )
+    _attach_request(monkeypatch, _FakeRequest(headers={"x-mcp-hybrid-mode": "1"}))
+    async with Client(dynamic_server) as client:
+        names = {t.name for t in await client.list_tools()}
+        assert names == {"search_tools", "list_toolsets", "run_tool"}
+        result = await client.call_tool("run_code", {"code": "1"}, raise_on_error=False)
+    assert result.is_error
+
+
+def test_hybrid_instructions_replace_the_code_mode_block(monkeypatch):
+    from mcp_server_check import server as server_module
+
+    monkeypatch.setenv("CHECK_API_KEY", "test-key")
+    monkeypatch.setenv("CHECK_CODE_MICROVM_IMAGE", "image:test")
+    monkeypatch.setenv("CHECK_HYBRID_MODE", "1")
+    monkeypatch.delenv("CHECK_CODE_MODE", raising=False)
+    created = server_module._create_server()
+    assert "## Hybrid Mode" in created.instructions
+    assert "## Code Mode" not in created.instructions
+    assert "run_tool" in created.instructions and "run_code" in created.instructions
+
+
 @pytest.mark.anyio
 async def test_header_cannot_relax_server_policy(monkeypatch, dynamic_server):
     """Opting into code mode by header still runs under the env filter."""
