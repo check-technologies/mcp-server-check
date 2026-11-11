@@ -8,7 +8,7 @@ from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.types import Address, FormParameter
 from mcp_server_check.helpers import (
     Ctx,
-    apply_clear_mailing_address,
+    apply_clear_fields,
     build_body,
     build_params,
     check_api_get,
@@ -16,6 +16,10 @@ from mcp_server_check.helpers import (
     check_api_patch,
     check_api_post,
     merge_metadata_filter_params,
+)
+
+CLEARABLE_EMPLOYEE_FIELDS = frozenset(
+    {"start_date", "termination_date", "mailing_address"}
 )
 
 
@@ -188,6 +192,7 @@ async def update_employee(
     active: bool | None = None,
     w2_electronic_consent_provided: bool | None = None,
     metadata: dict | None = None,
+    clear_fields: list[str] | None = None,
 ) -> dict:
     """Update an existing employee.
 
@@ -205,9 +210,8 @@ async def update_employee(
         mailing_address: Envelope-only mailing address (not used for tax).
             Same keys as residence. Requires the payee mailing address feature
             on the provider.
-        clear_mailing_address: Pass true to remove the employee's mailing
-            address (sends mailing_address as null). Cannot be combined with
-            mailing_address.
+        clear_mailing_address: Deprecated; use clear_fields=["mailing_address"].
+            Pass true to remove the mailing address.
         workplaces: List of workplace IDs where the employee works.
         primary_workplace: Workplace ID of the employee's primary workplace.
         ssn: Employee's Social Security Number.
@@ -218,6 +222,11 @@ async def update_employee(
             their W-2 electronically instead of on paper. Set to true only after
             the employee has given that consent. Omit to leave it unchanged.
         metadata: Arbitrary key-value object stored on the employee.
+        clear_fields: Fields to remove, each sent to the API as null. Accepts
+            "start_date", "termination_date", and "mailing_address". A field listed
+            here cannot also be given a value. To rehire, pass the new start_date
+            with clear_fields=["termination_date"]. To cancel a hire who was never
+            paid, pass active=false with clear_fields=["start_date"].
     """
     body = build_body(
         {},
@@ -239,7 +248,10 @@ async def update_employee(
         w2_electronic_consent_provided=w2_electronic_consent_provided,
         metadata=metadata,
     )
-    apply_clear_mailing_address(body, mailing_address, clear_mailing_address)
+    merged_clear_fields = list(dict.fromkeys(clear_fields or []))
+    if clear_mailing_address and "mailing_address" not in merged_clear_fields:
+        merged_clear_fields.append("mailing_address")
+    apply_clear_fields(body, merged_clear_fields, CLEARABLE_EMPLOYEE_FIELDS)
     return await check_api_patch(ctx, f"/employees/{employee_id}", data=body)
 
 

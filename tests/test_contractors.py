@@ -67,27 +67,75 @@ async def test_update_contractor_mailing_address(mock_api, ctx):
 
 
 @pytest.mark.anyio
-async def test_update_contractor_clear_mailing_address(mock_api, ctx):
-    mock_api.patch("/contractors/ctr_001").mock(
-        return_value=httpx.Response(200, json={"id": "ctr_001"})
-    )
-    await update_contractor(ctx, contractor_id="ctr_001", clear_mailing_address=True)
-    body = json.loads(mock_api.patch("/contractors/ctr_001").calls.last.request.content)
-    assert body == {"mailing_address": None}
-
-
-@pytest.mark.anyio
-async def test_update_contractor_rejects_mailing_address_with_clear(mock_api, ctx):
+@pytest.mark.parametrize(
+    ("kwargs", "expected"),
+    [
+        ({"clear_fields": ["mailing_address"]}, {"mailing_address": None}),
+        (
+            {"start_date": "2026-11-11", "clear_fields": ["termination_date"]},
+            {"start_date": "2026-11-11", "termination_date": None},
+        ),
+        ({"clear_fields": []}, {}),
+        ({"clear_mailing_address": True}, {"mailing_address": None}),
+        ({"clear_mailing_address": False}, {}),
+        (
+            {
+                "clear_fields": ["mailing_address"],
+                "clear_mailing_address": True,
+            },
+            {"mailing_address": None},
+        ),
+    ],
+)
+async def test_update_contractor_clear_fields(mock_api, ctx, kwargs, expected):
     route = mock_api.patch("/contractors/ctr_001").mock(
         return_value=httpx.Response(200, json={"id": "ctr_001"})
     )
-    with pytest.raises(ValueError, match="not both"):
-        await update_contractor(
-            ctx,
-            contractor_id="ctr_001",
-            mailing_address={"line1": "PO Box 456"},
-            clear_mailing_address=True,
-        )
+    await update_contractor(ctx, contractor_id="ctr_001", **kwargs)
+    assert json.loads(route.calls.last.request.content) == expected
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        (
+            {
+                "mailing_address": {"line1": "PO Box 456"},
+                "clear_fields": ["mailing_address"],
+            },
+            "Pass either a value or clear_fields for mailing_address, not both.",
+        ),
+        (
+            {
+                "termination_date": "2026-11-10",
+                "clear_fields": ["termination_date"],
+            },
+            "Pass either a value or clear_fields for termination_date, not both.",
+        ),
+        (
+            {"clear_fields": ["email"]},
+            "clear_fields cannot clear email. Clearable fields: "
+            "mailing_address, start_date, termination_date.",
+        ),
+        (
+            {
+                "mailing_address": {"line1": "PO Box 456"},
+                "clear_mailing_address": True,
+            },
+            "Pass either a value or clear_fields for mailing_address, not both.",
+        ),
+    ],
+)
+async def test_update_contractor_rejects_invalid_clear_fields(
+    mock_api, ctx, kwargs, message
+):
+    route = mock_api.patch("/contractors/ctr_001").mock(
+        return_value=httpx.Response(200, json={"id": "ctr_001"})
+    )
+    with pytest.raises(ValueError) as exc_info:
+        await update_contractor(ctx, contractor_id="ctr_001", **kwargs)
+    assert str(exc_info.value) == message
     assert not route.called
 
 
