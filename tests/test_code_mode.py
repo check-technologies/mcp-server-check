@@ -296,7 +296,7 @@ async def test_other_headers_leave_code_mode_off(monkeypatch, dynamic_server):
     assert "code mode is off" in result.content[0].text
 
 
-ALL_META_TOOLS = {"search_tools", "list_toolsets", "run_tool", "get_stubs", "run_code"}
+HYBRID_TOOLS = {"run_tool", "get_stubs", "run_code"}
 
 
 @pytest.fixture
@@ -331,13 +331,21 @@ class TestHybridModeFlag:
 
 
 @pytest.mark.anyio
-async def test_hybrid_server_lists_and_runs_both_tool_sets(mock_api, hybrid_server):
-    """Hybrid mode shows the dynamic trio and the code pair together, and a
-    request can use either path."""
+async def test_hybrid_server_lists_and_runs_both_routes(mock_api, hybrid_server):
+    """Hybrid mode shows run_tool beside the code pair, and a request can use
+    either route. search_tools and list_toolsets stay hidden: get_stubs is the
+    one discovery tool, and its stubs are far smaller than their schemas."""
     mock_api.get("/companies").mock(return_value=httpx.Response(200, json=COMPANIES))
     async with Client(hybrid_server) as client:
         names = {t.name for t in await client.list_tools()}
-        assert names == ALL_META_TOOLS
+        assert names == HYBRID_TOOLS
+        for hidden in ("search_tools", "list_toolsets"):
+            result = await client.call_tool(
+                hidden, {"query": "companies"}, raise_on_error=False
+            )
+            assert result.is_error
+            assert "hybrid mode" in result.content[0].text
+            assert "get_stubs" in result.content[0].text
         direct = await client.call_tool(
             "run_tool", {"tool_name": "list_companies", "arguments": {}}
         )
@@ -359,7 +367,7 @@ async def test_hybrid_header_enables_both_sets_per_request(
     _attach_request(monkeypatch, _FakeRequest(headers={"x-mcp-hybrid-mode": "1"}))
     async with Client(dynamic_server) as client:
         names = {t.name for t in await client.list_tools()}
-        assert names == ALL_META_TOOLS
+        assert names == HYBRID_TOOLS
         direct = await client.call_tool(
             "run_tool", {"tool_name": "list_companies", "arguments": {}}
         )
@@ -406,7 +414,9 @@ def test_hybrid_instructions_replace_the_code_mode_block(monkeypatch):
     created = server_module._create_server()
     assert "## Hybrid Mode" in created.instructions
     assert "## Code Mode" not in created.instructions
-    assert "run_tool" in created.instructions and "run_code" in created.instructions
+    assert "run_tool" in created.instructions
+    assert "run_code" in created.instructions
+    assert "get_stubs is the one discovery tool" in created.instructions
 
 
 @pytest.mark.anyio

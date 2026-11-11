@@ -25,8 +25,8 @@ when a session starts. Run all commands through `uv run` (they execute inside `.
   request; `run_code` runs each program in CPython in a Lambda MicroVM, so code mode only
   turns on when `CHECK_CODE_MICROVM_IMAGE` names an image, and needs `uv sync --extra code`;
   the `x-mcp-code-mode` header or `code_mode` query parameter adds the same two tools per
-  request; `CHECK_HYBRID_MODE=1`, the `x-mcp-hybrid-mode` header, or `hybrid_mode=1` keeps the
-  3 meta-tools and adds `get_stubs` + `run_code` beside them; budgets via `CHECK_CODE_TIMEOUT_SECS`, `CHECK_CODE_MAX_CALLS`,
+  request; `CHECK_HYBRID_MODE=1`, the `x-mcp-hybrid-mode` header, or `hybrid_mode=1` shows
+  `run_tool` beside `get_stubs` + `run_code` (search_tools and list_toolsets hidden); budgets via `CHECK_CODE_TIMEOUT_SECS`, `CHECK_CODE_MAX_CALLS`,
   `CHECK_CODE_CONCURRENCY`, `CHECK_CODE_MAX_RETRIES`; tests run programs in a local runner,
   the `local_microvm` fixture in `tests/conftest.py`), `CHECK_TRANSPORT`, `CHECK_ENV` / `CHECK_API_BASE_URL`, `CHECK_READ_ONLY`,
   `CHECK_TOOLSETS`, `CHECK_TOOLS`, `CHECK_EXCLUDE_TOOLS`, `CHECK_EXCLUDE_MONEY_MOVEMENT`,
