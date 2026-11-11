@@ -23,6 +23,7 @@ CHECK_API_KEY=your-key uv run mcp-server-check
 | `CHECK_API_BASE_URL` | No | `https://sandbox.checkhq.com` | API base URL |
 | `CHECK_TOOL_MODE` | No | `dynamic` | Tool mode: `dynamic` (3 meta-tools) or `all` (all tools individually) |
 | `CHECK_CODE_MODE` | No | — | Set to `1`, `true`, or `yes` to replace dynamic mode's three meta-tools with `get_stubs` and `run_code` (see [Code Mode](#code-mode-experimental)); a remote client can opt in per request with the `X-MCP-Code-Mode` header instead |
+| `CHECK_HYBRID_MODE` | No | — | Set to `1` to expose the three dynamic meta-tools and `get_stubs` + `run_code` together, with instructions on when to use each (see [Hybrid Mode](#hybrid-mode-experimental)); per request, the `X-MCP-Hybrid-Mode` header or `hybrid_mode=1` query parameter |
 | `CHECK_CODE_TIMEOUT_SECS` | No | `60` | Code mode: wall-clock budget for one `run_code` program |
 | `CHECK_CODE_MAX_CALLS` | No | `200` | Code mode: most tool calls one program may make |
 | `CHECK_CODE_CONCURRENCY` | No | `8` | Code mode: most tool calls one program runs at once |
@@ -63,6 +64,7 @@ The server supports fine-grained tool filtering, configurable via environment va
 | Exclude destructive | `CHECK_EXCLUDE_DESTRUCTIVE` | `X-MCP-Exclude-Destructive` |
 | Preview toolsets | `CHECK_PREVIEW_TOOLSETS` | `X-MCP-Preview-Toolsets` (or the `preview_toolsets` query parameter) |
 | Code mode | `CHECK_CODE_MODE` | `X-MCP-Code-Mode` (or the `code_mode` query parameter) |
+| Hybrid mode | `CHECK_HYBRID_MODE` | `X-MCP-Hybrid-Mode` (or the `hybrid_mode` query parameter) |
 
 **Filtering precedence:** `exclude_tools` > category exclusions (money movement, destructive) > `preview_toolsets` > `read_only` > `tools` > `toolsets`. Exclude always wins; category exclusions apply even to tools named in the `tools` allowlist; a preview toolset stays hidden until it is opted into, even if `tools` or `toolsets` names it; if `tools` is set it acts as an allowlist independent of toolsets.
 
@@ -180,6 +182,15 @@ https://<server>/mcp?code_mode=1
 ```
 
 Without the header, a dynamic-mode server lists only the three meta-tools and refuses calls to `run_code` and `get_stubs`. With it, only `get_stubs` and `run_code` are listed and the three meta-tools are refused, so every API call goes through a program. To refuse the opt-in, set `CHECK_EXCLUDE_TOOLS=run_code,get_stubs` on the server. The code-mode server instructions are only sent when the server itself sets `CHECK_CODE_MODE`; a client enabling it by header relies on the tool descriptions. Code mode is part of dynamic mode, so it has no effect under `CHECK_TOOL_MODE=all`.
+
+### Hybrid Mode (experimental)
+
+Hybrid mode keeps both sets: `search_tools`, `list_toolsets`, and `run_tool` next to `get_stubs` and `run_code`. It exists to measure whether a model given the choice routes well. The server instructions (sent when the server sets `CHECK_HYBRID_MODE`; a client opting in by header relies on its own prompt) say to use `run_tool` for a single call whose arguments are known and one `run_code` program for anything with a dependent hop, a fan-out, paging, or aggregation. Hybrid mode implies code mode, so it needs the same MicroVM image, and `CHECK_EXCLUDE_TOOLS=run_code,get_stubs` refuses it the same way.
+
+```
+X-MCP-Hybrid-Mode: 1
+https://<server>/mcp?hybrid_mode=1
+```
 
 Code mode replaces the three dynamic-mode tools with two, so every API call goes through a program:
 
