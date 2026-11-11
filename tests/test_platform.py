@@ -11,6 +11,7 @@ from mcp_server_check.tools.platform import (
     create_communication,
     get_accounting_mappings,
     get_applied_for_ids_report,
+    get_user,
     list_accounting_accounts,
     list_accounting_integrations,
     list_accounting_sync_attempts,
@@ -21,6 +22,7 @@ from mcp_server_check.tools.platform import (
     list_requirements,
     list_usage_records,
     list_usage_summaries,
+    list_users,
     refresh_accounting_accounts,
     sync_accounting,
     validate_address,
@@ -334,3 +336,58 @@ async def test_get_applied_for_ids_report(mock_api, ctx):
     )
     result = await get_applied_for_ids_report(ctx)
     assert result["report"] == "data"
+
+
+USER = {
+    "id": "usr_8Wd2LkXJ0yTq4mHvR3sN",
+    "first_name": "Jane",
+    "last_name": "Doe",
+    "email": "jane.doe@example.com",
+    "created_at": "2025-06-11T14:32:08.512946Z",
+    "status": "active",
+}
+
+
+@pytest.mark.anyio
+async def test_list_users(mock_api, ctx):
+    route = mock_api.get("/users").mock(
+        return_value=httpx.Response(
+            200, json={"next": None, "previous": None, "results": [USER]}
+        )
+    )
+    result = await list_users(ctx, limit=50, cursor="abc")
+
+    # No summary shaping for usr_: the object is already six fields.
+    assert result["results"] == [USER]
+    assert route.calls.last.request.url.params["limit"] == "50"
+    assert route.calls.last.request.url.params["cursor"] == "abc"
+
+
+@pytest.mark.anyio
+async def test_list_users_sends_no_params_by_default(mock_api, ctx):
+    route = mock_api.get("/users").mock(
+        return_value=httpx.Response(
+            200, json={"next": None, "previous": None, "results": []}
+        )
+    )
+    await list_users(ctx)
+
+    assert dict(route.calls.last.request.url.params) == {}
+
+
+@pytest.mark.anyio
+async def test_get_user(mock_api, ctx):
+    mock_api.get("/users/usr_8Wd2LkXJ0yTq4mHvR3sN").mock(
+        return_value=httpx.Response(200, json=USER)
+    )
+    result = await get_user(ctx, "usr_8Wd2LkXJ0yTq4mHvR3sN")
+
+    assert result == USER
+
+
+@pytest.mark.anyio
+async def test_get_user_accepts_a_legacy_uuid(mock_api, ctx):
+    uuid = "3f2d1c0b-1234-4abc-9def-0123456789ab"
+    mock_api.get(f"/users/{uuid}").mock(return_value=httpx.Response(200, json=USER))
+
+    assert (await get_user(ctx, uuid))["id"] == USER["id"]
