@@ -600,7 +600,7 @@ The counterparties Check files and remits to (IRS, state revenue departments). G
 | `list_agencies` | GET | List agencies; filter by jurisdiction or label |
 | `get_agency` | GET | Get a specific agency |
 
-### Webhooks (7 tools)
+### Webhooks (10 tools)
 
 | Tool | Method | Description |
 |---|---|---|
@@ -610,6 +610,7 @@ The counterparties Check files and remits to (IRS, state revenue departments). G
 | `update_webhook_config` | PATCH | Update a webhook configuration |
 | `delete_webhook_config` | DELETE | Delete a webhook configuration |
 | `ping_webhook_config` | POST | Send a test ping |
+| `list_event_types` | GET | List webhook event types (catalog for event_types selection) |
 | `list_webhook_deliveries` | GET | List webhook deliveries with status + attempts |
 | `get_webhook_delivery` | GET | Get a webhook delivery |
 | `retry_webhook_delivery` | POST | Re-enqueue a webhook delivery (sandbox only) |
