@@ -11,6 +11,7 @@ from mcp_server_check.tools.webhooks import (
     create_webhook_config,
     delete_webhook_config,
     get_webhook_delivery,
+    list_event_types,
     list_webhook_configs,
     list_webhook_deliveries,
     ping_webhook_config,
@@ -38,6 +39,63 @@ async def test_create_webhook_config(mock_api, ctx):
     )
     result = await create_webhook_config(ctx, url="https://example.com/webhook")
     assert result["id"] == "whc_new"
+
+
+@pytest.mark.anyio
+async def test_create_webhook_config_with_event_types(mock_api, ctx):
+    route = mock_api.post("/webhook_configs").mock(
+        return_value=httpx.Response(
+            201,
+            json={
+                "id": "whc_new",
+                "event_types": ["payroll.created", "payroll.updated"],
+            },
+        )
+    )
+    result = await create_webhook_config(
+        ctx,
+        url="https://example.com/webhook",
+        event_types=["payroll.created", "payroll.updated"],
+    )
+    assert result["event_types"] == ["payroll.created", "payroll.updated"]
+    assert json.loads(route.calls.last.request.content) == {
+        "url": "https://example.com/webhook",
+        "event_types": ["payroll.created", "payroll.updated"],
+    }
+
+
+@pytest.mark.anyio
+async def test_update_webhook_config_with_event_types(mock_api, ctx):
+    route = mock_api.patch("/webhook_configs/whc_001").mock(
+        return_value=httpx.Response(200, json={"id": "whc_001", "event_types": []})
+    )
+    result = await update_webhook_config(
+        ctx,
+        webhook_config_id="whc_001",
+        event_types=[],
+    )
+    assert result["event_types"] == []
+    assert json.loads(route.calls.last.request.content) == {"event_types": []}
+
+
+@pytest.mark.anyio
+async def test_list_event_types(mock_api, ctx):
+    route = mock_api.get("/event_types").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "results": [
+                    {
+                        "type": "payroll.created",
+                        "selectable": True,
+                    }
+                ]
+            },
+        )
+    )
+    result = await list_event_types(ctx, api_version="2025-01-01")
+    assert result["results"][0]["type"] == "payroll.created"
+    assert route.calls.last.request.url.params["api_version"] == "2025-01-01"
 
 
 @pytest.mark.anyio
