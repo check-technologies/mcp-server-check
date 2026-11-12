@@ -52,6 +52,7 @@ async def create_webhook_config(
     ctx: Ctx,
     url: str,
     api_version: str | None = None,
+    event_types: list[str] | None = None,
     idempotency_key: str | None = None,
 ) -> dict:
     """Create a new webhook configuration.
@@ -62,12 +63,19 @@ async def create_webhook_config(
             independent of your account default. Accepts the same values as the
             Check-Version header (e.g. "2025-01-01", "2021-09-02"). Omit to
             follow your account's default API version.
+        event_types: Event types this webhook config receives. Defaults to an
+            empty list, which receives none. Call list_event_types to see valid
+            values and whether each is selectable at your API version.
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     return await check_api_post(
         ctx,
         "/webhook_configs",
-        data=build_body({"url": url}, api_version=api_version),
+        data=build_body(
+            {"url": url},
+            api_version=api_version,
+            event_types=event_types,
+        ),
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
 
@@ -78,6 +86,7 @@ async def update_webhook_config(
     url: str | None = None,
     active: bool | None = None,
     api_version: str | None = None,
+    event_types: list[str] | None = None,
 ) -> dict:
     """Update a webhook configuration.
 
@@ -89,11 +98,21 @@ async def update_webhook_config(
             independent of your account default. Accepts the same values as the
             Check-Version header (e.g. "2025-01-01", "2021-09-02"). Omit to
             leave the current value unchanged.
+        event_types: Event types this webhook config receives. Replaces the
+            current selection. Omit to leave the selection unchanged. Call
+            list_event_types to see valid values and whether each is selectable
+            at your API version.
     """
     return await check_api_patch(
         ctx,
         f"/webhook_configs/{webhook_config_id}",
-        data=build_body({}, url=url, active=active, api_version=api_version),
+        data=build_body(
+            {},
+            url=url,
+            active=active,
+            api_version=api_version,
+            event_types=event_types,
+        ),
     )
 
 
@@ -113,6 +132,28 @@ async def ping_webhook_config(ctx: Ctx, webhook_config_id: str) -> dict:
         webhook_config_id: The Check webhook config ID.
     """
     return await check_api_post(ctx, f"/webhook_configs/{webhook_config_id}/ping")
+
+
+async def list_event_types(
+    ctx: Ctx,
+    webhook_config: str | None = None,
+    api_version: str | None = None,
+) -> dict:
+    """List webhook event types and whether each can be selected on a webhook
+    config at the requested API version.
+
+    Args:
+        webhook_config: Evaluate event types at the API version of this webhook
+            config (e.g. "whc_xxxxx"). Cannot be combined with api_version.
+        api_version: Evaluate event types at this API version (e.g.
+            "2025-01-01"). Cannot be combined with webhook_config. Omit to use
+            your account's default API version.
+    """
+    return await check_api_get(
+        ctx,
+        "/event_types",
+        params=build_params(webhook_config=webhook_config, api_version=api_version),
+    )
 
 
 async def list_webhook_deliveries(
@@ -184,6 +225,7 @@ async def retry_webhook_delivery(ctx: Ctx, webhook_delivery_id: str) -> dict:
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, list_webhook_configs)
     add_annotated_tool(mcp, get_webhook_config)
+    add_annotated_tool(mcp, list_event_types)
     add_annotated_tool(mcp, list_webhook_deliveries)
     add_annotated_tool(mcp, get_webhook_delivery)
     if not read_only:
