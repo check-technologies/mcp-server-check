@@ -437,6 +437,38 @@ async def simulate_complete_disbursements(ctx: Ctx, payroll_id: str) -> dict:
     )
 
 
+async def simulate_refuse_wire_drawdown(ctx: Ctx, payroll_id: str) -> dict:
+    """Simulate the employer's bank refusing a wire drawdown (sandbox only).
+
+    Fails a processing wire drawdown payroll with simulation_mode "manual"
+    whose drawdown request is still awaiting a response.
+
+    Args:
+        payroll_id: The Check payroll ID (e.g. "pay_xxxxx").
+    """
+    return shape_payroll(
+        await check_api_post(
+            ctx, f"/payrolls/{payroll_id}/simulate/refuse_wire_drawdown"
+        )
+    )
+
+
+async def simulate_time_out_wire_drawdown(ctx: Ctx, payroll_id: str) -> dict:
+    """Simulate a wire drawdown request timing out unanswered (sandbox only).
+
+    Fails a processing wire drawdown payroll with simulation_mode "manual"
+    when its drawdown request is still awaiting a response.
+
+    Args:
+        payroll_id: The Check payroll ID (e.g. "pay_xxxxx").
+    """
+    return shape_payroll(
+        await check_api_post(
+            ctx, f"/payrolls/{payroll_id}/simulate/time_out_wire_drawdown"
+        )
+    )
+
+
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, list_payrolls)
     add_annotated_tool(mcp, get_payroll)
@@ -454,3 +486,5 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
         add_annotated_tool(mcp, simulate_complete_funding)
         add_annotated_tool(mcp, simulate_fail_funding)
         add_annotated_tool(mcp, simulate_complete_disbursements)
+        add_annotated_tool(mcp, simulate_refuse_wire_drawdown)
+        add_annotated_tool(mcp, simulate_time_out_wire_drawdown)

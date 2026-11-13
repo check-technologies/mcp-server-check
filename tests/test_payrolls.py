@@ -15,7 +15,9 @@ from mcp_server_check.tools.payrolls import (
     list_payrolls,
     preview_payroll,
     reopen_payroll,
+    simulate_refuse_wire_drawdown,
     simulate_start_processing,
+    simulate_time_out_wire_drawdown,
     update_payroll,
 )
 
@@ -188,6 +190,23 @@ async def test_simulate_start_processing(mock_api, ctx):
     )
     result = await simulate_start_processing(ctx, payroll_id="pay_001")
     assert result["id"] == "pay_001"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("tool", "action"),
+    [
+        (simulate_refuse_wire_drawdown, "simulate/refuse_wire_drawdown"),
+        (simulate_time_out_wire_drawdown, "simulate/time_out_wire_drawdown"),
+    ],
+)
+async def test_simulate_wire_drawdown_actions(mock_api, ctx, tool, action):
+    route = mock_api.post(f"/payrolls/pay_001/{action}").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    result = await tool(ctx, payroll_id="pay_001")
+    assert result == {}
+    assert route.called
 
 
 # --- Inlined items are opt-in ---
