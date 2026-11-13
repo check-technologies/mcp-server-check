@@ -11,11 +11,21 @@ from mcp_server_check.tool_factory import (
     Field,
     Resource,
     _build_body,
+    _build_params,
     generate_tools,
 )
 
 
 # --- Unit tests for _build_body ---
+
+
+class TestBuildParams:
+    def test_list_values_pass_through_for_repeated_query_params(self):
+        params = _build_params(
+            ["employee"],
+            {"employee": ["emp_a", "emp_b"], "limit": 25, "cursor": None},
+        )
+        assert params == {"employee": ["emp_a", "emp_b"], "limit": 25}
 
 
 class TestBuildBody:

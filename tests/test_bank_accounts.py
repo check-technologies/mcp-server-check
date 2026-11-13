@@ -43,6 +43,19 @@ async def test_list_bank_accounts_with_filters(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_list_bank_accounts_with_multiple_employees(mock_api, ctx):
+    mock_api.get("/bank_accounts").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "bnk_001"}]},
+        )
+    )
+    await list_bank_accounts(ctx, employee=["emp_a", "emp_b"])
+    req = mock_api.get("/bank_accounts").calls.last.request
+    assert req.url.params.get_list("employee") == ["emp_a", "emp_b"]
+
+
+@pytest.mark.anyio
 async def test_create_bank_account(mock_api, ctx):
     mock_api.post("/bank_accounts").mock(
         return_value=httpx.Response(201, json={"id": "bnk_new"})

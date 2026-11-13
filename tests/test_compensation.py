@@ -142,6 +142,19 @@ async def test_list_benefits_with_filters(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_list_benefits_with_multiple_employees(mock_api, ctx):
+    mock_api.get("/benefits").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "ben_001"}]},
+        )
+    )
+    await list_benefits(ctx, employee=["emp_a", "emp_b"])
+    req = mock_api.get("/benefits").calls.last.request
+    assert req.url.params.get_list("employee") == ["emp_a", "emp_b"]
+
+
+@pytest.mark.anyio
 async def test_list_post_tax_deductions_with_filters(mock_api, ctx):
     mock_api.get("/post_tax_deductions").mock(
         return_value=httpx.Response(

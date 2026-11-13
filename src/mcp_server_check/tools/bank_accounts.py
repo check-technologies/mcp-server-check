@@ -22,8 +22,8 @@ async def list_bank_accounts(
     company: str | None = None,
     limit: int | None = None,
     cursor: str | None = None,
-    employee: str | None = None,
-    contractor: str | None = None,
+    employee: str | list[str] | None = None,
+    contractor: str | list[str] | None = None,
     metadata: dict[str, str] | None = None,
 ) -> dict:
     """List bank accounts, optionally filtered by company.
@@ -32,8 +32,10 @@ async def list_bank_accounts(
         company: Filter to bank accounts belonging to this Check company ID (e.g. "com_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
-        employee: Filter by employee ID.
-        contractor: Filter by contractor ID.
+        employee: Filter to employee IDs (one ID or a list). Repeated query values
+            are OR'd, up to 500 IDs per request.
+        contractor: Filter to contractor IDs (one ID or a list). Repeated query
+            values are OR'd, up to 500 IDs per request.
         metadata: Return only bank accounts whose metadata contains every given key and value
             (for example {"external_id": "123"}). Multiple keys are combined with AND.
     """

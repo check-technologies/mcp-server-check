@@ -60,6 +60,8 @@ class Field:
     doc: str = ""
     create_only: bool = False
     update_only: bool = False
+    list_filter_multi: bool = False
+    list_filter_max: int | None = None
 
 
 @dataclass
@@ -156,7 +158,7 @@ def _build_params(filter_names: list[str], kwargs: dict) -> dict | None:
         val = kwargs.get(name)
         if val is not None:
             if isinstance(val, list):
-                params[name] = ",".join(val)
+                params[name] = val
             elif isinstance(val, bool):
                 params[name] = str(val).lower()
             else:
@@ -283,13 +285,21 @@ def _create_list_function(res: Resource, filter_fields: list[str]):
     for fname in filter_fields:
         # Find the field doc from resource fields
         field_def = next((f for f in res.fields if f.name == fname), None)
-        field_type = field_def.type if field_def else str
+        if field_def and field_def.list_filter_multi:
+            field_type: Any = str | list[str]
+            max_values = field_def.list_filter_max or 500
+            filter_docs[fname] = (
+                f"Filter to {fname.replace('_', ' ')} IDs. Pass one ID or a list; "
+                f"repeated query values are OR'd, up to {max_values} IDs per request."
+            )
+        else:
+            field_type = field_def.type if field_def else str
+            if field_def and field_def.doc:
+                filter_docs[fname] = field_def.doc
+            else:
+                filter_docs[fname] = f'Filter by {fname} (e.g. "{fname}_xxxxx").'
         annotations[fname] = field_type | None
         defaults[fname] = None
-        if field_def and field_def.doc:
-            filter_docs[fname] = field_def.doc
-        else:
-            filter_docs[fname] = f'Filter by {fname} (e.g. "{fname}_xxxxx").'
 
     limit_default = res.default_limit
     if limit_default is not None:
@@ -331,7 +341,10 @@ def _create_list_function(res: Resource, filter_fields: list[str]):
     ]
     for pname in filter_fields:
         field_def = next((f for f in res.fields if f.name == pname), None)
-        field_type = field_def.type if field_def else str
+        if field_def and field_def.list_filter_multi:
+            field_type: Any = str | list[str]
+        else:
+            field_type = field_def.type if field_def else str
         params_list.append(
             inspect.Parameter(
                 pname,
