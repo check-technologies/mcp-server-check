@@ -792,3 +792,20 @@ def test_server_instructions_teach_real_id_prefixes():
         assert prefix in SERVER_INSTRUCTIONS
     for prefix in ("prl_", "pit_", "pmt_"):
         assert prefix not in SERVER_INSTRUCTIONS
+
+
+@pytest.mark.anyio
+async def test_docstrings_carry_the_qa_findings():
+    """Three gaps the Checkmate QA review traced to tool descriptions: a paid
+    payment can hide a returned attempt, active is not a termination flag,
+    and a company can go by either of two names."""
+    server = _make_all_tools_server(ToolFilter())
+    tools = {t.name: t for t in await server.list_tools()}
+    assert "list_payment_attempts" in tools["list_payments"].description
+    assert "returned" in tools["list_payments"].description
+    assert "attempts" in tools["get_payment"].description
+    assert "return code" in tools["list_payment_attempts"].description
+    assert "no termination field" in tools["get_company"].description
+    assert "active" in tools["get_company"].description
+    assert "trade name" in tools["search_companies"].description
+    assert "partner" in tools["search_companies"].description

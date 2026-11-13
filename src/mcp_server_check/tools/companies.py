@@ -68,7 +68,14 @@ async def search_companies(
     """Search companies by name.
 
     Searches across legal name, trade name, and company ID using
-    case-insensitive matching.
+    case-insensitive matching. A company's legal name and trade name can
+    differ ("Viviana MD LLC" trading as "Viviana Wellness"), so when the
+    first search misses, try the other name the user might mean, and offer
+    the closest match to either rather than the first result.
+
+    This searches the partner's companies, so the partner's own name is not
+    a company here: a user who names their own platform means the partner
+    you are assisting, not an employer to look up.
 
     Results carry only id, legal_name, and trade_name. Anything else about
     the company (pay_frequency, onboard status, address) needs get_company
@@ -88,6 +95,15 @@ async def search_companies(
 
 async def get_company(ctx: Ctx, company_id: str) -> dict:
     """Get details for a specific company.
+
+    The company object has no termination field. `active` is not it: a
+    terminated company can still show active, so never tell a user a company
+    is not terminated because active is true. Termination is a separate
+    record that this tool does not return; if the user says the company is
+    terminated, or a payroll action fails with company_terminated_error, take
+    that as the fact and do not argue from this object. `in_good_standing`,
+    `onboard`, and `implementation` describe setup and funding standing, not
+    termination.
 
     Args:
         company_id: The Check company ID (e.g. "com_xxxxx").
