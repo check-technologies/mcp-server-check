@@ -131,7 +131,7 @@ async def get_company_tax_param_setting(
 
 async def list_employee_tax_params(
     ctx: Ctx,
-    employee: str | None = None,
+    employee: str | list[str] | None = None,
     limit: int | None = None,
     cursor: str | None = None,
     company: str | None = None,
@@ -142,7 +142,8 @@ async def list_employee_tax_params(
     """List employee tax parameters, optionally filtered by employee.
 
     Args:
-        employee: Filter to tax parameters for this Check employee ID (e.g. "emp_xxxxx").
+        employee: When listing by company, filter to these employee IDs (one ID or
+            a list). Repeated query values are OR'd, up to 100 IDs per request.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
         company: Filter by company ID.
@@ -410,7 +411,7 @@ async def update_company_tax_elections(ctx: Ctx, data: list[dict]) -> dict:
 
 async def list_employee_tax_elections(
     ctx: Ctx,
-    employee: str | None = None,
+    employee: str | list[str] | None = None,
     company: str | None = None,
     tax: str | None = None,
     as_of: str | None = None,
@@ -437,7 +438,8 @@ async def list_employee_tax_elections(
     back as ``cursor`` to fetch the following page.
 
     Args:
-        employee: Filter to this Check employee ID (e.g. "emp_xxxxx").
+        employee: Filter to employee IDs (one ID or a list). Repeated query values
+            are OR'd, up to 100 IDs per request.
         company: Filter to this Check company ID (e.g. "com_xxxxx").
         tax: Filter to this Check tax ID (e.g. "tax_xxxxx").
         as_of: Return elections applicable on this date (defaults to today).

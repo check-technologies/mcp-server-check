@@ -158,11 +158,17 @@ _benefits = Resource(
     description="employee benefits",
     list_filters=["company", "employee", "include_external"],
     list_doc=(
-        "List employee benefits for a company or for one employee. Pass company "
-        "or employee, not both: the API rejects the pair with a 400."
+        "List employee benefits for a company or for one or more employees. Pass "
+        "company or employee, not both: the API rejects the pair with a 400."
     ),
     fields=[
-        Field("employee", str, required_for="create", doc="The Check employee ID."),
+        Field(
+            "employee",
+            str,
+            required_for="create",
+            doc="The Check employee ID.",
+            list_filter_multi=True,
+        ),
         Field(
             "company_benefit",
             str,
@@ -247,11 +253,17 @@ _post_tax_deductions = Resource(
     description="post-tax deductions",
     list_filters=["company", "employee", "include_external"],
     list_doc=(
-        "List post-tax deductions for a company or for one employee. Pass "
+        "List post-tax deductions for a company or for one or more employees. Pass "
         "company or employee, not both: the API rejects the pair with a 400."
     ),
     fields=[
-        Field("employee", str, required_for="create", doc="The Check employee ID."),
+        Field(
+            "employee",
+            str,
+            required_for="create",
+            doc="The Check employee ID.",
+            list_filter_multi=True,
+        ),
         Field(
             "type",
             str,
@@ -537,8 +549,18 @@ _net_pay_splits = Resource(
             required_for="create",
             doc='Prioritized list of split dicts. Each may include "bank_account", "priority" (int), "amount", "percentage".',
         ),
-        Field("employee", str, doc="The Check employee ID."),
-        Field("contractor", str, doc="The Check contractor ID."),
+        Field(
+            "employee",
+            str,
+            doc="The Check employee ID.",
+            list_filter_multi=True,
+        ),
+        Field(
+            "contractor",
+            str,
+            doc="The Check contractor ID.",
+            list_filter_multi=True,
+        ),
         Field("is_default", bool, doc="Whether this is the default net pay split."),
     ],
 )

@@ -203,6 +203,19 @@ async def test_list_employee_tax_params_with_filters(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_list_employee_tax_elections_multiple_employees(mock_api, ctx):
+    mock_api.get("/employee_tax_elections").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "txe_001"}]},
+        )
+    )
+    await list_employee_tax_elections(ctx, employee=["emp_a", "emp_b"])
+    req = mock_api.get("/employee_tax_elections").calls.last.request
+    assert req.url.params.get_list("employee") == ["emp_a", "emp_b"]
+
+
+@pytest.mark.anyio
 async def test_list_company_tax_param_settings_with_filters(mock_api, ctx):
     mock_api.get("/company_tax_params/com_001/settings").mock(
         return_value=httpx.Response(
