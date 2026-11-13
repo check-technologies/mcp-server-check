@@ -35,6 +35,14 @@ async def list_payments(
 ) -> dict:
     """List payments with optional filters.
 
+    A payment's status is its current state, not its history. A payment that
+    shows "paid" may still have had an earlier attempt returned (for example
+    an ACH R01) and then a retry that settled; a company funding debit can
+    look clean here and still have bounced once. When the question is
+    whether anything was returned, bounced, or retried, read
+    list_payment_attempts for each payment (or get_payment, which includes
+    the attempts) rather than filtering this list on status.
+
     Args:
         company: Filter to payments belonging to this Check company ID (e.g. "com_xxxxx").
         payroll: Filter by payroll ID (e.g. "pay_xxxxx").
@@ -75,7 +83,13 @@ async def list_payments(
 
 
 async def get_payment(ctx: Ctx, payment_id: str) -> dict:
-    """Get details for a specific payment.
+    """Get details for a specific payment, including its attempts.
+
+    The attempts are the payment's history: a "paid" payment whose first
+    attempt failed with a return code (R01 insufficient funds, R03 no
+    account, ...) was returned and then retried. Report the return and the
+    retry, not just the final status, when the user asks whether a payment
+    bounced or what happened to it.
 
     Args:
         payment_id: The Check payment ID.
@@ -89,7 +103,12 @@ async def list_payment_attempts(
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
-    """List payment attempts for a payment.
+    """List payment attempts for a payment, oldest first.
+
+    This is where returns live. Each attempt has its own status and, when it
+    failed, the ACH return code and reason. A payment with a failed attempt
+    followed by a paid one was returned and successfully retried; a payment
+    with only a failed attempt is still unfunded.
 
     Args:
         payment_id: The Check payment ID.
