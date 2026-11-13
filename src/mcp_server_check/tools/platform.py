@@ -498,6 +498,8 @@ async def list_users(
 async def get_user(ctx: Ctx, user_id: str) -> dict:
     """Get a Console user for your organization.
 
+    Returns id, first_name, last_name, email, created_at, and status.
+
     Args:
         user_id: The Check user ID (e.g. "usr_xxxxx"). The user's legacy UUID
             is also accepted.

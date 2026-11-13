@@ -391,3 +391,14 @@ async def test_get_user_accepts_a_legacy_uuid(mock_api, ctx):
     mock_api.get(f"/users/{uuid}").mock(return_value=httpx.Response(200, json=USER))
 
     assert (await get_user(ctx, uuid))["id"] == USER["id"]
+
+
+def test_users_docstrings_describe_the_public_user_object():
+    """The stubs describe the public API representation (the-user-object in
+    the docs) and nothing Console-specific."""
+    for fn in (list_users, get_user):
+        doc = fn.__doc__ or ""
+        for field in ("id", "first_name", "last_name", "email", "created_at", "status"):
+            assert field in doc, (fn.__name__, field)
+        assert "Console sessions" not in doc
+        assert "console_user_type" not in doc

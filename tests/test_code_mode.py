@@ -585,6 +585,40 @@ async def test_get_stubs_header_shows_search_then_get_in_one_program(code_server
 
 
 @pytest.mark.anyio
+async def test_get_stubs_header_says_to_read_fields_defensively(code_server):
+    """A program that indexes a field the response lacks dies on KeyError and
+    costs a rerun; the first hybrid runs had seven of those in 43 cases. The
+    header tells the model to .get() fields it has not seen yet."""
+    async with Client(code_server) as client:
+        stubs = (
+            (await client.call_tool("get_stubs", {"toolset": "platform"}))
+            .content[0]
+            .text
+        )
+    assert 'record.get("field")' in stubs
+    assert "KeyError" in stubs
+    assert "costs a rerun" in stubs
+
+
+@pytest.mark.anyio
+async def test_get_stubs_header_says_each_program_starts_empty(code_server):
+    """Six of the fourteen failed programs in the Nov 13 evening eval runs were
+    a NameError on a variable an earlier program had defined: the model assumed
+    state carries across run_code calls. The header and the run_code docstring
+    both say it does not."""
+    async with Client(code_server) as client:
+        stubs = (
+            (await client.call_tool("get_stubs", {"toolset": "platform"}))
+            .content[0]
+            .text
+        )
+        run_code = next(t for t in await client.list_tools() if t.name == "run_code")
+    assert "Each program starts empty" in stubs
+    assert "NameError" in stubs
+    assert "Each program starts empty" in run_code.description
+
+
+@pytest.mark.anyio
 async def test_get_stubs_without_arguments_returns_catalog(code_server):
     async with Client(code_server) as client:
         result = await client.call_tool("get_stubs", {})

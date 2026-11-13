@@ -552,7 +552,9 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         and detail; catch it to continue. Throttled calls and reads whose
         connection dropped are retried. The program runs in CPython 3.13 with
         the standard library and holds no Check credentials; only `check.*`
-        calls reach the Check API.
+        calls reach the Check API. Each program starts empty: no variable,
+        import, or fetched record from an earlier program exists in the
+        next one, so carry IDs forward as literals or refetch them.
 
         code: The Python source to run.
         writes: Names of write tools (create_*, update_*, approve_*, ...) the
