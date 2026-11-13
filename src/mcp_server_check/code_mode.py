@@ -56,6 +56,13 @@ Programs run in CPython 3.13 with the standard library and no third-party
 packages. The server already caps concurrent calls and retries throttled
 ones, so do not throttle.
 
+Read fields defensively. Use record.get("field") for any field you have not
+already seen in a result from this session: a response can omit a field a
+docstring lists (some vary by caller), and an uncaught KeyError ends the
+program, throws away every call it already made, and costs a rerun. Prefer
+record.get("x") or (record.get("a") or {{}}).get("b") over record["x"], and
+wrap the one call you expect might fail in try/except RuntimeError.
+
 List results are summaries: each record keeps only the fields below, by ID
 prefix. Call the matching get_* tool for a full record. search_* results are
 thinner still: the API returns only id and name fields, so anything else

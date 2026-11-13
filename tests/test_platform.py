@@ -391,3 +391,14 @@ async def test_get_user_accepts_a_legacy_uuid(mock_api, ctx):
     mock_api.get(f"/users/{uuid}").mock(return_value=httpx.Response(200, json=USER))
 
     assert (await get_user(ctx, uuid))["id"] == USER["id"]
+
+
+def test_users_docstrings_do_not_promise_created_at_to_console_sessions():
+    """Checkmate reaches the users API with a Console token and gets Console's
+    user shape, which has no created_at; the first program that read it died
+    on KeyError. The docstrings say when the field is there."""
+    for fn in (list_users, get_user):
+        doc = fn.__doc__ or ""
+        assert "created_at" in doc
+        assert "Console sessions" in doc
+        assert ".get()" in doc

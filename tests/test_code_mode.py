@@ -585,6 +585,22 @@ async def test_get_stubs_header_shows_search_then_get_in_one_program(code_server
 
 
 @pytest.mark.anyio
+async def test_get_stubs_header_says_to_read_fields_defensively(code_server):
+    """A program that indexes a field the response lacks dies on KeyError and
+    costs a rerun; the first hybrid runs had seven of those in 43 cases. The
+    header tells the model to .get() fields it has not seen yet."""
+    async with Client(code_server) as client:
+        stubs = (
+            (await client.call_tool("get_stubs", {"toolset": "platform"}))
+            .content[0]
+            .text
+        )
+    assert 'record.get("field")' in stubs
+    assert "KeyError" in stubs
+    assert "costs a rerun" in stubs
+
+
+@pytest.mark.anyio
 async def test_get_stubs_without_arguments_returns_catalog(code_server):
     async with Client(code_server) as client:
         result = await client.call_tool("get_stubs", {})

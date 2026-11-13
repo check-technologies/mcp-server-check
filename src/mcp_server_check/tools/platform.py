@@ -484,7 +484,9 @@ async def list_users(
     These are the people who sign in to Check Console for your organization,
     not a company's employees. Inactive users are included with status
     "inactive"; Check staff are not included. Each user has id (usr_*),
-    first_name, last_name, email, created_at, and status.
+    first_name, last_name, email, and status. created_at is returned to
+    API-key callers but not to Console sessions (Checkmate), which get
+    Console's own user shape; read it with .get() if you need it.
 
     Args:
         limit: Maximum number of users to return per page (default 25, max 1000).
@@ -497,6 +499,10 @@ async def list_users(
 
 async def get_user(ctx: Ctx, user_id: str) -> dict:
     """Get a Console user for your organization.
+
+    Returns id, first_name, last_name, email, and status. created_at is
+    present for API-key callers but not for Console sessions, so read it
+    with .get().
 
     Args:
         user_id: The Check user ID (e.g. "usr_xxxxx"). The user's legacy UUID
