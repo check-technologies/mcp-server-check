@@ -473,6 +473,38 @@ async def list_company_groups(
     )
 
 
+# --- Users ---
+
+
+async def list_users(
+    ctx: Ctx, limit: int | None = None, cursor: str | None = None
+) -> dict:
+    """List the Console users for your organization, newest first.
+
+    These are the people who sign in to Check Console for your organization,
+    not a company's employees. Inactive users are included with status
+    "inactive"; Check staff are not included. Each user has id (usr_*),
+    first_name, last_name, email, created_at, and status.
+
+    Args:
+        limit: Maximum number of users to return per page (default 25, max 1000).
+        cursor: Pagination cursor from a previous response.
+    """
+    return await check_api_list(
+        ctx, "/users", params=build_params(limit=limit, cursor=cursor)
+    )
+
+
+async def get_user(ctx: Ctx, user_id: str) -> dict:
+    """Get a Console user for your organization.
+
+    Args:
+        user_id: The Check user ID (e.g. "usr_xxxxx"). The user's legacy UUID
+            is also accepted.
+    """
+    return await check_api_get(ctx, f"/users/{user_id}")
+
+
 # --- Addresses ---
 
 
@@ -617,6 +649,9 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, list_accounting_sync_attempts)
     # Company Groups
     add_annotated_tool(mcp, list_company_groups)
+    # Users
+    add_annotated_tool(mcp, list_users)
+    add_annotated_tool(mcp, get_user)
     # Addresses
     add_annotated_tool(mcp, validate_address)
     # Setups

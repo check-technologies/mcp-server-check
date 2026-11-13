@@ -49,6 +49,7 @@ _SYNONYM_GROUPS: list[set[str]] = [
     {"bank", "account", "ach", "routing"},
     {"report", "summary", "journal", "export"},
     {"webhook", "callback", "event", "notification"},
+    {"user", "console user", "login", "team member", "seat", "admin"},
     {"approve", "submit", "confirm"},
     {"simulate", "sandbox", "test"},
 ]
@@ -127,7 +128,7 @@ _TOOLSET_DESCRIPTIONS: dict[str, str] = {
     "payments": "View payments, payment attempts, and retry/refund/cancel/reverse payments. Includes sandbox tools to settle or fail one payment.",
     "payroll_items": "Create, update, and delete individual payroll line items within a payroll.",
     "payrolls": "Create, preview, approve, and manage payroll runs. Includes sandbox simulation tools.",
-    "platform": "Platform-level tools: notifications, communications, usage, integrations, accounting, setups, and requirements.",
+    "platform": "Platform-level tools: notifications, communications, usage, integrations, accounting, setups, requirements, and the Console users of your organization (list_users/get_user).",
     "report_runs": "Asynchronous report generation — start a payroll journal or payroll summary run, poll its status, and download the result.",
     "tax": "Manage company and employee tax parameters, filings, tax statements, and employee tax statement overrides (W-2 supplement line values). Tax exemptions (e.g. a minister exempt from Social Security/Medicare, a company exempt from unemployment tax) are tax elections: list_/update_employee_tax_elections and list_/update_company_tax_elections. Includes tax reference data (list_taxes/get_tax).",
     "webhooks": "Create, update, delete, and test webhook configurations; inspect and retry webhook deliveries.",
