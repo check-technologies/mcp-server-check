@@ -63,6 +63,13 @@ program, throws away every call it already made, and costs a rerun. Prefer
 record.get("x") or (record.get("a") or {{}}).get("b") over record["x"], and
 wrap the one call you expect might fail in try/except RuntimeError.
 
+Each program starts empty. Nothing from an earlier program survives: not
+its variables, not its imports, not the records it fetched. A NameError on
+a name an earlier program defined is the commonest way a program dies. Put
+the IDs and values you still need into the new program as literals, or
+fetch them again, and when a task needs several steps prefer one program
+that does them all.
+
 List results are summaries: each record keeps only the fields below, by ID
 prefix. Call the matching get_* tool for a full record. search_* results are
 thinner still: the API returns only id and name fields, so anything else
