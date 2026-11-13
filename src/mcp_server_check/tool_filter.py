@@ -25,6 +25,7 @@ TOOLSETS: frozenset[str] = frozenset(
         "documents",
         "employees",
         "external_payrolls",
+        "files",
         "forms",
         "logs",
         "payments",
