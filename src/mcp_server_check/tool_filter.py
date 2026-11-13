@@ -204,8 +204,9 @@ class ToolFilter:
     code_mode is not a visibility rule for Check tools: it exposes the
     run_code and get_stubs meta-tools in dynamic mode. Like preview_toolsets
     it is an opt-in, so a request header can turn it on. hybrid_mode keeps
-    the dynamic meta-tools visible alongside them, so one request can call
-    run_tool for a single read and run_code for a chain; it implies code_mode.
+    run_tool visible alongside them (with get_stubs as the only discovery
+    tool), so one request can call run_tool for a single read and run_code
+    for a chain; it implies code_mode.
     """
 
     toolsets: frozenset[str] | None = None

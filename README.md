@@ -23,7 +23,7 @@ CHECK_API_KEY=your-key uv run mcp-server-check
 | `CHECK_API_BASE_URL` | No | `https://sandbox.checkhq.com` | API base URL |
 | `CHECK_TOOL_MODE` | No | `dynamic` | Tool mode: `dynamic` (3 meta-tools) or `all` (all tools individually) |
 | `CHECK_CODE_MODE` | No | — | Set to `1`, `true`, or `yes` to replace dynamic mode's three meta-tools with `get_stubs` and `run_code` (see [Code Mode](#code-mode-experimental)); a remote client can opt in per request with the `X-MCP-Code-Mode` header instead |
-| `CHECK_HYBRID_MODE` | No | — | Set to `1` to expose the three dynamic meta-tools and `get_stubs` + `run_code` together, with instructions on when to use each (see [Hybrid Mode](#hybrid-mode-experimental)); per request, the `X-MCP-Hybrid-Mode` header or `hybrid_mode=1` query parameter |
+| `CHECK_HYBRID_MODE` | No | — | Set to `1` to expose `run_tool` beside `get_stubs` + `run_code`, with instructions on when to use each (see [Hybrid Mode](#hybrid-mode-experimental)); per request, the `X-MCP-Hybrid-Mode` header or `hybrid_mode=1` query parameter |
 | `CHECK_CODE_TIMEOUT_SECS` | No | `60` | Code mode: wall-clock budget for one `run_code` program |
 | `CHECK_CODE_MAX_CALLS` | No | `200` | Code mode: most tool calls one program may make |
 | `CHECK_CODE_CONCURRENCY` | No | `8` | Code mode: most tool calls one program runs at once |
@@ -185,7 +185,7 @@ Without the header, a dynamic-mode server lists only the three meta-tools and re
 
 ### Hybrid Mode (experimental)
 
-Hybrid mode keeps both sets: `search_tools`, `list_toolsets`, and `run_tool` next to `get_stubs` and `run_code`. It exists to measure whether a model given the choice routes well. The server instructions (sent when the server sets `CHECK_HYBRID_MODE`; a client opting in by header relies on its own prompt) say to use `run_tool` for a single call whose arguments are known and one `run_code` program for anything with a dependent hop, a fan-out, paging, or aggregation. Hybrid mode implies code mode, so it needs the same MicroVM image, and `CHECK_EXCLUDE_TOOLS=run_code,get_stubs` refuses it the same way.
+Hybrid mode shows `run_tool` next to `get_stubs` and `run_code`. `search_tools` and `list_toolsets` stay hidden: `get_stubs` is the one discovery tool, and its typed stubs serve a `run_tool` call as well as a program while being a fraction of the size of the JSON schemas `search_tools` returns, which is where most of code mode's token saving comes from. It exists to measure whether a model given the choice routes well. The server instructions (sent when the server sets `CHECK_HYBRID_MODE`; a client opting in by header relies on its own prompt) say to use `run_tool` for a single call whose arguments are known and one `run_code` program for anything with a dependent hop, a fan-out, paging, or aggregation. Hybrid mode implies code mode, so it needs the same MicroVM image, and `CHECK_EXCLUDE_TOOLS=run_code,get_stubs` refuses it the same way.
 
 ```
 X-MCP-Hybrid-Mode: 1

@@ -145,9 +145,11 @@ programs where you can.
 HYBRID_MODE_INSTRUCTIONS = """\
 
 ## Hybrid Mode
-This server runs in hybrid mode: the dynamic tools (search_tools, \
-list_toolsets, run_tool) and the code tools (get_stubs, run_code) are both \
-available. Pick by the shape of the work, not by habit:
+This server runs in hybrid mode: run_tool from the dynamic tools and \
+get_stubs and run_code from the code tools. search_tools and list_toolsets \
+are not registered; get_stubs is the one discovery tool, and its signatures \
+serve run_tool and programs alike. Pick the route by the shape of the work, \
+not by habit:
 - One Check API call whose arguments you already have: run_tool. It costs \
 one round trip and no sandbox.
 - Two or more calls where one result feeds the next, a fan-out over a list \
@@ -162,9 +164,8 @@ match): one program that branches on the result.
 - Writes: read and plan in one program (or with run_tool for a single read), \
 confirm with the user, then run the writes in a second run_code program that \
 names them in `writes`, or with run_tool for a single write.
-Discovery is shared: get_stubs returns signatures with docstrings for either \
-path, and search_tools returns the same tools as JSON schemas. One lookup is \
-enough; do not search twice for the same tool.
+Look a tool up once with get_stubs (a query, a toolset, or a list of names) \
+and use the signature for whichever route you take; do not look it up again.
 - Inside run_code, the `check` module is already imported, with `asyncio` \
 and `json`; every tool is an async function named as get_stubs lists it. The \
 program's last expression is the result; the server serializes it. A failed \
@@ -181,11 +182,16 @@ for writes.
 # for every request, the X-MCP-Code-Mode header or code_mode query parameter
 # for one), only the code-mode tools, so every API call goes through run_code.
 # hybrid_mode (CHECK_HYBRID_MODE=1, X-MCP-Hybrid-Mode, hybrid_mode=1) shows
-# both sets, so a request can call run_tool for one read and run_code for a
-# chain. CHECK_EXCLUDE_TOOLS still hides the code-mode tools, so a server can
-# refuse either opt-in.
+# run_tool beside get_stubs and run_code, so a request can call run_tool for one
+# read and run_code for a chain. search_tools and list_toolsets stay hidden
+# there: get_stubs is the one discovery tool, and its stubs are a fraction of
+# the size of the JSON schemas search_tools returns, which is where most of
+# code mode's token saving comes from. CHECK_EXCLUDE_TOOLS still hides the
+# code-mode tools, so a server can refuse either opt-in.
 CODE_MODE_TOOLS: frozenset[str] = frozenset({"get_stubs", "run_code"})
 DYNAMIC_TOOLS: frozenset[str] = frozenset({"search_tools", "list_toolsets", "run_tool"})
+# The dynamic tools hybrid mode hides: discovery goes through get_stubs.
+HYBRID_HIDDEN_TOOLS: frozenset[str] = frozenset({"search_tools", "list_toolsets"})
 
 
 def code_mode_available() -> bool:
@@ -210,10 +216,18 @@ def _code_mode_active(tf: ToolFilter) -> bool:
 
 
 def _hybrid_mode_active(tf: ToolFilter) -> bool:
-    """Whether this request shows the dynamic tools and the code tools together."""
+    """Whether this request shows run_tool beside the code tools."""
     return tf.hybrid_mode and all(
         _code_mode_tool_allowed(tf, name) for name in CODE_MODE_TOOLS
     )
+
+
+def _dynamic_tool_hidden(tf: ToolFilter, name: str) -> bool:
+    """Whether a dynamic tool is hidden on this request: all three in code
+    mode, the two discovery tools in hybrid mode."""
+    if _code_mode_active(tf):
+        return True
+    return name in HYBRID_HIDDEN_TOOLS and _hybrid_mode_active(tf)
 
 
 @asynccontextmanager
@@ -303,7 +317,9 @@ class CheckMCP(FastMCP):
                 if (
                     _code_mode_tool_allowed(tf, t.name)
                     if t.name in CODE_MODE_TOOLS
-                    else not (t.name in DYNAMIC_TOOLS and _code_mode_active(tf))
+                    else not (
+                        t.name in DYNAMIC_TOOLS and _dynamic_tool_hidden(tf, t.name)
+                    )
                 )
             ]
         return [
@@ -333,6 +349,12 @@ class CheckMCP(FastMCP):
                     f"Tool '{name}' is not available in code mode. Use get_stubs to "
                     "find tools and run_code to call them."
                 )
+            if name in DYNAMIC_TOOLS and _dynamic_tool_hidden(tf, name):
+                raise ToolError(
+                    f"Tool '{name}' is not available in hybrid mode. Use get_stubs to "
+                    "find tools, then run_tool for a single call or run_code for a "
+                    "chain."
+                )
             return await super().call_tool(name, arguments, **kwargs)
         toolset = self._registry.get(name, "")
         if not tf.is_tool_allowed(name, toolset):
@@ -347,8 +369,8 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
 
     Registers search_tools, list_toolsets, and run_tool, plus get_stubs and
     run_code. CheckMCP shows one set per request: the code-mode pair when the
-    request's filter has code_mode on, the dynamic trio otherwise, and both
-    sets when hybrid_mode is on.
+    request's filter has code_mode on, the dynamic trio otherwise, and
+    run_tool with the code-mode pair when hybrid_mode is on.
     """
     index = ToolIndex()
     index.build()
@@ -725,8 +747,7 @@ def main():
             )
     elif mcp._static_filter.hybrid_mode:
         print(
-            "Running in hybrid mode (search_tools, list_toolsets, run_tool + "
-            "get_stubs, run_code)",
+            "Running in hybrid mode (get_stubs, run_tool, run_code)",
             file=sys.stderr,
         )
     elif mcp._static_filter.code_mode:
