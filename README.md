@@ -664,7 +664,7 @@ Notifications, communications, usage, integrations, accounting, company groups, 
 
 Generate embeddable UI component URLs via `POST /{entity_type}/{entity_id}/components/{component_type}`. All tools accept an `entity_id` and optional `data` configuration.
 
-**Company components (25):**
+**Company components (26):**
 `create_company_previous_provider_access_component`, `create_company_accounting_integration_component`, `create_company_authorization_documents_component`, `create_company_business_details_component`, `create_company_checklist_component`, `create_company_company_reports_component`, `create_company_connect_bank_account_component`, `create_company_details_component`, `create_company_early_enrollment_component`, `create_company_employee_setup_component`, `create_company_filing_authorization_component`, `create_company_filing_preview_component`, `create_company_full_service_setup_submission_component`, `create_company_integrations_component`, `create_company_integrations_authorize_component`, `create_company_pay_history_component`, `create_company_payment_setup_component`, `create_company_progress_tracker_component`, `create_company_run_payroll_component`, `create_company_signatory_agreements_component`, `create_company_tax_documents_component`, `create_company_tax_setup_component`, `create_company_team_setup_component`, `create_company_terms_of_service_component`, `create_company_verification_documents_component`
 
 **Employee components (9):**

@@ -170,6 +170,6 @@ async def test_create_component_invalid_component_type(mock_api, ctx):
 
 def test_component_type_counts():
     """Verify expected component type counts."""
-    assert len(COMPANY_COMPONENTS) == 25
+    assert len(COMPANY_COMPONENTS) == 26
     assert len(EMPLOYEE_COMPONENTS) == 9
     assert len(CONTRACTOR_COMPONENTS) == 1
