@@ -4,7 +4,7 @@
 
 > **Terms of Service** — By using this MCP server to access the Check API, you agree to the [MCP Usage Terms](TERMS_OF_SERVICE.md), which are in addition to your existing agreement with Check.
 
-An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 299 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
+An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 301 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
 
@@ -250,7 +250,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 ## Available Tools
 
-299 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
+301 tools organized across 22 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
 
 ### Companies (30 tools)
 
@@ -506,6 +506,13 @@ Asynchronous reporting. `create_report_run` returns a `run_` ID, `get_report_run
 | `get_report_run` | GET | Get a report run and its current status |
 | `download_report_run` | GET | Get a presigned download link, valid for about 60 seconds |
 | `create_report_run` | POST | Start a `payroll_journal` or `payroll_summary` run over a payday range |
+
+### Files (2 tools)
+
+| Tool | Method | Description |
+|---|---|---|
+| `create_file` | POST | Declare a file and receive a presigned upload URL |
+| `get_file` | GET | Get a declared file, including validation status |
 
 ### Forms (4 tools)
 
