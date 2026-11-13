@@ -4,7 +4,7 @@
 
 > **Terms of Service** — By using this MCP server to access the Check API, you agree to the [MCP Usage Terms](TERMS_OF_SERVICE.md), which are in addition to your existing agreement with Check.
 
-An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 299 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
+An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 301 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
 
@@ -250,7 +250,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 ## Available Tools
 
-299 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
+301 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
 
 ### Companies (30 tools)
 
@@ -326,7 +326,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 | `create_workplace` | POST | Create a new workplace |
 | `update_workplace` | PATCH | Update an existing workplace |
 
-### Payrolls (15 tools)
+### Payrolls (17 tools)
 
 | Tool | Method | Description |
 |---|---|---|
@@ -345,6 +345,8 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 | `simulate_complete_funding` | POST | Simulate completing funding (sandbox) |
 | `simulate_fail_funding` | POST | Simulate failing funding (sandbox) |
 | `simulate_complete_disbursements` | POST | Simulate completing disbursements (sandbox) |
+| `simulate_refuse_wire_drawdown` | POST | Simulate employer bank refusing a wire drawdown (sandbox) |
+| `simulate_time_out_wire_drawdown` | POST | Simulate a wire drawdown request timing out (sandbox) |
 
 ### Payroll Items (9 tools)
 
