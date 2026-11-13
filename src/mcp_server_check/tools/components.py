@@ -38,6 +38,7 @@ COMPANY_COMPONENTS = [
     "team_setup",
     "terms_of_service",
     "verification_documents",
+    "wire_drawdown_enrollment",
 ]
 
 EMPLOYEE_COMPONENTS = [
