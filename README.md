@@ -4,7 +4,7 @@
 
 > **Terms of Service** — By using this MCP server to access the Check API, you agree to the [MCP Usage Terms](TERMS_OF_SERVICE.md), which are in addition to your existing agreement with Check.
 
-An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 299 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
+An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 302 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
 
@@ -250,7 +250,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 ## Available Tools
 
-299 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
+302 tools organized across 22 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
 
 ### Companies (30 tools)
 
@@ -522,6 +522,14 @@ Asynchronous reporting. `create_report_run` returns a `run_` ID, `get_report_run
 |---|---|---|
 | `list_logs` | GET | List API request logs; filter by path, method, status code/class, log ID, idempotency key, and time range |
 | `get_log` | GET | Get the full record for a single API request log |
+
+### Notices (3 tools)
+
+| Tool | Method | Description |
+|---|---|---|
+| `list_notices` | GET | List tax notices submitted through the Notices API |
+| `get_notice` | GET | Get a single notice, including processing status |
+| `create_notice` | POST | Submit a notice with one or more ready file attachments |
 
 ### Payments (9 tools)
 
