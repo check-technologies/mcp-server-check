@@ -335,3 +335,62 @@ async def test_get_payroll_details_drops_items_the_api_inlined_on_the_payroll(
         "contractor_payments_count": 0,
     }
     assert result["payroll_items"]["results"] == [{"id": "itm_001"}]
+
+
+# The keys each composite returns, checked against its docstring: a program
+# in a Console session iterated get_company_overview's "employees" page as a
+# list of employees and died on "'str' object has no attribute 'get'", then
+# spent a program printing keys, then read the snapshot's fields at the top
+# level instead of under "employee". The docstring is what the stub shows.
+_COMPOSITE_KEYS = {
+    "get_company_overview": ("company", "employees", "payrolls", "bank_accounts"),
+    "get_employee_snapshot": ("employee", "tax_params", "paystubs"),
+    "diagnose_payment": ("payment", "payment_attempts", "payroll_item"),
+    "get_payroll_details": ("payroll", "payroll_items", "contractor_payments"),
+    "get_contractor_snapshot": ("contractor", "payments", "forms"),
+    "get_company_tax_overview": ("tax_params", "tax_elections", "filings"),
+    "get_onboarding_status": (
+        "company",
+        "readiness",
+        "workplaces",
+        "employees",
+        "bank_accounts",
+        "requirements",
+    ),
+}
+
+
+@pytest.mark.parametrize(("name", "keys"), sorted(_COMPOSITE_KEYS.items()))
+def test_composite_docstrings_name_their_keys_and_pages(name, keys):
+    from mcp_server_check.tools import workflows
+
+    doc = getattr(workflows, name).__doc__
+    returns = doc.split("Returns:", 1)[1]
+    for key in keys:
+        assert f'"{key}"' in returns, (name, key)
+    assert '{"results": [...]}' in returns or "list page" in returns
+
+
+@pytest.mark.anyio
+async def test_get_company_overview_employees_is_a_page_as_documented(mock_api, ctx):
+    """The shape the docstring promises is the shape the tool returns."""
+    mock_api.get("/companies/com_1").mock(
+        return_value=httpx.Response(
+            200, json={"id": "com_1", "start_date": "2026-07-01"}
+        )
+    )
+    mock_api.get("/employees").mock(
+        return_value=httpx.Response(200, json=_list_response([{"id": "emp_1"}]))
+    )
+    mock_api.get("/payrolls").mock(
+        return_value=httpx.Response(200, json=_list_response([]))
+    )
+    mock_api.get("/bank_accounts").mock(
+        return_value=httpx.Response(200, json=_list_response([]))
+    )
+
+    overview = await get_company_overview(ctx, "com_1")
+
+    assert overview["company"]["start_date"] == "2026-07-01"
+    assert overview["employees"]["results"] == [{"id": "emp_1"}]
+    assert list(overview) == ["company", "employees", "payrolls", "bank_accounts"]

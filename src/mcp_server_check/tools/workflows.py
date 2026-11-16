@@ -54,6 +54,15 @@ async def get_company_overview(
         include_bank_accounts: Include bank accounts (default true).
         employee_limit: Max employees to return (default 10).
         payroll_limit: Max payrolls to return (default 5).
+
+    Returns:
+        A dict with one key per piece, not a company record: "company" (the
+        full company, with start_date and pay_frequency), "employees",
+        "payrolls" and "bank_accounts". The last three are list pages,
+        {"results": [...], "result_count", "next_cursor"}, holding list
+        summaries (an employee summary has id, first_name, last_name, email,
+        status, start_date). Read overview["employees"]["results"]; iterating
+        overview["employees"] itself yields its key names.
     """
     calls: dict[str, Coroutine[Any, Any, Any]] = {
         "company": check_api_get(ctx, f"/companies/{company_id}"),
@@ -97,6 +106,13 @@ async def get_employee_snapshot(
         include_tax_params: Include employee tax parameters (default true).
         include_paystubs: Include recent paystubs (default true).
         paystub_limit: Max paystubs to return (default 5).
+
+    Returns:
+        A dict with "employee" (the full employee record: first_name,
+        last_name, workplaces as a list of wrk_ IDs, primary_workplace,
+        residence, start_date, ...), "tax_params" (the employee tax params
+        object) and "paystubs" (a list page, {"results": [...]}). The
+        employee's fields are under snapshot["employee"], not at the top.
     """
     calls: dict[str, Coroutine[Any, Any, Any]] = {
         "employee": check_api_get(ctx, f"/employees/{employee_id}"),
@@ -125,6 +141,11 @@ async def diagnose_payment(
 
     Args:
         payment_id: The Check payment ID (e.g. "pyt_xxxxx").
+
+    Returns:
+        A dict with "payment" (the full payment), "payment_attempts" (a list
+        page, {"results": [...]}) and, when the payment funds a payroll
+        item, "payroll_item" (the full item).
     """
     fetched = await _gather_named(
         {
@@ -172,6 +193,12 @@ async def get_payroll_details(
         include_items: Include payroll items / employee stubs (default true).
         include_contractor_payments: Include contractor payments (default true).
         item_limit: Max payroll items to return (default 50).
+
+    Returns:
+        A dict with "payroll" (the payroll; its inlined items are replaced by
+        items_count), "payroll_items" (a list page, {"results": [...]}, each a
+        full item with earnings, taxes, benefits, net_pay) and
+        "contractor_payments" (a list page).
     """
     calls: dict[str, Coroutine[Any, Any, Any]] = {
         "payroll": check_api_get(ctx, f"/payrolls/{payroll_id}"),
@@ -211,6 +238,10 @@ async def get_contractor_snapshot(
         include_payments: Include recent contractor payments (default true).
         include_forms: Include contractor forms (default true).
         payment_limit: Max payments to return (default 10).
+
+    Returns:
+        A dict with "contractor" (the full contractor), "payments" (a list
+        page, {"results": [...]}) and "forms" (a list page).
     """
     calls: dict[str, Coroutine[Any, Any, Any]] = {
         "contractor": check_api_get(ctx, f"/contractors/{contractor_id}"),
@@ -247,6 +278,11 @@ async def get_company_tax_overview(
         include_elections: Include tax elections (default true).
         include_filings: Include recent tax filings (default true).
         filing_limit: Max tax filings to return (default 10).
+
+    Returns:
+        A dict with "tax_params" (the company tax params object),
+        "tax_elections" (a list page, {"results": [...]}) and "filings" (a
+        list page).
     """
     calls: dict[str, Coroutine[Any, Any, Any]] = {
         "tax_params": check_api_get(ctx, f"/company_tax_params/{company_id}"),
@@ -280,6 +316,13 @@ async def get_onboarding_status(
 
     Args:
         company_id: The Check company ID (e.g. "com_xxxxx").
+
+    Returns:
+        A dict with "company" (the full company), "readiness" (has_workplaces,
+        has_employees, has_bank_accounts, outstanding_requirements,
+        total_requirements, ready) and "workplaces", "employees",
+        "bank_accounts", "requirements", each a list page
+        ({"results": [...]}); "employees" holds at most 5.
     """
     fetched = await _gather_named(
         {

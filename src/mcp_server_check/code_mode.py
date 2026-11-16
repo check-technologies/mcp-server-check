@@ -76,6 +76,16 @@ thinner still: the API returns only id and name fields, so anything else
 (pay_frequency, status, onboarding, email) needs the get_* tool.
 {{summary_fields}}
 
+Composite get_* tools (get_company_overview, get_employee_snapshot,
+get_payroll_details, diagnose_payment, get_contractor_snapshot,
+get_company_tax_overview, get_onboarding_status) return one key per piece,
+named under Returns in each docstring. The record sits under its own key
+(overview["company"], snapshot["employee"]) and every list piece is a page:
+overview["employees"]["results"], never overview["employees"]. Iterating a
+page yields its key names as strings, which is what AttributeError: 'str'
+object has no attribute 'get' means. Read the Returns block before indexing
+a composite result instead of printing its keys in a program of its own.
+
 Do the whole read chain in one program. When a lookup decides the next call,
 branch on its result inside the program instead of returning to look:
 
