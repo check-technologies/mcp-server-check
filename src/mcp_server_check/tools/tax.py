@@ -580,6 +580,7 @@ async def list_employee_tax_statements(
     limit: int | None = None,
     cursor: str | None = None,
     company: str | None = None,
+    company_copy_bundle: str | None = None,
     year: int | None = None,
     form: str | None = None,
     published_from: str | None = None,
@@ -592,14 +593,16 @@ async def list_employee_tax_statements(
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
         company: Filter by company ID.
+        company_copy_bundle: Filter to tax statements in this company copy bundle
+            (document ID, e.g. "doc_xxxxx"). May also be used alone to scope the list.
         year: Filter by tax year.
         form: Filter by tax form ("fed_w2" or "vi_w2vi").
         published_from: ISO-8601 datetime lower bound on published_at (inclusive),
             e.g. "2026-01-15T00:00:00Z".
         correction: Filter to tax statements produced by these correction sessions
             (e.g. "cor_xxxxx"). Multiple values are OR'd (max 500 per request). At least
-            one of employee, company, or correction is required. Requires the corrections
-            API for the provider.
+            one of employee, company, company_copy_bundle, or correction is required.
+            Requires the corrections API for the provider.
     """
     return await check_api_list(
         ctx,
@@ -609,6 +612,7 @@ async def list_employee_tax_statements(
             limit=limit,
             cursor=cursor,
             company=company,
+            company_copy_bundle=company_copy_bundle,
             year=year,
             form=form,
             published_from=published_from,
