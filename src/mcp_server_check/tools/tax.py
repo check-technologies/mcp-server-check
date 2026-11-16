@@ -667,6 +667,7 @@ async def list_contractor_tax_statements(
     ctx: Ctx,
     contractor: str | None = None,
     company: str | None = None,
+    company_copy_bundle: str | None = None,
     year: int | None = None,
     publication_status: str | None = None,
     published_from: str | None = None,
@@ -675,13 +676,17 @@ async def list_contractor_tax_statements(
 ) -> dict:
     """List contractor tax statements (1099s) for a contractor or a company.
 
-    Either contractor or company is required; the API rejects an unscoped
-    list. Partners without contractor tax statements enabled get a 404.
+    At least one of contractor, company, or company_copy_bundle is required;
+    the API rejects an unscoped list. Partners without contractor tax statements
+    enabled get a 404.
 
     Args:
         contractor: Filter to statements for this Check contractor ID
             (e.g. "ctr_xxxxx").
         company: Filter to statements for this company ID (e.g. "com_xxxxx").
+        company_copy_bundle: Filter to statements in this company copy bundle
+            (document ID, e.g. "doc_xxxxx"). May also be used alone to scope
+            the list.
         year: Filter by tax year.
         publication_status: "draft" or "published".
         published_from: ISO-8601 datetime lower bound on published_at
@@ -695,6 +700,7 @@ async def list_contractor_tax_statements(
         params=build_params(
             contractor=contractor,
             company=company,
+            company_copy_bundle=company_copy_bundle,
             year=year,
             publication_status=publication_status,
             published_from=published_from,
