@@ -1222,3 +1222,22 @@ await check.get_company(company_id="com_1")
     assert record.error["calls"] == [
         {"tool": "get_company", "status": "error", "status_code": 400}
     ]
+
+
+@pytest.mark.anyio
+async def test_get_stubs_header_and_stubs_say_how_composites_nest(code_server):
+    """A program iterated get_company_overview's "employees" page as a list
+    and died on "'str' object has no attribute 'get'"; the next one printed
+    keys; the snapshot's fields were read at the top level. The header names
+    the nesting rule and each composite's stub carries its Returns block."""
+    async with Client(code_server) as client:
+        stubs = (
+            (await client.call_tool("get_stubs", {"toolset": "workflows"}))
+            .content[0]
+            .text
+        )
+    assert 'overview["employees"]["results"], never overview["employees"]' in stubs
+    assert "'str'\nobject has no attribute 'get'" in stubs
+    assert "Returns:" in stubs
+    assert 'Read overview["employees"]["results"]' in stubs
+    assert 'under snapshot["employee"], not at the top' in stubs
