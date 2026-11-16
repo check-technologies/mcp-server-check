@@ -673,6 +673,23 @@ async def test_list_contractor_tax_statements_with_filters(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_list_contractor_tax_statements_company_copy_bundle_filter(mock_api, ctx):
+    mock_api.get("/contractor_tax_statements").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "cts_001"}]},
+        )
+    )
+    result = await list_contractor_tax_statements(
+        ctx,
+        company_copy_bundle="doc_copy_d",
+    )
+    assert result["results"] == [{"id": "cts_001"}]
+    req = mock_api.get("/contractor_tax_statements").calls.last.request
+    assert req.url.params["company_copy_bundle"] == "doc_copy_d"
+
+
+@pytest.mark.anyio
 async def test_get_contractor_tax_statement(mock_api, ctx):
     mock_api.get("/contractor_tax_statements/cts_001").mock(
         return_value=httpx.Response(
