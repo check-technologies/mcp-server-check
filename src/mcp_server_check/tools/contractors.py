@@ -35,7 +35,7 @@ async def list_contractors(
 
     Args:
         company: Filter to contractors belonging to this Check company ID (e.g. "com_xxxxx").
-        limit: Maximum number of results to return (default 10, max 100).
+        limit: Maximum number of results to return (default 25, max 25; a larger value still returns 25).
         ids: Filter to specific contractor IDs.
         cursor: Pagination cursor from a previous response.
         metadata: Return only contractors whose metadata contains every given key and value

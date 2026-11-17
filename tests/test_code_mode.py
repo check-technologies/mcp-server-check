@@ -893,6 +893,43 @@ def test_sandbox_hint():
         "Program exceeded its budget of 200 tool calls."
     )
     assert sandbox_hint("KeyError: 'x'") is None
+    assert "search_companies" in sandbox_hint(
+        "The program did not finish within 25 seconds. Make fewer or more "
+        "parallel calls."
+    )
+
+
+def test_unawaited_coroutines():
+    from mcp_server_check.code_mode import unawaited_coroutines
+
+    assert unawaited_coroutines("async def main():\n    return 1\n") == ["main"]
+    assert unawaited_coroutines("async def main():\n    return 1\nawait main()") == []
+    # A helper called from the awaited entry point counts as called.
+    code = "async def one():\n    return 1\nasync def main():\n    return await one()\nawait main()"
+    assert unawaited_coroutines(code) == []
+    assert unawaited_coroutines("x = 1\nx") == []
+    assert unawaited_coroutines("async def (") == []
+
+
+@pytest.mark.anyio
+async def test_run_code_hints_at_an_uncalled_main(mock_api, code_server):
+    """A program that defines main() and never awaits it returns None with no
+    calls; the result says why instead of reading as an empty answer."""
+    code = """
+async def main():
+    return await check.get_company(company_id="com_1")
+"""
+    is_error, payload = await _run(code_server, code)
+    assert not is_error, payload
+    assert payload["result"] is None
+    assert "await main()" in payload["hint"]
+
+
+@pytest.mark.anyio
+async def test_run_code_result_has_no_hint_when_it_ran(mock_api, code_server):
+    is_error, payload = await _run(code_server, "None")
+    assert not is_error, payload
+    assert "hint" not in payload
 
 
 @pytest.mark.anyio

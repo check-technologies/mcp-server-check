@@ -34,7 +34,7 @@ async def list_external_payrolls(
 
     Args:
         company: Filter to external payrolls belonging to this Check company ID (e.g. "com_xxxxx").
-        limit: Maximum number of results to return (default 10, max 100).
+        limit: Maximum number of results to return (default 25, max 25; a larger value still returns 25).
         ids: Filter to specific external payroll IDs.
         cursor: Pagination cursor from a previous response.
         pay_schedule: Filter by pay schedule ID.

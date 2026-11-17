@@ -141,21 +141,25 @@ async def get_company_tax_param_setting(
 
 async def list_employee_tax_params(
     ctx: Ctx,
+    company: str,
     employee: str | None = None,
     limit: int | None = None,
     cursor: str | None = None,
-    company: str | None = None,
     as_of: str | None = None,
     jurisdiction: str | None = None,
     submitter: str | None = None,
 ) -> dict:
-    """List employee tax parameters, optionally filtered by employee.
+    """List a company's employees' tax parameters, optionally narrowed to some employees.
+
+    The API requires company even when employee is given. For one employee
+    whose company you do not know, get_employee_tax_params(employee_id) needs
+    only the employee.
 
     Args:
+        company: The Check company ID (e.g. "com_xxxxx"). Required.
         employee: Filter to tax parameters for this Check employee ID (e.g. "emp_xxxxx").
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
-        company: Filter by company ID.
         as_of: Filter as of a specific date (YYYY-MM-DD).
         jurisdiction: Filter by tax jurisdiction.
         submitter: Filter by submitter.

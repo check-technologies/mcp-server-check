@@ -33,8 +33,13 @@ async def list_companies(
 ) -> dict:
     """List companies in your Check account.
 
+    To find a company by name, use search_companies: this list has no name
+    filter, and paging through every company one page at a time takes
+    longer than a code-mode program may run.
+
     Args:
-        limit: Maximum number of results to return (default 10, max 100).
+        limit: Maximum number of results to return (default 25, max 25; a
+            larger value still returns 25).
         active: Filter by active status.
         ids: Filter to specific company IDs.
         cursor: Pagination cursor from a previous response.

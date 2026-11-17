@@ -30,7 +30,7 @@ async def list_contractor_payments(
     Args:
         company: Filter to contractor payments belonging to this Check company ID (e.g. "com_xxxxx").
         contractor: Filter to payments for this Check contractor ID (e.g. "ctr_xxxxx").
-        limit: Maximum number of results to return (default 10, max 100).
+        limit: Maximum number of results to return (default 25, max 500).
         ids: Filter to specific contractor payment IDs.
         cursor: Pagination cursor from a previous response.
         payroll: Filter by payroll ID (e.g. "pay_xxxxx").

@@ -11,6 +11,7 @@ answer every ``check.*`` call, and credentials never enter the MicroVM.
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import inspect
 import json
@@ -61,7 +62,9 @@ already seen in a result from this session: a response can omit a field a
 docstring lists (some vary by caller), and an uncaught KeyError ends the
 program, throws away every call it already made, and costs a rerun. Prefer
 record.get("x") or (record.get("a") or {{}}).get("b") over record["x"], and
-wrap the one call you expect might fail in try/except RuntimeError.
+wrap the one call you expect might fail in try/except RuntimeError. A field
+can be present and null: record.get("taxes", []) still returns None when
+taxes is null, so write record.get("taxes") or [] before iterating.
 
 Each program starts empty. Nothing from an earlier program survives: not
 its variables, not its imports, not the records it fetched. A NameError on
@@ -427,7 +430,37 @@ _HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
         "get_company_overview or get_employee_snapshot that bundles several "
         "API calls into one.",
     ),
+    (
+        re.compile(r"did not finish within (\d+(?:\.\d+)?) seconds"),
+        "Calls that wait on each other add up: paging a list one cursor at a "
+        "time costs a full call per page. To find a record by name use a "
+        "search_* tool (search_companies, search_employees) or a filter "
+        "instead of scanning pages, and gather independent calls with "
+        "asyncio.gather.",
+    ),
 )
+
+
+def unawaited_coroutines(code: str) -> list[str]:
+    """Top-level async functions the program defines but never calls.
+
+    A program that ends in `async def main(): ...` without `await main()`
+    returns None and makes no calls, which reads as an empty answer rather
+    than a mistake.
+    """
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return []
+    defined = [n.name for n in tree.body if isinstance(n, ast.AsyncFunctionDef)]
+    if not defined:
+        return []
+    called = {
+        node.func.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    return [name for name in defined if name not in called]
 
 
 def sandbox_hint(detail: str) -> str | None:
@@ -769,9 +802,17 @@ class CodeRunner:
                 # already answered.
                 program.close()
 
-        return {
+        outcome: dict[str, Any] = {
             "result": value,
             "logs": logs,
             "calls": [c.to_dict() for c in program.calls],
             "duration_ms": int((time.monotonic() - started) * 1000),
         }
+        if value is None and not program.calls:
+            if names := unawaited_coroutines(code):
+                outcome["hint"] = (
+                    f"The program defines {', '.join(names)} but never calls "
+                    f"it, so nothing ran. End the program with await "
+                    f"{names[0]}()."
+                )
+        return outcome

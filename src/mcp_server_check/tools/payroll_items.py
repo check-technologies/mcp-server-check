@@ -52,6 +52,9 @@ async def list_payroll_items(
 async def get_payroll_item(ctx: Ctx, payroll_item_id: str) -> dict:
     """Get details for a specific payroll item.
 
+    An item on a draft payroll has not been calculated: its taxes and net_pay
+    are null, not empty. Read them as item.get("taxes") or [].
+
     Args:
         payroll_item_id: The Check payroll item ID.
     """

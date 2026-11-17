@@ -21,15 +21,19 @@ from mcp_server_check.helpers import (
 async def list_workplaces(
     ctx: Ctx,
     company: str | None = None,
-    limit: int = 500,
+    limit: int = 100,
     cursor: str | None = None,
     metadata: dict[str, str] | None = None,
 ) -> dict:
     """List workplaces, optionally filtered by company.
 
+    A company with remote employees often has one workplace per employee, so
+    its list can run to hundreds of records. When you need only some of them,
+    get_workplace them by ID, or pick fields and filter inside the program.
+
     Args:
         company: Filter to workplaces belonging to this Check company ID (e.g. "com_xxxxx").
-        limit: Maximum number of results to return (max 500, default 500).
+        limit: Maximum number of results to return (default 100, max 500).
         cursor: Pagination cursor from a previous response.
         metadata: Return only workplaces whose metadata contains every given key and value
             (for example {"external_id": "123"}). Multiple keys are combined with AND.
