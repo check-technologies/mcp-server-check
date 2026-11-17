@@ -64,7 +64,8 @@ _WRITE_KEYWORDS = (
     "reverse_",
     "start_implementation",
     "cancel_implementation",
-    "request_embedded_setup",
+    # request_embedded_setup, request_tax_package: both POST and create state.
+    "request_",
     "ping_",
     "refresh_",
     "toggle_",
