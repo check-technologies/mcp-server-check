@@ -74,6 +74,11 @@ async def list_company_tax_param_settings(
       latest ``created_at`` is the one in force from that date; each earlier
       entry for that date was replaced when the next one was written.
 
+    Dates decide, not write times: an entry with a later ``effective_start``
+    outranks every earlier-dated entry from its date on, even ones written
+    after it. When a recent write is not the current ``value``, look for an
+    entry dated after the write's ``effective_start``; that entry is why.
+
     Deleted values are not listed. A form submission deletes a setting's
     earlier values, so a setting last set through a form shows one entry.
 
@@ -113,6 +118,11 @@ async def get_company_tax_param_setting(
       ``created_at`` first. For each ``effective_start``, the entry with the
       latest ``created_at`` is the one in force from that date; each earlier
       entry for that date was replaced when the next one was written.
+
+    Dates decide, not write times: an entry with a later ``effective_start``
+    outranks every earlier-dated entry from its date on, even ones written
+    after it. When a recent write is not the current ``value``, look for an
+    entry dated after the write's ``effective_start``; that entry is why.
 
     Deleted values are not listed. A form submission deletes a setting's
     earlier values, so a setting last set through a form shows one entry.
@@ -218,6 +228,11 @@ async def list_employee_tax_param_settings(
       latest ``created_at`` is the one in force from that date; each earlier
       entry for that date was replaced when the next one was written.
 
+    Dates decide, not write times: an entry with a later ``effective_start``
+    outranks every earlier-dated entry from its date on, even ones written
+    after it. When a recent write is not the current ``value``, look for an
+    entry dated after the write's ``effective_start``; that entry is why.
+
     Deleted values are not listed. A form submission deletes a setting's
     earlier values, so a setting last set through a form shows one entry.
 
@@ -257,6 +272,11 @@ async def get_employee_tax_param_setting(
       ``created_at`` first. For each ``effective_start``, the entry with the
       latest ``created_at`` is the one in force from that date; each earlier
       entry for that date was replaced when the next one was written.
+
+    Dates decide, not write times: an entry with a later ``effective_start``
+    outranks every earlier-dated entry from its date on, even ones written
+    after it. When a recent write is not the current ``value``, look for an
+    entry dated after the write's ``effective_start``; that entry is why.
 
     Deleted values are not listed. A form submission deletes a setting's
     earlier values, so a setting last set through a form shows one entry.
@@ -314,6 +334,11 @@ async def list_company_tax_elections(
     the current ``exempt`` value and its effective dates (``setting_timeline``
     has the history). Use it to answer "is this company exempt from X?" and to
     find the ``txe_*`` ID to pass to update_company_tax_elections.
+
+    These are company-level settings only. A ``setting`` of null here does not
+    mean an employee is not exempt: the same tax can be exempted per employee,
+    which only list_employee_tax_elections shows. To answer whether an
+    employee is exempt, read their employee elections.
 
     ``exemptible: true`` means the partner can set the exemption directly with
     update_company_tax_elections. ``exemptible: false`` means the exemption
@@ -503,8 +528,12 @@ async def list_filings(
     """List filings, optionally filtered by company.
 
     Returns filing history and expected upcoming filings. Each filing includes
-    its current status, status_history, blocked_reasons, and amendment
-    relationships.
+    its current status, status_history, and amendment relationships.
+
+    ``status_history`` is newest first. A filing's current blockers are the
+    ``blocked_reasons`` of ``status_history[0]``; a reason that appears only
+    in later entries was cleared on the date of the first entry without it.
+    There is no top-level ``blocked_reasons`` field.
 
     Args:
         company: Filter to filings belonging to this Check company ID (e.g. "com_xxxxx").
@@ -536,7 +565,12 @@ async def get_filing(ctx: Ctx, filing_id: str) -> dict:
     """Get details for a specific filing.
 
     Returns the full filing object including status, status_history,
-    blocked_reasons, document, and amendment relationships (amends/amended_by).
+    document, and amendment relationships (amends/amended_by).
+
+    ``status_history`` is newest first. A filing's current blockers are the
+    ``blocked_reasons`` of ``status_history[0]``; a reason that appears only
+    in later entries was cleared on the date of the first entry without it.
+    There is no top-level ``blocked_reasons`` field.
 
     Args:
         filing_id: The Check filing ID (prefixed with "com_fil_").

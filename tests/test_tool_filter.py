@@ -69,6 +69,8 @@ class TestIsWriteTool:
             "approve_correction",
             "reopen_correction",
             "delete_correction",
+            "request_tax_package",
+            "request_embedded_setup",
         ],
     )
     def test_write_tools_detected(self, name):
@@ -92,6 +94,32 @@ class TestIsWriteTool:
     )
     def test_read_tools_not_detected(self, name):
         assert not is_write_tool(name), f"{name} should NOT be a write tool"
+
+    def test_classification_matches_registration(self):
+        """A tool each module registers only when writes are allowed must be
+        classified as a write, and the reverse: otherwise read-only sessions
+        show it and its readOnlyHint is wrong (request_tax_package did)."""
+        from mcp_server_check.tools import _TOOLSETS
+
+        def registered(module, read_only):
+            names = []
+
+            class _Collector:
+                _annotated_tool_supports_kwargs = True
+
+                @staticmethod
+                def add_tool(fn, **kwargs):
+                    names.append(kwargs.get("name") or fn.__name__)
+
+            module.register(_Collector(), read_only=read_only)
+            return set(names)
+
+        misclassified = []
+        for module in _TOOLSETS.values():
+            every, reads = registered(module, False), registered(module, True)
+            misclassified += [n for n in every - reads if not is_write_tool(n)]
+            misclassified += [n for n in reads if is_write_tool(n)]
+        assert not misclassified
 
 
 # --- ToolFilter.from_env ---

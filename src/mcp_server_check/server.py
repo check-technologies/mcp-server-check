@@ -101,6 +101,7 @@ Prefer the workflow tools when they fit — they combine multiple API calls in o
 - Bank accounts require verification before they can fund payrolls
 - Employee SSNs are write-once; after setting, only last 4 digits are readable
 - Tax parameter updates require the `spa_*` setting ID, not the parameter name
+- Dated records (tax param settings, tax elections, benefits, earning rates) apply by `effective_start`, not `created_at`: a newer write dated earlier does not override an older one dated later. Histories such as a filing's `status_history` are newest first, so the current state is the first entry
 - Sandbox simulation: a payroll created with simulation_mode "manual" waits for you to call simulate_start_processing, then simulate_complete_funding (or simulate_fail_funding), then simulate_complete_disbursements — or simulate_complete_payment / simulate_fail_payment on one of its payments to settle or fail a single worker's pay. The default "automatic" mode advances on its own, and the simulate tools reject it. A failed credit is retried with retry_payment plus a new bank_account
 - Report runs (`run_`) are asynchronous: create one, poll it until "completed" or "failed", then download — the download link expires in about a minute
 - The document `download_*` tools return the file's contents as text (a PDF's text layer page by page, a CSV as-is), cut at a limit with `truncated` set; `sensitive_*` setup documents are refused because they hold unmasked SSNs and bank numbers
