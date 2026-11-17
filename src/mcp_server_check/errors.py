@@ -48,14 +48,22 @@ class ResponseTooLargeError(CheckToolError):
     """Raised when a tool result is too large to deliver to the client."""
 
     def __init__(self, tool: str, size: int, limit: int, unit: str = "byte") -> None:
+        advice = (
+            # A program's result is whatever it returned, so the fix is in
+            # what it returns, not in the calls it made.
+            "Return only what the answer needs: pick the fields you need, "
+            "filter, or count inside the program instead of returning whole "
+            "records or list pages."
+            if tool == "run_code"
+            else "Narrow the request with filters, a lower limit, or specific IDs."
+        )
         super().__init__(
             {
                 "error": True,
                 Failure.TOO_LARGE.value: True,
                 "detail": (
                     f"The {tool} result is {size} {unit}s, over the {limit}-{unit} "
-                    "response limit. Narrow the request with filters, a lower "
-                    "limit, or specific IDs."
+                    f"response limit. {advice}"
                 ),
                 "size": size,
                 "limit": limit,

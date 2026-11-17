@@ -34,6 +34,15 @@ class TestCheckToolError:
     def test_failure(self, error, failure):
         assert error.failure is failure
 
+    def test_too_large_advice_fits_the_tool(self):
+        """A program's result is what it returned, so filters and limits on a
+        call are the wrong advice for run_code."""
+        program = ResponseTooLargeError("run_code", 10, 5, unit="character")
+        assert "inside the program" in program.payload["detail"]
+        assert "Narrow the request" not in program.payload["detail"]
+        call = ResponseTooLargeError("get_company", 10, 5)
+        assert "Narrow the request" in call.payload["detail"]
+
     def test_remedies_are_part_of_payload_and_message(self):
         error = ResponseTooLargeError("get_company", 10, 5)
         base = dict(error.payload)

@@ -66,8 +66,18 @@ async def test_list_employee_tax_params(mock_api, ctx):
             json={"next": None, "previous": None, "results": [{"id": "etp_001"}]},
         )
     )
-    result = await list_employee_tax_params(ctx)
+    result = await list_employee_tax_params(ctx, company="com_456")
     assert result["results"] == [{"id": "etp_001"}]
+    req = mock_api.get("/employee_tax_params").calls.last.request
+    assert req.url.params["company"] == "com_456"
+
+
+def test_list_employee_tax_params_requires_company():
+    """The API 400s without company, so the signature must not let it be left out."""
+    import inspect
+
+    param = inspect.signature(list_employee_tax_params).parameters["company"]
+    assert param.default is inspect.Parameter.empty
 
 
 @pytest.mark.anyio

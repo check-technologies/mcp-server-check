@@ -256,6 +256,10 @@ async def test_list_workplaces(mock_api, ctx):
 
     result = await list_workplaces(ctx)
     assert result["results"] == [{"id": "wrk_001"}]
+    # 100, not the API's max of 500: a company with a workplace per remote
+    # employee returned more than a program's 50,000-character result budget.
+    req = mock_api.get("/workplaces").calls.last.request
+    assert req.url.params["limit"] == "100"
 
 
 @pytest.mark.anyio
