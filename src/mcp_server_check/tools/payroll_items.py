@@ -78,7 +78,12 @@ async def create_payroll_item(
         payment_method: Payment method — "direct_deposit" or "manual".
         earnings: List of earning dicts. Each requires "workplace" and may include
             "type", "earning_code", "description", "earning_rate", "amount", "hours",
-            "piece_units", "metadata".
+            "piece_units", "metadata", "time_off_balance" (Check time off balance ID,
+            e.g. "tob_xxxxx", when spending pto or sick hours from a balance; requires
+            "hours" and earning type pto or sick), and "date" (YYYY-MM-DD; the day
+            hours are spent when using time off, and must fall within the payroll pay
+            period). Requires the provider's time off feature; otherwise those keys are
+            rejected.
         reimbursements: List of reimbursement dicts. Each requires "amount" and may
             include "description", "code", "metadata".
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.

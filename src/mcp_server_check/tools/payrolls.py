@@ -149,7 +149,8 @@ async def create_payroll(
             the dict is passed; Check API rejects a partial one. Omit the dict to take
             the defaults, all false.
         items: List of payroll item dicts. Each requires "employee" and may include
-            "payment_method", "earnings" (list), "reimbursements" (list),
+            "payment_method", "earnings" (list of dicts; see create_payroll_item for
+            keys), "reimbursements" (list),
             "benefit_overrides" (list), "post_tax_deduction_overrides" (list),
             "pto_balance_hours", "sick_balance_hours", "metadata".
         contractor_payments: List of contractor payment dicts. Each requires "contractor"
