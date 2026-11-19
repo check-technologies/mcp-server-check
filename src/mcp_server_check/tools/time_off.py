@@ -1,27 +1,67 @@
 """Time off tools for the Check API: policies, balances, enrollments, and entries.
 
 The time off endpoints are enabled per partner; for a partner without access
-every one of them returns "not found".
+every one of them returns "not found", which the tools report as
+time_off_not_enabled.
 """
 
 from __future__ import annotations
 
 from fastmcp import FastMCP
 
+from mcp_server_check import helpers
 from mcp_server_check.annotations import add_annotated_tool
-from mcp_server_check.helpers import (
-    Ctx,
-    apply_clear_fields,
-    build_body,
-    build_params,
-    check_api_delete,
-    check_api_get,
-    check_api_list,
-    check_api_patch,
-    check_api_post,
-)
+from mcp_server_check.helpers import Ctx, apply_clear_fields, build_body, build_params
 
 _ENROLLMENT_CLEARABLE = frozenset({"effective_end"})
+
+_NOT_ENABLED = {
+    "error": True,
+    "status_code": 404,
+    "time_off_not_enabled": True,
+    "detail": (
+        "Time off management isn't enabled for this partner, so every time off "
+        "endpoint returns not found. Tell the user to ask Check to enable it. "
+        "Don't retry with other IDs, and don't report the company, employee, or "
+        "time off records as missing."
+    ),
+}
+
+
+async def _explain_not_found(ctx: Ctx, result: dict) -> dict:
+    # check-api answers 404 for every time off endpoint when the partner lacks
+    # the flag, which reads like a missing ID. An unfiltered list 404s only in
+    # that case, so one probe after a 404 tells the two apart.
+    if result.get("status_code") != 404:
+        return result
+    probe = await helpers.check_api_get(ctx, "/time_off_policies", params={"limit": 1})
+    return dict(_NOT_ENABLED) if probe.get("status_code") == 404 else result
+
+
+async def _get(ctx: Ctx, path: str) -> dict:
+    return await _explain_not_found(ctx, await helpers.check_api_get(ctx, path))
+
+
+async def _list(ctx: Ctx, path: str, params: dict | None) -> dict:
+    return await _explain_not_found(
+        ctx, await helpers.check_api_list(ctx, path, params=params)
+    )
+
+
+async def _post(ctx: Ctx, path: str, data: dict, headers: dict | None = None) -> dict:
+    return await _explain_not_found(
+        ctx, await helpers.check_api_post(ctx, path, data=data, headers=headers)
+    )
+
+
+async def _patch(ctx: Ctx, path: str, data: dict) -> dict:
+    return await _explain_not_found(
+        ctx, await helpers.check_api_patch(ctx, path, data=data)
+    )
+
+
+async def _delete(ctx: Ctx, path: str) -> dict:
+    return await _explain_not_found(ctx, await helpers.check_api_delete(ctx, path))
 
 
 def _idempotency_headers(idempotency_key: str | None) -> dict | None:
@@ -43,7 +83,7 @@ async def list_time_off_policies(
         limit: Maximum number of results to return (default 100, max 100).
         cursor: Pagination cursor from a previous response.
     """
-    return await check_api_list(
+    return await _list(
         ctx,
         "/time_off_policies",
         params=build_params(company=company, status=status, limit=limit, cursor=cursor),
@@ -56,7 +96,7 @@ async def get_time_off_policy(ctx: Ctx, policy_id: str) -> dict:
     Args:
         policy_id: The time off policy ID (e.g. "time_off_policy_xxxxx").
     """
-    return await check_api_get(ctx, f"/time_off_policies/{policy_id}")
+    return await _get(ctx, f"/time_off_policies/{policy_id}")
 
 
 async def create_time_off_policy(
@@ -103,7 +143,7 @@ async def create_time_off_policy(
         metadata: Arbitrary key-value object stored on the policy.
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
-    return await check_api_post(
+    return await _post(
         ctx,
         "/time_off_policies",
         data=build_body(
@@ -135,9 +175,7 @@ async def update_time_off_policy(ctx: Ctx, policy_id: str, status: str) -> dict:
         policy_id: The time off policy ID.
         status: "active" or "archived".
     """
-    return await check_api_patch(
-        ctx, f"/time_off_policies/{policy_id}", data={"status": status}
-    )
+    return await _patch(ctx, f"/time_off_policies/{policy_id}", data={"status": status})
 
 
 async def list_time_off_balances(
@@ -153,7 +191,7 @@ async def list_time_off_balances(
         limit: Maximum number of results to return (default 100, max 100).
         cursor: Pagination cursor from a previous response.
     """
-    return await check_api_list(
+    return await _list(
         ctx,
         "/time_off_balances",
         params=build_params(employee=employee, limit=limit, cursor=cursor),
@@ -166,7 +204,7 @@ async def get_time_off_balance(ctx: Ctx, balance_id: str) -> dict:
     Args:
         balance_id: The time off balance ID (e.g. "time_off_balance_xxxxx").
     """
-    return await check_api_get(ctx, f"/time_off_balances/{balance_id}")
+    return await _get(ctx, f"/time_off_balances/{balance_id}")
 
 
 async def create_time_off_balance(
@@ -187,7 +225,7 @@ async def create_time_off_balance(
         metadata: Arbitrary key-value object stored on the balance.
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
-    return await check_api_post(
+    return await _post(
         ctx,
         "/time_off_balances",
         data=build_body({"employee": employee, "label": label}, metadata=metadata),
@@ -203,7 +241,7 @@ async def update_time_off_balance(ctx: Ctx, balance_id: str, metadata: dict) -> 
         metadata: Keys to merge into the stored metadata; a key set to null is
             removed, and {} clears it.
     """
-    return await check_api_patch(
+    return await _patch(
         ctx, f"/time_off_balances/{balance_id}", data={"metadata": metadata}
     )
 
@@ -225,7 +263,7 @@ async def list_time_off_enrollments(
         limit: Maximum number of results to return (default 100, max 100).
         cursor: Pagination cursor from a previous response.
     """
-    return await check_api_list(
+    return await _list(
         ctx,
         "/time_off_enrollments",
         params=build_params(
@@ -244,7 +282,7 @@ async def get_time_off_enrollment(ctx: Ctx, enrollment_id: str) -> dict:
     Args:
         enrollment_id: The time off enrollment ID (e.g. "time_off_enrollment_xxxxx").
     """
-    return await check_api_get(ctx, f"/time_off_enrollments/{enrollment_id}")
+    return await _get(ctx, f"/time_off_enrollments/{enrollment_id}")
 
 
 async def create_time_off_enrollment(
@@ -272,7 +310,7 @@ async def create_time_off_enrollment(
         metadata: Arbitrary key-value object stored on the enrollment.
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
-    return await check_api_post(
+    return await _post(
         ctx,
         "/time_off_enrollments",
         data=build_body(
@@ -307,9 +345,7 @@ async def update_time_off_enrollment(
     """
     body = build_body({}, effective_end=effective_end, metadata=metadata)
     apply_clear_fields(body, clear_fields, _ENROLLMENT_CLEARABLE)
-    return await check_api_patch(
-        ctx, f"/time_off_enrollments/{enrollment_id}", data=body
-    )
+    return await _patch(ctx, f"/time_off_enrollments/{enrollment_id}", data=body)
 
 
 async def delete_time_off_enrollment(ctx: Ctx, enrollment_id: str) -> dict:
@@ -321,7 +357,7 @@ async def delete_time_off_enrollment(ctx: Ctx, enrollment_id: str) -> dict:
     Args:
         enrollment_id: The time off enrollment ID.
     """
-    return await check_api_delete(ctx, f"/time_off_enrollments/{enrollment_id}")
+    return await _delete(ctx, f"/time_off_enrollments/{enrollment_id}")
 
 
 async def list_time_off_entries(
@@ -342,7 +378,7 @@ async def list_time_off_entries(
         limit: Maximum number of results to return (default 100, max 100).
         cursor: Pagination cursor from a previous response.
     """
-    return await check_api_list(
+    return await _list(
         ctx,
         "/time_off_entries",
         params=build_params(
@@ -357,7 +393,7 @@ async def get_time_off_entry(ctx: Ctx, entry_id: str) -> dict:
     Args:
         entry_id: The time off entry ID (e.g. "time_off_entry_xxxxx").
     """
-    return await check_api_get(ctx, f"/time_off_entries/{entry_id}")
+    return await _get(ctx, f"/time_off_entries/{entry_id}")
 
 
 async def create_time_off_entry(
@@ -383,7 +419,7 @@ async def create_time_off_entry(
         metadata: Arbitrary key-value object stored on the entry.
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
-    return await check_api_post(
+    return await _post(
         ctx,
         "/time_off_entries",
         data=build_body(

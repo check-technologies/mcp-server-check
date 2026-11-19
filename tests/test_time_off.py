@@ -194,3 +194,34 @@ async def test_create_time_off_entry_is_manual(mock_api, ctx):
         "source": "manual",
         "description": "Opening balance",
     }
+
+
+@pytest.mark.anyio
+async def test_not_found_without_the_feature_says_time_off_is_not_enabled(
+    mock_api, ctx
+):
+    mock_api.get("/time_off_enrollments/time_off_enrollment_1").mock(
+        return_value=httpx.Response(404, json={"error": {"type": "not_found"}})
+    )
+    mock_api.get("/time_off_policies").mock(
+        return_value=httpx.Response(404, json={"error": {"type": "not_found"}})
+    )
+    result = await get_time_off_enrollment(ctx, "time_off_enrollment_1")
+    assert result["error"] is True
+    assert result["time_off_not_enabled"] is True
+    assert "isn't enabled" in result["detail"]
+
+
+@pytest.mark.anyio
+async def test_not_found_with_the_feature_passes_the_404_through(mock_api, ctx):
+    not_found = {"error": {"type": "not_found"}}
+    mock_api.get("/time_off_enrollments/time_off_enrollment_1").mock(
+        return_value=httpx.Response(404, json=not_found)
+    )
+    mock_api.get("/time_off_policies").mock(
+        return_value=httpx.Response(
+            200, json={"next": None, "previous": None, "results": []}
+        )
+    )
+    result = await get_time_off_enrollment(ctx, "time_off_enrollment_1")
+    assert result == {"error": True, "status_code": 404, "detail": not_found}
