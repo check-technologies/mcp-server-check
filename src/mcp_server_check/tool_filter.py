@@ -115,6 +115,9 @@ _MONEY_MOVEMENT_EXACT = frozenset(
     {
         # Disburses a payroll: debits the company, credits workers.
         "approve_payroll",
+        # Commits a correction's payroll changes and starts the ACH debits and
+        # credits that settle them.
+        "approve_correction",
         # Re-initiates, reverses, or halts an existing transfer.
         "retry_payment",
         "refund_payment",
