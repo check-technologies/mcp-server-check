@@ -125,7 +125,7 @@ Opting in works the same in sandbox and production, and either the server or the
 
 Two flags remove whole categories of tools from a deployment. Unlike `CHECK_EXCLUDE_TOOLS`, they do not need updating as tools are added.
 
-`CHECK_EXCLUDE_MONEY_MOVEMENT=1` removes the tools that move funds or change where funds are drawn from and sent to: `approve_payroll`, `retry_payment`, `refund_payment`, `cancel_payment`, `reverse_payment`, and `create`/`update`/`delete_bank_account`.
+`CHECK_EXCLUDE_MONEY_MOVEMENT=1` removes the tools that move funds or change where funds are drawn from and sent to: `approve_payroll`, `approve_correction`, `retry_payment`, `refund_payment`, `cancel_payment`, `reverse_payment`, and `create`/`update`/`delete_bank_account`.
 
 `CHECK_EXCLUDE_DESTRUCTIVE=1` removes tools with irreversible effects — everything matching `delete_`, `bulk_delete_`, `approve_`, `cancel_`, `refund_`, `reverse_`, `simulate_`, plus `start_implementation`, `cancel_implementation`, `sync_accounting`, and `reopen_correction`.
 
