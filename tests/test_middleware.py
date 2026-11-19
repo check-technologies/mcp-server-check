@@ -16,6 +16,7 @@ from mcp_server_check.middleware import (
     ResponseSizeLimitMiddleware,
     ResultBudgetMiddleware,
     ToolCall,
+    largest_parts,
 )
 from mcp_server_check.server import CheckMCP, lifespan, setup_tools
 from mcp_server_check.tool_filter import ToolFilter
@@ -391,6 +392,32 @@ class TestResultBudgetMiddleware:
     def test_rejects_non_positive_budget(self):
         with pytest.raises(ValueError, match="max_chars must be positive"):
             ResultBudgetMiddleware(max_chars=0)
+
+
+class TestLargestParts:
+    def test_names_the_field_not_the_record(self):
+        """Three API logs with big bodies: the bodies are what to cut."""
+        logs = [{"id": f"log_{i}", "response_body": "x" * 5000} for i in range(3)]
+
+        parts = largest_parts(logs, 1000, path="result")
+
+        assert [where for where, _, _ in parts] == [
+            "result[0]['response_body']",
+            "result[1]['response_body']",
+            "result[2]['response_body']",
+        ]
+
+    def test_a_page_of_small_records_is_named_as_the_page(self):
+        page = {"results": [{"id": i, "note": "y" * 50} for i in range(100)]}
+
+        [(where, size, items)] = largest_parts(page, 1000, path="result")
+
+        assert where == "result['results']"
+        assert items == 100
+        assert size > 5000
+
+    def test_nothing_over_the_floor(self):
+        assert largest_parts({"a": "small"}, 1000) == []
 
 
 class TestRecoveryMiddleware:

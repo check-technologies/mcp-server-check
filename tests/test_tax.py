@@ -8,6 +8,7 @@ import httpx
 import pytest
 
 from mcp_server_check.tools.tax import (
+    bulk_get_employee_tax_param_settings,
     create_employee_tax_statement_overrides,
     delete_employee_tax_statement_override,
     get_company_tax_param_setting,
@@ -70,6 +71,30 @@ async def test_list_employee_tax_params(mock_api, ctx):
     assert result["results"] == [{"id": "etp_001"}]
     req = mock_api.get("/employee_tax_params").calls.last.request
     assert req.url.params["company"] == "com_456"
+
+
+@pytest.mark.anyio
+async def test_bulk_get_employee_tax_param_settings(mock_api, ctx):
+    """GET /employee_tax_params/settings, the route the API serves. The old
+    POST to /employee_tax_param_settings/bulk_get came back as a 302."""
+    route = mock_api.get("/employee_tax_params/settings").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "next": None,
+                "previous": None,
+                "results": [{"id": "spa_001", "employee": "emp_1", "value": "M"}],
+            },
+        )
+    )
+    result = await bulk_get_employee_tax_param_settings(
+        ctx, company="com_1", employee=["emp_1", "emp_2"], as_of="2026-01-01"
+    )
+    assert result["results"] == [{"id": "spa_001", "employee": "emp_1", "value": "M"}]
+    params = route.calls.last.request.url.params
+    assert params["company"] == "com_1"
+    assert params.get_list("employee") == ["emp_1", "emp_2"]
+    assert params["as_of"] == "2026-01-01"
 
 
 def test_list_employee_tax_params_requires_company():

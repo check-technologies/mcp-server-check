@@ -284,9 +284,13 @@ async def list_contractor_payments_for_contractor(
 ) -> dict:
     """List payments for a specific contractor.
 
+    Records have no "id": each is the contractor's pay on one payroll, keyed
+    by "payroll" (with "payday", "amount", and "reimbursement_amount"). For
+    contractor payment IDs (cpa_*) use list_contractor_payments.
+
     Args:
         contractor_id: The Check contractor ID.
-        limit: Maximum number of results to return.
+        limit: Maximum number of results to return (max 25).
         cursor: Pagination cursor.
         payroll: Filter by payroll ID.
         status: Filter by status — "pending", "processing", "failed", or "paid".

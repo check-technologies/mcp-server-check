@@ -184,7 +184,14 @@ class ResultBudgetMiddleware(Middleware):
         if trimmed is not None:
             return trimmed
         tool = ToolCall.from_request(context.message).name
-        raise ResponseTooLargeError(tool, size, self.max_chars, unit="character")
+        largest = (
+            _largest_program_parts(result, self.max_chars // 5)
+            if tool == "run_code"
+            else None
+        )
+        raise ResponseTooLargeError(
+            tool, size, self.max_chars, unit="character", largest=largest
+        )
 
     def _trim_list(self, result: ToolResult) -> ToolResult | None:
         """Keep the leading records of a list result that fit the budget."""
@@ -218,6 +225,63 @@ class ResultBudgetMiddleware(Middleware):
 
 def _text_length(result: ToolResult) -> int:
     return sum(len(b.text) for b in result.content if isinstance(b, TextContent))
+
+
+def largest_parts(
+    value: Any, floor: int, path: str = "", count: int = 3
+) -> list[tuple[str, int, int | None]]:
+    """The biggest pieces of a JSON value: (path, characters, items if a list).
+
+    A piece is reported at the deepest level where it alone is at least
+    floor characters, so a log's response_body is named rather than the
+    log, and a page of many small records is named as the page.
+    """
+    found: list[tuple[str, int, int | None]] = []
+
+    def walk(node: Any, where: str, depth: int) -> bool:
+        size = len(json.dumps(node, default=str))
+        if size < floor:
+            return False
+        if isinstance(node, dict):
+            children: Any = ((f"{where}[{k!r}]", v) for k, v in node.items())
+        elif isinstance(node, list):
+            children = ((f"{where}[{i}]", v) for i, v in enumerate(node))
+        else:
+            children = ()
+        deeper = False
+        if depth < 6:
+            for child_path, child in children:
+                deeper = walk(child, child_path, depth + 1) or deeper
+        if not deeper:
+            found.append((where, size, len(node) if isinstance(node, list) else None))
+        return True
+
+    walk(value, path, 0)
+    return sorted(found, key=lambda part: part[1], reverse=True)[:count]
+
+
+def _largest_program_parts(result: ToolResult, floor: int) -> list[str] | None:
+    """Where a run_code result's characters are, as readable paths."""
+    block = result.content[0] if result.content else None
+    if not isinstance(block, TextContent):
+        return None
+    try:
+        outcome = json.loads(block.text)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(outcome, dict):
+        return None
+    parts = [
+        part
+        for key in ("result", "logs")
+        for part in largest_parts(outcome.get(key), floor, path=key)
+    ]
+    parts.sort(key=lambda part: part[1], reverse=True)
+    described = [
+        f"{where} ({size:,} characters" + (f", {items} items)" if items else ")")
+        for where, size, items in parts[:3]
+    ]
+    return described or None
 
 
 def _page_of(data: dict[str, Any], kept: int) -> dict[str, Any]:

@@ -90,8 +90,10 @@ async def create_correction(
         company: The Check company ID.
         year: The tax year the correction applies to. Every payroll added to the
             correction must have a payday in this year.
-        settlement_date: Date money moves for the correction (YYYY-MM-DD). When
-            omitted, a date is chosen at approval.
+        settlement_date: Date money moves for the correction (YYYY-MM-DD), a
+            banking day. A correction that moves money cannot be approved
+            without one (settlement_date_required); set it here or with
+            update_correction. One that moves no money can leave it out.
         bank_account: ID of the company bank account to debit or credit. Defaults
             to the company's default bank account.
         description: Free-text explanation of why the correction exists.
@@ -349,7 +351,13 @@ async def approve_correction(ctx: Ctx, correction_id: str) -> dict:
     Runs in the background: poll get_correction until "approval.status" is
     "succeeded" or "failed". If the amounts changed since the last preview,
     approval fails with "fulfillment_changed" and the correction's "totals" show
-    the new amounts to review before approving again.
+    the new amounts to review before approving again. A correction that moves
+    money needs a settlement_date first (update_correction), or approval fails
+    with "settlement_date_required".
+
+    Approval can take longer than one run_code program may run, so do not
+    poll in a loop inside the program that approves: return once it starts
+    and read get_correction from a later program.
 
     Args:
         correction_id: The Check correction ID.

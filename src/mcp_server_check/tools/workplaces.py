@@ -52,6 +52,13 @@ async def list_workplaces(
 async def get_workplace(ctx: Ctx, workplace_id: str) -> dict:
     """Get details for a specific workplace.
 
+    Returns 404 for a synthetic workplace: one Check creates to place wages
+    whose real workplace it was not given (often from historical or external
+    payrolls). Synthetic workplace IDs can turn up in payroll data and work as
+    a list_employees filter, but the API hides the records themselves, so
+    this tool and list_workplaces cannot return them. A 404 on such an ID
+    does not mean the ID is wrong; only Check support can read its address.
+
     Args:
         workplace_id: The Check workplace ID (e.g. "wrk_xxxxx").
     """

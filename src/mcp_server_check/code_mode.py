@@ -152,6 +152,16 @@ def _is_ctx(param: inspect.Parameter) -> bool:
     return param.name == "ctx" or name in _CTX_ANNOTATIONS
 
 
+_STRING_LIST_ANNOTATIONS = frozenset(
+    {"list[str]", "list[str]|None", "None|list[str]", "Optional[list[str]]"}
+)
+
+
+def _takes_string_list(annotation: Any) -> bool:
+    """Whether a parameter is a list of strings and nothing else."""
+    return _annotation_text(annotation).replace(" ", "") in _STRING_LIST_ANNOTATIONS
+
+
 def tool_parameters(fn: Any) -> list[inspect.Parameter]:
     """The parameters a program passes to a tool: everything but the context."""
     return [
@@ -370,6 +380,43 @@ CallListener = Callable[[CallRecord, int], Awaitable[None]]
 
 _THROTTLE_HINT = re.compile(r"available in (\d+(?:\.\d+)?) second")
 _MISSING_MEMBER = re.compile(r"module '" + MODULE_NAME + r"' has no attribute '(\w+)'")
+_UNDEFINED_NAME = re.compile(r"NameError: name '(\w+)' is not defined")
+
+# The server's own tools. A model that has just called get_stubs as a tool
+# sometimes calls it again from inside a program, where it does not exist.
+_META_TOOLS = frozenset(
+    {"get_stubs", "run_code", "run_tool", "search_tools", "list_toolsets"}
+)
+
+
+def undefined_name_notes(
+    errors: Iterable[str], entries: Mapping[str, ToolEntry]
+) -> list[str]:
+    """What a NameError on a tool's name means inside a program.
+
+    A NameError usually names a variable from an earlier program, which the
+    stub header already covers. Two other causes have a fix worth stating: a
+    server tool such as get_stubs, which a program cannot call, and a Check
+    tool called without the `check.` prefix.
+    """
+    notes: list[str] = []
+    for line in errors:
+        match = _UNDEFINED_NAME.search(line)
+        if not match:
+            continue
+        name = match.group(1)
+        if name in _META_TOOLS:
+            notes.append(
+                f"{name}: a tool of this server, not a function a program can "
+                f"call. Call {name} as its own tool, then put what you need from "
+                "it into the program."
+            )
+        elif name in entries:
+            notes.append(
+                f"{name}: Check tools live on the `{MODULE_NAME}` module; call "
+                f"await {MODULE_NAME}.{name}(...)."
+            )
+    return notes
 
 
 def missing_member_notes(
@@ -384,8 +431,9 @@ def missing_member_notes(
     that does not exist, one hidden by the server's configuration, and a
     write the program did not declare, and the fix is different for each.
     """
+    errors = list(errors)
     declared = set(writes)
-    notes: list[str] = []
+    notes: list[str] = undefined_name_notes(errors, entries)
     seen: set[str] = set()
     for line in errors:
         match = _MISSING_MEMBER.search(line)
@@ -438,7 +486,88 @@ _HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
         "instead of scanning pages, and gather independent calls with "
         "asyncio.gather.",
     ),
+    (
+        # What is left after await_asyncio_run: a call inside a plain def,
+        # or a loop method such as run_until_complete.
+        re.compile(
+            r"cannot be called from a running event loop|"
+            r"This event loop is already running"
+        ),
+        "A program already runs inside an event loop, with top-level await. "
+        "Write await main() at the top level instead of asyncio.run(main()) "
+        "or loop.run_until_complete(main()), and make any function that "
+        "awaits an async def.",
+    ),
 )
+
+
+def _is_asyncio_run(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "run"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "asyncio"
+        and len(node.args) == 1
+        and not node.keywords
+    )
+
+
+def await_asyncio_run(code: str) -> str:
+    """Rewrite asyncio.run(x) as (await x) wherever the program may await.
+
+    A program runs inside an event loop with top-level await, so
+    asyncio.run(main()), the usual last line of an async script, raises
+    "asyncio.run() cannot be called from a running event loop" before a
+    single call is made. Awaiting the coroutine is what the program meant.
+    A call inside a plain def, lambda, or class body, where await is a
+    SyntaxError, is left alone. Line numbers are kept, so a traceback still
+    points at the program's own lines.
+    """
+    if "asyncio.run" not in code:
+        return code
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return code
+    calls: list[ast.Call] = []
+
+    def visit(node: ast.AST, can_await: bool) -> None:
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.FunctionDef, ast.Lambda, ast.ClassDef)):
+                visit(child, False)
+            elif isinstance(child, ast.AsyncFunctionDef):
+                visit(child, True)
+            elif can_await and isinstance(child, ast.Call) and _is_asyncio_run(child):
+                calls.append(child)
+            else:
+                visit(child, can_await)
+
+    visit(tree, True)
+    if not calls:
+        return code
+    # ast offsets are UTF-8 byte columns.
+    source = code.encode()
+    starts = [0]
+    for line in source.splitlines(keepends=True):
+        starts.append(starts[-1] + len(line))
+
+    def span(node: ast.expr) -> tuple[int, int]:
+        end_line = node.end_lineno or node.lineno
+        end_col = node.end_col_offset or node.col_offset
+        return (
+            starts[node.lineno - 1] + node.col_offset,
+            starts[end_line - 1] + end_col,
+        )
+
+    for call in sorted(calls, key=lambda c: (c.lineno, c.col_offset), reverse=True):
+        begin, end = span(call)
+        arg_begin, arg_end = span(call.args[0])
+        inner = source[arg_begin:arg_end]
+        # Keep the newlines the call spanned, inside the parentheses.
+        padding = b"\n" * (source[begin:end].count(b"\n") - inner.count(b"\n"))
+        source = source[:begin] + b"(await " + inner + padding + b")" + source[end:]
+    return source.decode()
 
 
 def unawaited_coroutines(code: str) -> list[str]:
@@ -678,7 +807,9 @@ class CodeRunner:
         semaphore: asyncio.Semaphore,
         run: ProgramRun,
     ):
-        names = [p.name for p in tool_parameters(entry.tool.fn)]
+        params = tool_parameters(entry.tool.fn)
+        names = [p.name for p in params]
+        string_lists = {p.name for p in params if _takes_string_list(p.annotation)}
         max_calls = self._settings.max_calls
         max_retries = self._settings.max_retries
 
@@ -689,6 +820,11 @@ class CodeRunner:
                     f"arguments ({len(args)} given)"
                 )
             arguments = {**dict(zip(names, args)), **kwargs}
+            # list_taxes(jurisdiction="nm") means ["nm"]; validation would
+            # otherwise end the program over it.
+            for name in string_lists & arguments.keys():
+                if isinstance(arguments[name], str):
+                    arguments[name] = [arguments[name]]
             if len(run.calls) >= max_calls:
                 raise RuntimeError(
                     json.dumps(
@@ -739,7 +875,13 @@ class CodeRunner:
             except (ToolError, ValidationError, ValueError) as e:
                 record.status = "error"
                 record.error = str(e)
-                raise ValueError(str(e)) from e
+                message = str(e)
+                if "validation error" in message:
+                    # A wrong or missing argument name ("company" where the
+                    # tool takes company_id) is fixed by reading the
+                    # signature, so give it rather than a get_stubs round trip.
+                    message += f"\n{entry.name} takes: {render_signature(entry)}"
+                raise ValueError(message) from e
             else:
                 record.status = "ok"
             finally:
@@ -769,6 +911,7 @@ class CodeRunner:
         program slot does not count against the time budget.
         """
         entries = self.callable_entries(tool_filter, writes)
+        code = await_asyncio_run(code)
         program = ProgramRun(on_call=on_call)
         semaphore = asyncio.Semaphore(self._settings.concurrency)
         functions = {
