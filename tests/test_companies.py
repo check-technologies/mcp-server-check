@@ -112,6 +112,40 @@ async def test_onboard_company_field_permissions(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_onboard_company_signatory(mock_api, ctx):
+    route = mock_api.post("/companies/com_001/onboard").mock(
+        return_value=httpx.Response(
+            200, json={"url": "https://onboard.checkhq.com/..."}
+        )
+    )
+    await onboard_company(ctx, company_id="com_001", signatory="sig_001")
+    body = json.loads(route.calls[0].request.content)
+    assert body == {"signatory": "sig_001"}
+
+
+@pytest.mark.anyio
+async def test_onboard_company_signer_fields(mock_api, ctx):
+    route = mock_api.post("/companies/com_001/onboard").mock(
+        return_value=httpx.Response(
+            200, json={"url": "https://onboard.checkhq.com/..."}
+        )
+    )
+    await onboard_company(
+        ctx,
+        company_id="com_001",
+        signer_name="Tony Stark",
+        signer_title="Officer",
+        email="tony@example.com",
+    )
+    body = json.loads(route.calls[0].request.content)
+    assert body == {
+        "signer_name": "Tony Stark",
+        "signer_title": "Officer",
+        "email": "tony@example.com",
+    }
+
+
+@pytest.mark.anyio
 async def test_get_company_paydays(mock_api, ctx):
     route = mock_api.get("/companies/com_001/paydays").mock(
         return_value=httpx.Response(200, json={"paydays": ["2026-01-15"]})

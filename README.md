@@ -260,7 +260,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 | `get_company` | GET | Get details for a specific company |
 | `create_company` | POST | Create a new company |
 | `update_company` | PATCH | Update an existing company |
-| `onboard_company` | POST | Onboard a company to active status |
+| `onboard_company` | POST | Mint an onboarding link (needs a signatory or signer fields) |
 | `get_company_paydays` | GET | Get upcoming paydays for a company |
 | `list_company_tax_deposits` | GET | List tax deposits for a company |
 | `get_company_benefit_aggregations` | GET | Get benefit aggregations for a company |
