@@ -6,16 +6,76 @@ import httpx
 import pytest
 
 from mcp_server_check.helpers import (
+    _SUMMARY_FIELDS,
+    api_path,
     check_api_delete,
     check_api_get,
     check_api_list,
     check_api_patch,
     check_api_post,
-    _SUMMARY_FIELDS,
     check_api_put,
     merge_metadata_filter_params,
     shape_payroll,
 )
+
+
+def test_api_path_builds_absolute_path_from_explicit_segments():
+    assert (
+        api_path("employees", "emp_123", "paystubs", "pay-456")
+        == "/employees/emp_123/paystubs/pay-456"
+    )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "",
+        ".",
+        "..",
+        "../companies",
+        "id/companies",
+        r"id\companies",
+        "id?company=com_1",
+        "id#fragment",
+        "id\ncompanies",
+        "id\x7fcompanies",
+        "%2e%2e",
+        "%252e%252e",
+        "id%2fcompanies",
+        "id%252fcompanies",
+        "id%5ccompanies",
+        "id%255ccompanies",
+        "id%3fcompany=com_1",
+        "id%253fcompany=com_1",
+        "id%23fragment",
+        "id%2523fragment",
+        "id%0acompanies",
+        "id%250acompanies",
+    ],
+)
+def test_api_path_rejects_values_that_are_not_exactly_one_segment(value):
+    with pytest.raises(ValueError, match="exactly one URL segment"):
+        api_path("employees", value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["com_123", "01JABCDEF0123456789", "abc-def_ghi", "id%20with%20spaces"],
+)
+def test_api_path_accepts_valid_single_segment_ids(value):
+    assert api_path("companies", value) == f"/companies/{value}"
+
+
+def test_api_path_validates_static_and_dynamic_segments_identically():
+    with pytest.raises(ValueError, match="path segment 1"):
+        api_path("companies%252femployees", "com_123")
+
+
+@pytest.mark.anyio
+async def test_api_path_rejection_happens_before_http_request(mock_api, ctx):
+    with pytest.raises(ValueError, match="exactly one URL segment"):
+        await check_api_get(ctx, api_path("companies", "../employees"))
+    assert not mock_api.calls
 
 
 @pytest.mark.anyio
@@ -32,6 +92,24 @@ async def test_check_api_get_with_params(mock_api, ctx):
     )
     await check_api_get(ctx, "/test", params={"limit": 5})
     assert "limit=5" in str(route.calls[0].request.url)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/workplaces/../companies",
+        "/workplaces/%2e%2e/companies",
+        "/workplaces/%252e%252e/companies",
+        "/workplaces/..%2fcompanies",
+        "//attacker.example/companies",
+        "/workplaces/id?ignored=/companies",
+    ],
+)
+async def test_check_api_rejects_paths_that_can_retarget_a_request(mock_api, ctx, path):
+    with pytest.raises(ValueError, match="traversal-free"):
+        await check_api_get(ctx, path)
+    assert not mock_api.calls
 
 
 @pytest.mark.anyio

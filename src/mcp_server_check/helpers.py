@@ -21,6 +21,53 @@ except PackageNotFoundError:
 _USER_AGENT = f"mcp-server-check/{_VERSION}"
 
 
+def _fully_unquote(value: str) -> str:
+    """Decode nested percent escapes so path checks cannot be bypassed."""
+    decoded = value
+    for _ in range(len(value) + 1):
+        next_value = unquote(decoded)
+        if next_value == decoded:
+            return decoded
+        decoded = next_value
+    return decoded
+
+
+def _validate_api_segment(position: int, value: str) -> None:
+    """Require a path value to remain exactly one segment after decoding."""
+    decoded = _fully_unquote(value)
+    if (
+        not value
+        or any(char in decoded for char in "/\\?#")
+        or decoded in {".", ".."}
+        or any(ord(char) < 32 or ord(char) == 127 for char in decoded)
+    ):
+        raise ValueError(
+            f"Check API path segment {position} must be exactly one URL segment."
+        )
+
+
+def api_path(*segments: str) -> str:
+    """Build an absolute Check API path from individually validated segments."""
+    for position, segment in enumerate(segments, 1):
+        _validate_api_segment(position, segment)
+    path = "/" + "/".join(segments)
+    _validate_api_path(path)
+    return path
+
+
+def _validate_api_path(path: str) -> None:
+    """Reject paths that could be normalized or interpreted as another route."""
+    decoded = _fully_unquote(path)
+    if (
+        not path.startswith("/")
+        or path.startswith("//")
+        or any(char in decoded for char in "\\?#")
+        or any(segment in {".", ".."} for segment in decoded.split("/"))
+        or any(ord(char) < 32 or ord(char) == 127 for char in decoded)
+    ):
+        raise ValueError("Check API path must be an absolute, traversal-free path.")
+
+
 @dataclass
 class CheckContext:
     client: httpx.AsyncClient
@@ -286,6 +333,7 @@ async def _check_api_request(
     a JSON body. A 204 or an empty 200 body (the sandbox simulate actions on
     companies answer that way) becomes ``{"success": True}``.
     """
+    _validate_api_path(path)
     check_ctx = ctx.request_context.lifespan_context
     headers: dict[str, str] = {"User-Agent": check_ctx.user_agent}
     if extra_headers:

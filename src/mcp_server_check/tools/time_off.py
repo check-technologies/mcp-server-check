@@ -11,7 +11,13 @@ from fastmcp import FastMCP
 
 from mcp_server_check import helpers
 from mcp_server_check.annotations import add_annotated_tool
-from mcp_server_check.helpers import Ctx, apply_clear_fields, build_body, build_params
+from mcp_server_check.helpers import (
+    Ctx,
+    api_path,
+    apply_clear_fields,
+    build_body,
+    build_params,
+)
 
 _ENROLLMENT_CLEARABLE = frozenset({"effective_end"})
 
@@ -96,7 +102,7 @@ async def get_time_off_policy(ctx: Ctx, policy_id: str) -> dict:
     Args:
         policy_id: The time off policy ID (e.g. "time_off_policy_xxxxx").
     """
-    return await _get(ctx, f"/time_off_policies/{policy_id}")
+    return await _get(ctx, api_path("time_off_policies", policy_id))
 
 
 async def create_time_off_policy(
@@ -175,7 +181,9 @@ async def update_time_off_policy(ctx: Ctx, policy_id: str, status: str) -> dict:
         policy_id: The time off policy ID.
         status: "active" or "archived".
     """
-    return await _patch(ctx, f"/time_off_policies/{policy_id}", data={"status": status})
+    return await _patch(
+        ctx, api_path("time_off_policies", policy_id), data={"status": status}
+    )
 
 
 async def list_time_off_balances(
@@ -204,7 +212,7 @@ async def get_time_off_balance(ctx: Ctx, balance_id: str) -> dict:
     Args:
         balance_id: The time off balance ID (e.g. "time_off_balance_xxxxx").
     """
-    return await _get(ctx, f"/time_off_balances/{balance_id}")
+    return await _get(ctx, api_path("time_off_balances", balance_id))
 
 
 async def create_time_off_balance(
@@ -242,7 +250,9 @@ async def update_time_off_balance(ctx: Ctx, balance_id: str, metadata: dict) -> 
             removed, and {} clears it.
     """
     return await _patch(
-        ctx, f"/time_off_balances/{balance_id}", data={"metadata": metadata}
+        ctx,
+        api_path("time_off_balances", balance_id),
+        data={"metadata": metadata},
     )
 
 
@@ -282,7 +292,7 @@ async def get_time_off_enrollment(ctx: Ctx, enrollment_id: str) -> dict:
     Args:
         enrollment_id: The time off enrollment ID (e.g. "time_off_enrollment_xxxxx").
     """
-    return await _get(ctx, f"/time_off_enrollments/{enrollment_id}")
+    return await _get(ctx, api_path("time_off_enrollments", enrollment_id))
 
 
 async def create_time_off_enrollment(
@@ -345,7 +355,7 @@ async def update_time_off_enrollment(
     """
     body = build_body({}, effective_end=effective_end, metadata=metadata)
     apply_clear_fields(body, clear_fields, _ENROLLMENT_CLEARABLE)
-    return await _patch(ctx, f"/time_off_enrollments/{enrollment_id}", data=body)
+    return await _patch(ctx, api_path("time_off_enrollments", enrollment_id), data=body)
 
 
 async def delete_time_off_enrollment(ctx: Ctx, enrollment_id: str) -> dict:
@@ -357,7 +367,7 @@ async def delete_time_off_enrollment(ctx: Ctx, enrollment_id: str) -> dict:
     Args:
         enrollment_id: The time off enrollment ID.
     """
-    return await _delete(ctx, f"/time_off_enrollments/{enrollment_id}")
+    return await _delete(ctx, api_path("time_off_enrollments", enrollment_id))
 
 
 async def list_time_off_entries(
@@ -393,7 +403,7 @@ async def get_time_off_entry(ctx: Ctx, entry_id: str) -> dict:
     Args:
         entry_id: The time off entry ID (e.g. "time_off_entry_xxxxx").
     """
-    return await _get(ctx, f"/time_off_entries/{entry_id}")
+    return await _get(ctx, api_path("time_off_entries", entry_id))
 
 
 async def create_time_off_entry(

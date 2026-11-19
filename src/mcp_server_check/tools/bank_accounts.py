@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     build_params,
     check_api_delete,
     check_api_get,
@@ -59,7 +60,7 @@ async def get_bank_account(ctx: Ctx, bank_account_id: str) -> dict:
     Args:
         bank_account_id: The Check bank account ID.
     """
-    return await check_api_get(ctx, f"/bank_accounts/{bank_account_id}")
+    return await check_api_get(ctx, api_path("bank_accounts", bank_account_id))
 
 
 async def create_bank_account(
@@ -128,7 +129,9 @@ async def update_bank_account(
         body["raw_bank_account"] = raw_bank_account
     if metadata is not None:
         body["metadata"] = metadata
-    return await check_api_patch(ctx, f"/bank_accounts/{bank_account_id}", data=body)
+    return await check_api_patch(
+        ctx, api_path("bank_accounts", bank_account_id), data=body
+    )
 
 
 async def delete_bank_account(ctx: Ctx, bank_account_id: str) -> dict:
@@ -137,7 +140,7 @@ async def delete_bank_account(ctx: Ctx, bank_account_id: str) -> dict:
     Args:
         bank_account_id: The Check bank account ID.
     """
-    return await check_api_delete(ctx, f"/bank_accounts/{bank_account_id}")
+    return await check_api_delete(ctx, api_path("bank_accounts", bank_account_id))
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:

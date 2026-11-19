@@ -11,6 +11,7 @@ from fastmcp import FastMCP
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     build_params,
     check_api_get,
     check_api_list,
@@ -117,7 +118,9 @@ async def get_pay_schedule_paydays(
     if end_date:
         params["end_date"] = end_date
     return await check_api_get(
-        ctx, f"/pay_schedules/{pay_schedule_id}/paydays", params=params or None
+        ctx,
+        api_path("pay_schedules", pay_schedule_id, "paydays"),
+        params=params or None,
     )
 
 

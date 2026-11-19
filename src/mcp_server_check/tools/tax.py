@@ -8,6 +8,7 @@ from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.types import TaxParamUpdate
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     build_body,
     build_params,
     check_api_delete,
@@ -27,7 +28,7 @@ async def get_company_tax_params(ctx: Ctx, company_id: str) -> dict:
     Args:
         company_id: The Check company ID.
     """
-    return await check_api_get(ctx, f"/company_tax_params/{company_id}")
+    return await check_api_get(ctx, api_path("company_tax_params", company_id))
 
 
 async def update_company_tax_params(
@@ -50,7 +51,9 @@ async def update_company_tax_params(
         company_id: The Check company ID.
         data: List of tax parameter update objects, each with ``id`` and ``value``.
     """
-    return await check_api_patch(ctx, f"/company_tax_params/{company_id}", data=data)
+    return await check_api_patch(
+        ctx, api_path("company_tax_params", company_id), data=data
+    )
 
 
 async def list_company_tax_param_settings(
@@ -93,7 +96,7 @@ async def list_company_tax_param_settings(
     """
     return await check_api_list(
         ctx,
-        f"/company_tax_params/{company_id}/settings",
+        api_path("company_tax_params", company_id, "settings"),
         params=build_params(
             limit=limit,
             cursor=cursor,
@@ -132,7 +135,8 @@ async def get_company_tax_param_setting(
         setting_id: The tax parameter setting ID.
     """
     return await check_api_get(
-        ctx, f"/company_tax_params/{company_id}/settings/{setting_id}"
+        ctx,
+        api_path("company_tax_params", company_id, "settings", setting_id),
     )
 
 
@@ -185,7 +189,7 @@ async def get_employee_tax_params(ctx: Ctx, employee_id: str) -> dict:
     Args:
         employee_id: The Check employee ID.
     """
-    return await check_api_get(ctx, f"/employee_tax_params/{employee_id}")
+    return await check_api_get(ctx, api_path("employee_tax_params", employee_id))
 
 
 async def update_employee_tax_params(
@@ -208,7 +212,9 @@ async def update_employee_tax_params(
         employee_id: The Check employee ID.
         data: List of tax parameter update objects, each with ``id`` and ``value``.
     """
-    return await check_api_patch(ctx, f"/employee_tax_params/{employee_id}", data=data)
+    return await check_api_patch(
+        ctx, api_path("employee_tax_params", employee_id), data=data
+    )
 
 
 async def list_employee_tax_param_settings(
@@ -251,7 +257,7 @@ async def list_employee_tax_param_settings(
     """
     return await check_api_list(
         ctx,
-        f"/employee_tax_params/{employee_id}/settings",
+        api_path("employee_tax_params", employee_id, "settings"),
         params=build_params(
             limit=limit,
             cursor=cursor,
@@ -290,7 +296,8 @@ async def get_employee_tax_param_setting(
         setting_id: The tax parameter setting ID.
     """
     return await check_api_get(
-        ctx, f"/employee_tax_params/{employee_id}/settings/{setting_id}"
+        ctx,
+        api_path("employee_tax_params", employee_id, "settings", setting_id),
     )
 
 
@@ -579,7 +586,7 @@ async def get_filing(ctx: Ctx, filing_id: str) -> dict:
     Args:
         filing_id: The Check filing ID (prefixed with "com_fil_").
     """
-    return await check_api_get(ctx, f"/filings/{filing_id}")
+    return await check_api_get(ctx, api_path("filings", filing_id))
 
 
 async def add_filing_blockers(ctx: Ctx, filing_id: str, data: dict) -> dict:
@@ -593,7 +600,9 @@ async def add_filing_blockers(ctx: Ctx, filing_id: str, data: dict) -> dict:
         filing_id: The Check filing ID (prefixed with "com_fil_").
         data: Request body with blocked_reasons to add (e.g. {"blocked_reasons": ["held_by_customer"]}).
     """
-    return await check_api_post(ctx, f"/filings/{filing_id}/add_blockers", data=data)
+    return await check_api_post(
+        ctx, api_path("filings", filing_id, "add_blockers"), data=data
+    )
 
 
 async def remove_filing_blockers(ctx: Ctx, filing_id: str, data: dict) -> dict:
@@ -606,7 +615,9 @@ async def remove_filing_blockers(ctx: Ctx, filing_id: str, data: dict) -> dict:
         filing_id: The Check filing ID (prefixed with "com_fil_").
         data: Request body with blocked_reasons to remove (e.g. {"blocked_reasons": ["held_by_customer"]}).
     """
-    return await check_api_post(ctx, f"/filings/{filing_id}/remove_blockers", data=data)
+    return await check_api_post(
+        ctx, api_path("filings", filing_id, "remove_blockers"), data=data
+    )
 
 
 # --- Employee Tax Statements ---
@@ -665,7 +676,7 @@ async def get_employee_tax_statement(ctx: Ctx, statement_id: str) -> dict:
     Args:
         statement_id: The tax statement ID.
     """
-    return await check_api_get(ctx, f"/employee_tax_statements/{statement_id}")
+    return await check_api_get(ctx, api_path("employee_tax_statements", statement_id))
 
 
 async def simulate_publish_employee_tax_statement(ctx: Ctx, statement_id: str) -> dict:
@@ -682,7 +693,8 @@ async def simulate_publish_employee_tax_statement(ctx: Ctx, statement_id: str) -
         statement_id: The employee tax statement ID (e.g. "ets_xxxxx").
     """
     return await check_api_post(
-        ctx, f"/employee_tax_statements/{statement_id}/simulate/publish"
+        ctx,
+        api_path("employee_tax_statements", statement_id, "simulate", "publish"),
     )
 
 
@@ -698,7 +710,8 @@ async def simulate_unpublish_employee_tax_statement(
         statement_id: The employee tax statement ID (e.g. "ets_xxxxx").
     """
     return await check_api_post(
-        ctx, f"/employee_tax_statements/{statement_id}/simulate/unpublish"
+        ctx,
+        api_path("employee_tax_statements", statement_id, "simulate", "unpublish"),
     )
 
 
@@ -762,7 +775,7 @@ async def get_contractor_tax_statement(ctx: Ctx, statement_id: str) -> dict:
     Args:
         statement_id: The contractor tax statement ID (e.g. "cts_xxxxx").
     """
-    return await check_api_get(ctx, f"/contractor_tax_statements/{statement_id}")
+    return await check_api_get(ctx, api_path("contractor_tax_statements", statement_id))
 
 
 async def simulate_publish_contractor_tax_statement(
@@ -781,7 +794,8 @@ async def simulate_publish_contractor_tax_statement(
         statement_id: The contractor tax statement ID (e.g. "cts_xxxxx").
     """
     return await check_api_post(
-        ctx, f"/contractor_tax_statements/{statement_id}/simulate/publish"
+        ctx,
+        api_path("contractor_tax_statements", statement_id, "simulate", "publish"),
     )
 
 
@@ -797,7 +811,8 @@ async def simulate_unpublish_contractor_tax_statement(
         statement_id: The contractor tax statement ID (e.g. "cts_xxxxx").
     """
     return await check_api_post(
-        ctx, f"/contractor_tax_statements/{statement_id}/simulate/unpublish"
+        ctx,
+        api_path("contractor_tax_statements", statement_id, "simulate", "unpublish"),
     )
 
 
@@ -844,7 +859,9 @@ async def get_employee_tax_statement_override(ctx: Ctx, override_id: str) -> dic
     Args:
         override_id: The override ID (e.g. "ets_ovr_xxxxx").
     """
-    return await check_api_get(ctx, f"/employee_tax_statement_overrides/{override_id}")
+    return await check_api_get(
+        ctx, api_path("employee_tax_statement_overrides", override_id)
+    )
 
 
 async def create_employee_tax_statement_overrides(
@@ -896,7 +913,7 @@ async def update_employee_tax_statement_override(
     """
     return await check_api_patch(
         ctx,
-        f"/employee_tax_statement_overrides/{override_id}",
+        api_path("employee_tax_statement_overrides", override_id),
         data=build_body(
             {},
             qualified_overtime_compensation=qualified_overtime_compensation,
@@ -913,7 +930,7 @@ async def delete_employee_tax_statement_override(ctx: Ctx, override_id: str) -> 
         override_id: The override ID (e.g. "ets_ovr_xxxxx").
     """
     return await check_api_delete(
-        ctx, f"/employee_tax_statement_overrides/{override_id}"
+        ctx, api_path("employee_tax_statement_overrides", override_id)
     )
 
 
@@ -969,7 +986,7 @@ async def get_tax_package(ctx: Ctx, tax_package_id: str) -> dict:
     Args:
         tax_package_id: The tax package ID.
     """
-    return await check_api_get(ctx, f"/tax_packages/{tax_package_id}")
+    return await check_api_get(ctx, api_path("tax_packages", tax_package_id))
 
 
 # --- Taxes (reference data) ---
@@ -1027,7 +1044,7 @@ async def get_tax(ctx: Ctx, tax_id: str) -> dict:
     Args:
         tax_id: The Check tax ID (e.g. "tax_xxxxx").
     """
-    return await check_api_get(ctx, f"/taxes/{tax_id}")
+    return await check_api_get(ctx, api_path("taxes", tax_id))
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:

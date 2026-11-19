@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     build_body,
     build_params,
     check_api_delete,
@@ -65,7 +66,7 @@ async def get_correction(ctx: Ctx, correction_id: str) -> dict:
     Args:
         correction_id: The Check correction ID (e.g. "cor_xxxxx").
     """
-    return await check_api_get(ctx, f"/corrections/{correction_id}")
+    return await check_api_get(ctx, api_path("corrections", correction_id))
 
 
 async def create_correction(
@@ -138,7 +139,7 @@ async def update_correction(
     """
     return await check_api_patch(
         ctx,
-        f"/corrections/{correction_id}",
+        api_path("corrections", correction_id),
         data=build_body(
             {},
             settlement_date=settlement_date,
@@ -156,7 +157,7 @@ async def delete_correction(ctx: Ctx, correction_id: str) -> dict:
     Args:
         correction_id: The Check correction ID.
     """
-    return await check_api_delete(ctx, f"/corrections/{correction_id}")
+    return await check_api_delete(ctx, api_path("corrections", correction_id))
 
 
 async def void_payroll(
@@ -180,7 +181,7 @@ async def void_payroll(
     """
     return await check_api_post(
         ctx,
-        f"/payrolls/{payroll_id}/void",
+        api_path("payrolls", payroll_id, "void"),
         data={"correction": correction, "subset": subset},
     )
 
@@ -339,7 +340,7 @@ async def preview_correction(ctx: Ctx, correction_id: str) -> dict:
     Args:
         correction_id: The Check correction ID.
     """
-    return await check_api_post(ctx, f"/corrections/{correction_id}/preview")
+    return await check_api_post(ctx, api_path("corrections", correction_id, "preview"))
 
 
 async def approve_correction(ctx: Ctx, correction_id: str) -> dict:
@@ -353,7 +354,7 @@ async def approve_correction(ctx: Ctx, correction_id: str) -> dict:
     Args:
         correction_id: The Check correction ID.
     """
-    return await check_api_post(ctx, f"/corrections/{correction_id}/approve")
+    return await check_api_post(ctx, api_path("corrections", correction_id, "approve"))
 
 
 async def reopen_correction(ctx: Ctx, correction_id: str) -> dict:
@@ -364,7 +365,7 @@ async def reopen_correction(ctx: Ctx, correction_id: str) -> dict:
     Args:
         correction_id: The Check correction ID.
     """
-    return await check_api_post(ctx, f"/corrections/{correction_id}/reopen")
+    return await check_api_post(ctx, api_path("corrections", correction_id, "reopen"))
 
 
 async def simulate_correction_start_processing(ctx: Ctx, correction_id: str) -> dict:
@@ -377,7 +378,8 @@ async def simulate_correction_start_processing(ctx: Ctx, correction_id: str) -> 
         correction_id: The Check correction ID.
     """
     return await check_api_post(
-        ctx, f"/corrections/{correction_id}/simulate/start_processing"
+        ctx,
+        api_path("corrections", correction_id, "simulate", "start_processing"),
     )
 
 
@@ -391,7 +393,8 @@ async def simulate_correction_complete_funding(ctx: Ctx, correction_id: str) -> 
         correction_id: The Check correction ID.
     """
     return await check_api_post(
-        ctx, f"/corrections/{correction_id}/simulate/complete_funding"
+        ctx,
+        api_path("corrections", correction_id, "simulate", "complete_funding"),
     )
 
 
@@ -405,7 +408,8 @@ async def simulate_correction_fail_funding(ctx: Ctx, correction_id: str) -> dict
         correction_id: The Check correction ID.
     """
     return await check_api_post(
-        ctx, f"/corrections/{correction_id}/simulate/fail_funding"
+        ctx,
+        api_path("corrections", correction_id, "simulate", "fail_funding"),
     )
 
 
@@ -420,7 +424,7 @@ async def get_correction_receipt(ctx: Ctx, correction_id: str) -> dict:
     Args:
         correction_id: The Check correction ID.
     """
-    return await check_api_get(ctx, f"/corrections/{correction_id}/receipt")
+    return await check_api_get(ctx, api_path("corrections", correction_id, "receipt"))
 
 
 async def get_correction_receipt_download(ctx: Ctx, correction_id: str) -> dict:
@@ -432,7 +436,9 @@ async def get_correction_receipt_download(ctx: Ctx, correction_id: str) -> dict:
     Args:
         correction_id: The Check correction ID.
     """
-    return await check_api_get(ctx, f"/corrections/{correction_id}/receipt_download")
+    return await check_api_get(
+        ctx, api_path("corrections", correction_id, "receipt_download")
+    )
 
 
 async def _create_correction_report_run(
@@ -440,7 +446,7 @@ async def _create_correction_report_run(
 ) -> dict:
     # Check API requires top-level company with a correction, and a payday range
     # would add that range's payrolls to the report rather than narrow it.
-    correction = await check_api_get(ctx, f"/corrections/{correction_id}")
+    correction = await check_api_get(ctx, api_path("corrections", correction_id))
     if correction.get("error") is True:
         return correction
     return await check_api_post(

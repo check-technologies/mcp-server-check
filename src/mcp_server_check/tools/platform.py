@@ -8,6 +8,7 @@ from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.types import EmailDetails
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     build_body,
     build_params,
     check_api_get,
@@ -65,7 +66,7 @@ async def get_notification(ctx: Ctx, notification_id: str) -> dict:
     Args:
         notification_id: The notification ID.
     """
-    return await check_api_get(ctx, f"/notifications/{notification_id}")
+    return await check_api_get(ctx, api_path("notifications", notification_id))
 
 
 # --- Communications ---
@@ -116,7 +117,7 @@ async def get_communication(ctx: Ctx, communication_id: str) -> dict:
     Args:
         communication_id: The communication ID.
     """
-    return await check_api_get(ctx, f"/communications/{communication_id}")
+    return await check_api_get(ctx, api_path("communications", communication_id))
 
 
 async def create_communication(
@@ -239,7 +240,7 @@ async def get_integration_partner(ctx: Ctx, partner_id: str) -> dict:
     Args:
         partner_id: The integration partner ID.
     """
-    return await check_api_get(ctx, f"/integration_partners/{partner_id}")
+    return await check_api_get(ctx, api_path("integration_partners", partner_id))
 
 
 async def authorize_integration_partner(
@@ -252,7 +253,9 @@ async def authorize_integration_partner(
         data: Authorization details.
     """
     return await check_api_post(
-        ctx, f"/integration_partners/{partner_id}/authorize", data=data
+        ctx,
+        api_path("integration_partners", partner_id, "authorize"),
+        data=data,
     )
 
 
@@ -284,7 +287,7 @@ async def get_integration_permission(ctx: Ctx, permission_id: str) -> dict:
     Args:
         permission_id: The integration permission ID.
     """
-    return await check_api_get(ctx, f"/integration_permissions/{permission_id}")
+    return await check_api_get(ctx, api_path("integration_permissions", permission_id))
 
 
 async def list_integration_accesses(
@@ -352,7 +355,7 @@ async def list_accounting_accounts(
     """
     return await check_api_list(
         ctx,
-        f"/integrations/accounting/{accounting_integration_id}/accounts",
+        api_path("integrations", "accounting", accounting_integration_id, "accounts"),
         params=build_params(limit=limit, cursor=cursor),
     )
 
@@ -365,7 +368,14 @@ async def refresh_accounting_accounts(ctx: Ctx, accounting_integration_id: str) 
             (e.g. "ai_xxxxx"), from list_accounting_integrations.
     """
     return await check_api_post(
-        ctx, f"/integrations/accounting/{accounting_integration_id}/accounts/refresh"
+        ctx,
+        api_path(
+            "integrations",
+            "accounting",
+            accounting_integration_id,
+            "accounts",
+            "refresh",
+        ),
     )
 
 
@@ -377,7 +387,8 @@ async def get_accounting_mappings(ctx: Ctx, accounting_integration_id: str) -> d
             (e.g. "ai_xxxxx"), from list_accounting_integrations.
     """
     return await check_api_get(
-        ctx, f"/integrations/accounting/{accounting_integration_id}/mappings"
+        ctx,
+        api_path("integrations", "accounting", accounting_integration_id, "mappings"),
     )
 
 
@@ -391,7 +402,9 @@ async def update_accounting_mappings(ctx: Ctx, company_id: str, data: dict) -> d
         data: Mapping fields to update.
     """
     return await check_api_patch(
-        ctx, f"/companies/{company_id}/accounting_mappings", data=data
+        ctx,
+        api_path("companies", company_id, "accounting_mappings"),
+        data=data,
     )
 
 
@@ -405,7 +418,9 @@ async def toggle_accounting_mappings(ctx: Ctx, company_id: str, data: dict) -> d
         data: Toggle configuration.
     """
     return await check_api_post(
-        ctx, f"/companies/{company_id}/accounting_mappings/toggle", data=data
+        ctx,
+        api_path("companies", company_id, "accounting_mappings", "toggle"),
+        data=data,
     )
 
 
@@ -428,7 +443,7 @@ async def sync_accounting(
     """
     return await check_api_post(
         ctx,
-        f"/integrations/accounting/{accounting_integration_id}/sync",
+        api_path("integrations", "accounting", accounting_integration_id, "sync"),
         data=build_body({"payrolls": payrolls}, resync=resync),
     )
 
@@ -451,7 +466,13 @@ async def list_accounting_sync_attempts(
     """
     return await check_api_list(
         ctx,
-        f"/integrations/accounting/{accounting_integration_id}/sync/attempts",
+        api_path(
+            "integrations",
+            "accounting",
+            accounting_integration_id,
+            "sync",
+            "attempts",
+        ),
         params=build_params(payroll=payroll, limit=limit, cursor=cursor),
     )
 
@@ -504,7 +525,7 @@ async def get_user(ctx: Ctx, user_id: str) -> dict:
         user_id: The Check user ID (e.g. "usr_xxxxx"). The user's legacy UUID
             is also accepted.
     """
-    return await check_api_get(ctx, f"/users/{user_id}")
+    return await check_api_get(ctx, api_path("users", user_id))
 
 
 # --- Addresses ---
@@ -567,7 +588,7 @@ async def get_setup(ctx: Ctx, setup_id: str) -> dict:
     Args:
         setup_id: The setup ID.
     """
-    return await check_api_get(ctx, f"/setups/{setup_id}")
+    return await check_api_get(ctx, api_path("setups", setup_id))
 
 
 # --- Requirements ---
@@ -617,7 +638,7 @@ async def get_requirement(ctx: Ctx, requirement_id: str) -> dict:
     Args:
         requirement_id: The requirement ID.
     """
-    return await check_api_get(ctx, f"/requirements/{requirement_id}")
+    return await check_api_get(ctx, api_path("requirements", requirement_id))
 
 
 # --- Reports ---

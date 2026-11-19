@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     build_params,
     check_api_get,
     check_api_list,
@@ -83,7 +84,7 @@ async def get_log(ctx: Ctx, log_id: str) -> dict:
     Args:
         log_id: The Check log ID (e.g. "log_xxxxx").
     """
-    return await check_api_get(ctx, f"/logs/{log_id}")
+    return await check_api_get(ctx, api_path("logs", log_id))
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:

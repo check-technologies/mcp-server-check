@@ -32,6 +32,7 @@ from typing import Any
 
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     check_api_delete,
     check_api_get,
     check_api_list,
@@ -242,7 +243,7 @@ def generate_tools(res: Resource) -> GeneratedTools:
     # --- get ---
     async def _get_fn(ctx: Ctx, **kwargs: Any) -> dict:
         id_val = kwargs[res.id_param]
-        return await check_api_get(ctx, f"{res.path}/{id_val}")
+        return await check_api_get(ctx, api_path(res.path.removeprefix("/"), id_val))
 
     get_fn = _create_get_function(res)
     get_fn.__name__ = f"get_{res.name.rstrip('s')}"
@@ -379,7 +380,10 @@ def _create_get_function(res: Resource):
     id_param = res.id_param
 
     async def get_fn(ctx: Ctx, **kwargs: Any) -> dict:
-        return await check_api_get(ctx, f"{path}/{kwargs[id_param]}")
+        return await check_api_get(
+            ctx,
+            api_path(path.removeprefix("/"), kwargs[id_param]),
+        )
 
     get_fn.__doc__ = _make_get_docstring(res)
     args_doc = f"    {id_param}: {res.id_description}"
@@ -474,7 +478,11 @@ def _create_update_function(res: Resource, fields: list[Field]):
     async def update_fn(ctx: Ctx, **kwargs: Any) -> dict:
         id_val = kwargs.pop(id_param)
         body = _build_body(field_list, kwargs, is_create=False)
-        return await check_api_patch(ctx, f"{path}/{id_val}", data=body)
+        return await check_api_patch(
+            ctx,
+            api_path(path.removeprefix("/"), id_val),
+            data=body,
+        )
 
     update_fn.__doc__ = _make_update_docstring(res)
     extra = {id_param: res.id_description}
@@ -514,7 +522,10 @@ def _create_delete_function(res: Resource):
     id_param = res.id_param
 
     async def delete_fn(ctx: Ctx, **kwargs: Any) -> dict:
-        return await check_api_delete(ctx, f"{path}/{kwargs[id_param]}")
+        return await check_api_delete(
+            ctx,
+            api_path(path.removeprefix("/"), kwargs[id_param]),
+        )
 
     delete_fn.__doc__ = _make_delete_docstring(res)
     args_doc = f"    {id_param}: {res.id_description}"

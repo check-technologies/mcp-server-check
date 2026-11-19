@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
-from mcp_server_check.helpers import Ctx, check_api_post
+from mcp_server_check.helpers import Ctx, api_path, check_api_post
 
 COMPANY_COMPONENTS = [
     "previous_provider_access",
@@ -149,9 +149,15 @@ async def create_component(
             ),
         }
     component_path = (
-        f"/{path_prefix}/{entity_id}/components/{component_type}/{subtype}"
+        api_path(
+            path_prefix,
+            entity_id,
+            "components",
+            component_type,
+            subtype,
+        )
         if subtype
-        else f"/{path_prefix}/{entity_id}/components/{component_type}"
+        else api_path(path_prefix, entity_id, "components", component_type)
     )
     return await check_api_post(
         ctx,

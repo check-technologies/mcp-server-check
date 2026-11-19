@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     build_params,
     check_api_get,
     check_api_list,
@@ -54,7 +55,7 @@ async def get_agency(ctx: Ctx, agency_id: str) -> dict:
     Args:
         agency_id: The Check agency ID (e.g. "agc_xxxxx").
     """
-    return await check_api_get(ctx, f"/agencies/{agency_id}")
+    return await check_api_get(ctx, api_path("agencies", agency_id))
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:

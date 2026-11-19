@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     check_api_delete,
     check_api_get,
     check_api_list,
@@ -70,7 +71,7 @@ async def get_external_payroll(
         include_items: Return line items and contractor payments inline
             (default false).
     """
-    result = await check_api_get(ctx, f"/external_payrolls/{payroll_id}")
+    result = await check_api_get(ctx, api_path("external_payrolls", payroll_id))
     return shape_payroll(result, include_items=include_items)
 
 
@@ -164,7 +165,9 @@ async def update_external_payroll(
         body["items"] = items
     if contractor_payments is not None:
         body["contractor_payments"] = contractor_payments
-    result = await check_api_patch(ctx, f"/external_payrolls/{payroll_id}", data=body)
+    result = await check_api_patch(
+        ctx, api_path("external_payrolls", payroll_id), data=body
+    )
     return shape_payroll(result)
 
 
@@ -174,7 +177,7 @@ async def delete_external_payroll(ctx: Ctx, payroll_id: str) -> dict:
     Args:
         payroll_id: The Check external payroll ID.
     """
-    return await check_api_delete(ctx, f"/external_payrolls/{payroll_id}")
+    return await check_api_delete(ctx, api_path("external_payrolls", payroll_id))
 
 
 async def approve_external_payroll(
@@ -188,7 +191,7 @@ async def approve_external_payroll(
     """
     result = await check_api_post(
         ctx,
-        f"/external_payrolls/{payroll_id}/approve",
+        api_path("external_payrolls", payroll_id, "approve"),
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
     return shape_payroll(result)
@@ -201,7 +204,7 @@ async def reopen_external_payroll(ctx: Ctx, payroll_id: str) -> dict:
         payroll_id: The Check external payroll ID.
     """
     return shape_payroll(
-        await check_api_post(ctx, f"/external_payrolls/{payroll_id}/reopen")
+        await check_api_post(ctx, api_path("external_payrolls", payroll_id, "reopen"))
     )
 
 
@@ -219,7 +222,7 @@ async def preview_external_payroll(
             inline (default false).
     """
     result = await check_api_get(
-        ctx, f"/external_payrolls/{external_payroll_id}/preview"
+        ctx, api_path("external_payrolls", external_payroll_id, "preview")
     )
     return shape_payroll(result, include_items=include_items)
 

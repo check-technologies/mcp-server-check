@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     build_body,
     build_params,
     check_api_get,
@@ -62,7 +63,7 @@ async def get_report_run(ctx: Ctx, report_run_id: str) -> dict:
     Args:
         report_run_id: The Check report run ID (e.g. "run_xxxxx").
     """
-    return await check_api_get(ctx, f"/report_runs/{report_run_id}")
+    return await check_api_get(ctx, api_path("report_runs", report_run_id))
 
 
 async def download_report_run(ctx: Ctx, report_run_id: str) -> dict:
@@ -75,7 +76,7 @@ async def download_report_run(ctx: Ctx, report_run_id: str) -> dict:
     Args:
         report_run_id: The Check report run ID (e.g. "run_xxxxx").
     """
-    return await check_api_get(ctx, f"/report_runs/{report_run_id}/download")
+    return await check_api_get(ctx, api_path("report_runs", report_run_id, "download"))
 
 
 async def create_report_run(

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, ClassVar, TypeVar
 
-from mcp_server_check.helpers import build_params
+from mcp_server_check.helpers import api_path, build_params
 from mcp_server_check.recovery import Alternative, Failure, Hint, Remedy
 
 _ChoiceT = TypeVar("_ChoiceT", bound="Choice")
@@ -116,7 +116,12 @@ class ReportRequest:
 
     @property
     def path(self) -> str:
-        return f"/companies/{self.company_id}/reports/{self.report_type.value}"
+        return api_path(
+            "companies",
+            self.company_id,
+            "reports",
+            self.report_type.value,
+        )
 
     @property
     def query_params(self) -> dict | None:

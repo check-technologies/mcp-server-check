@@ -9,8 +9,10 @@ instead, forcing an explicit decision.
 
 from __future__ import annotations
 
+import ast
 import inspect
 import re
+import textwrap
 
 import pytest
 from mcp_server_check.tool_filter import (
@@ -20,9 +22,10 @@ from mcp_server_check.tool_filter import (
 )
 from mcp_server_check.tools import collect_all_tools
 
-# Mutating Check API calls, e.g. ``check_api_post(ctx, f"/payments/{id}/retry")``.
+# Mutating Check API calls, e.g. ``check_api_post(ctx, api_path(...))``.
 _MUTATING_CALL = re.compile(r"check_api_(post|patch|delete)\(")
 _LITERAL_PATH = re.compile(r'check_api_(?:post|patch|delete)\(\s*ctx,\s*f?"(/[^"]+)"')
+_MUTATING_NAMES = {"check_api_post", "check_api_patch", "check_api_delete"}
 
 # API paths where a mutation moves funds or repoints where funds go. Approving
 # a correction commits it and starts the ACH settlement of its changes.
@@ -65,6 +68,29 @@ def _mutating_paths(fn) -> list[str]:
     if not _MUTATING_CALL.search(source):
         return []
     paths = _LITERAL_PATH.findall(source)
+    tree = ast.parse(textwrap.dedent(source))
+    for node in ast.walk(tree):
+        if (
+            not isinstance(node, ast.Call)
+            or not isinstance(node.func, ast.Name)
+            or node.func.id not in _MUTATING_NAMES
+            or len(node.args) < 2
+        ):
+            continue
+        path_node = node.args[1]
+        if (
+            not isinstance(path_node, ast.Call)
+            or not isinstance(path_node.func, ast.Name)
+            or path_node.func.id != "api_path"
+        ):
+            continue
+        segments: list[str] = []
+        for segment in path_node.args:
+            if isinstance(segment, ast.Constant) and isinstance(segment.value, str):
+                segments.append(segment.value)
+            else:
+                segments.append("{segment}")
+        paths.append("/" + "/".join(segments))
     if not paths and fn.__closure__:
         paths = [
             cell.cell_contents
