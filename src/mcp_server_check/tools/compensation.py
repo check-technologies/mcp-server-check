@@ -25,7 +25,7 @@ from mcp_server_check.tool_factory import Field, Resource, generate_tools
 
 _pay_schedules = Resource(
     name="pay_schedules",
-    path="/pay_schedules",
+    path=api_path("pay_schedules"),
     id_param="pay_schedule_id",
     id_description="The Check pay schedule ID.",
     description="pay schedules",
@@ -84,7 +84,7 @@ async def list_pay_schedules(
     """
     return await check_api_list(
         ctx,
-        "/pay_schedules",
+        api_path("pay_schedules"),
         params=merge_metadata_filter_params(
             build_params(company=company, limit=limit, cursor=cursor),
             metadata,
@@ -155,7 +155,7 @@ BENEFIT_TYPES = [
 
 _benefits = Resource(
     name="benefits",
-    path="/benefits",
+    path=api_path("benefits"),
     id_param="benefit_id",
     id_description="The Check benefit ID.",
     description="employee benefits",
@@ -244,7 +244,7 @@ delete_benefit = _benefit_tools.delete_fn
 
 _post_tax_deductions = Resource(
     name="post_tax_deductions",
-    path="/post_tax_deductions",
+    path=api_path("post_tax_deductions"),
     id_param="deduction_id",
     id_description="The Check post-tax deduction ID.",
     description="post-tax deductions",
@@ -326,7 +326,7 @@ delete_post_tax_deduction = _post_tax_deduction_tools.delete_fn
 
 _company_benefits = Resource(
     name="company_benefits",
-    path="/company_benefits",
+    path=api_path("company_benefits"),
     id_param="company_benefit_id",
     id_description="The Check company benefit ID.",
     description="company-level benefits",
@@ -410,7 +410,7 @@ delete_company_benefit = _company_benefit_tools.delete_fn
 
 _earning_rates = Resource(
     name="earning_rates",
-    path="/earning_rates",
+    path=api_path("earning_rates"),
     id_param="earning_rate_id",
     id_description="The Check earning rate ID.",
     description="earning rates",
@@ -471,7 +471,7 @@ update_earning_rate = _earning_rate_tools.update_fn
 
 _earning_codes = Resource(
     name="earning_codes",
-    path="/earning_codes",
+    path=api_path("earning_codes"),
     id_param="earning_code_id",
     id_description="The Check earning code ID.",
     description="earning codes",
@@ -527,7 +527,7 @@ update_earning_code = _earning_code_tools.update_fn
 
 _net_pay_splits = Resource(
     name="net_pay_splits",
-    path="/net_pay_splits",
+    path=api_path("net_pay_splits"),
     id_param="net_pay_split_id",
     id_description="The Check net pay split ID.",
     description="net pay splits",

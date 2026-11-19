@@ -41,7 +41,7 @@ async def list_workplaces(
     """
     return await check_api_list(
         ctx,
-        "/workplaces",
+        api_path("workplaces"),
         params=merge_metadata_filter_params(
             build_params(company=company, limit=limit, cursor=cursor),
             metadata,
@@ -80,7 +80,7 @@ async def create_workplace(
     """
     return await check_api_post(
         ctx,
-        "/workplaces",
+        api_path("workplaces"),
         data=build_body(
             {"company": company, "address": address},
             name=name,

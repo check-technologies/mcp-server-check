@@ -38,7 +38,7 @@ async def list_agencies(
     """
     return await check_api_list(
         ctx,
-        "/agencies",
+        api_path("agencies"),
         params=build_params(
             id=ids,
             jurisdiction=jurisdiction,

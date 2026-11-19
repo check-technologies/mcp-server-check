@@ -39,7 +39,7 @@ async def list_forms(
     """
     return await check_api_list(
         ctx,
-        "/forms",
+        api_path("forms"),
         params=build_params(
             company=company,
             limit=limit,

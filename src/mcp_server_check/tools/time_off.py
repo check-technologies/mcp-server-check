@@ -12,6 +12,7 @@ from fastmcp import FastMCP
 from mcp_server_check import helpers
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
+    ApiPath,
     Ctx,
     api_path,
     apply_clear_fields,
@@ -40,33 +41,37 @@ async def _explain_not_found(ctx: Ctx, result: dict) -> dict:
     # that case, so one probe after a 404 tells the two apart.
     if result.get("status_code") != 404:
         return result
-    probe = await helpers.check_api_get(ctx, "/time_off_policies", params={"limit": 1})
+    probe = await helpers.check_api_get(
+        ctx, api_path("time_off_policies"), params={"limit": 1}
+    )
     return dict(_NOT_ENABLED) if probe.get("status_code") == 404 else result
 
 
-async def _get(ctx: Ctx, path: str) -> dict:
+async def _get(ctx: Ctx, path: ApiPath) -> dict:
     return await _explain_not_found(ctx, await helpers.check_api_get(ctx, path))
 
 
-async def _list(ctx: Ctx, path: str, params: dict | None) -> dict:
+async def _list(ctx: Ctx, path: ApiPath, params: dict | None) -> dict:
     return await _explain_not_found(
         ctx, await helpers.check_api_list(ctx, path, params=params)
     )
 
 
-async def _post(ctx: Ctx, path: str, data: dict, headers: dict | None = None) -> dict:
+async def _post(
+    ctx: Ctx, path: ApiPath, data: dict, headers: dict | None = None
+) -> dict:
     return await _explain_not_found(
         ctx, await helpers.check_api_post(ctx, path, data=data, headers=headers)
     )
 
 
-async def _patch(ctx: Ctx, path: str, data: dict) -> dict:
+async def _patch(ctx: Ctx, path: ApiPath, data: dict) -> dict:
     return await _explain_not_found(
         ctx, await helpers.check_api_patch(ctx, path, data=data)
     )
 
 
-async def _delete(ctx: Ctx, path: str) -> dict:
+async def _delete(ctx: Ctx, path: ApiPath) -> dict:
     return await _explain_not_found(ctx, await helpers.check_api_delete(ctx, path))
 
 
@@ -91,7 +96,7 @@ async def list_time_off_policies(
     """
     return await _list(
         ctx,
-        "/time_off_policies",
+        api_path("time_off_policies"),
         params=build_params(company=company, status=status, limit=limit, cursor=cursor),
     )
 
@@ -151,7 +156,7 @@ async def create_time_off_policy(
     """
     return await _post(
         ctx,
-        "/time_off_policies",
+        api_path("time_off_policies"),
         data=build_body(
             {
                 "company": company,
@@ -201,7 +206,7 @@ async def list_time_off_balances(
     """
     return await _list(
         ctx,
-        "/time_off_balances",
+        api_path("time_off_balances"),
         params=build_params(employee=employee, limit=limit, cursor=cursor),
     )
 
@@ -235,7 +240,7 @@ async def create_time_off_balance(
     """
     return await _post(
         ctx,
-        "/time_off_balances",
+        api_path("time_off_balances"),
         data=build_body({"employee": employee, "label": label}, metadata=metadata),
         headers=_idempotency_headers(idempotency_key),
     )
@@ -275,7 +280,7 @@ async def list_time_off_enrollments(
     """
     return await _list(
         ctx,
-        "/time_off_enrollments",
+        api_path("time_off_enrollments"),
         params=build_params(
             balance=balance,
             employee=employee,
@@ -322,7 +327,7 @@ async def create_time_off_enrollment(
     """
     return await _post(
         ctx,
-        "/time_off_enrollments",
+        api_path("time_off_enrollments"),
         data=build_body(
             {"balance": balance, "policy": policy},
             effective_start=effective_start,
@@ -390,7 +395,7 @@ async def list_time_off_entries(
     """
     return await _list(
         ctx,
-        "/time_off_entries",
+        api_path("time_off_entries"),
         params=build_params(
             balance=balance, employee=employee, limit=limit, cursor=cursor
         ),
@@ -431,7 +436,7 @@ async def create_time_off_entry(
     """
     return await _post(
         ctx,
-        "/time_off_entries",
+        api_path("time_off_entries"),
         data=build_body(
             {"balance": balance, "hours": hours, "source": "manual"},
             date=date,

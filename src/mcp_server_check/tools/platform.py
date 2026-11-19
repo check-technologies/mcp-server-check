@@ -46,7 +46,7 @@ async def list_notifications(
     """
     return await check_api_list(
         ctx,
-        "/notifications",
+        api_path("notifications"),
         params=build_params(
             company=company,
             limit=limit,
@@ -97,7 +97,7 @@ async def list_communications(
     """
     return await check_api_list(
         ctx,
-        "/communications",
+        api_path("communications"),
         params=build_params(
             company=company,
             limit=limit,
@@ -139,7 +139,7 @@ async def create_communication(
     """
     return await check_api_post(
         ctx,
-        "/communications",
+        api_path("communications"),
         data=build_body({"company": company}, type=type, email=email),
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
@@ -169,7 +169,7 @@ async def list_usage_summaries(
     """
     return await check_api_list(
         ctx,
-        "/usage/summaries",
+        api_path("usage", "summaries"),
         params=build_params(
             limit=limit,
             cursor=cursor,
@@ -204,7 +204,7 @@ async def list_usage_records(
     """
     return await check_api_list(
         ctx,
-        "/usage/records",
+        api_path("usage", "records"),
         params=build_params(
             limit=limit,
             cursor=cursor,
@@ -230,7 +230,9 @@ async def list_integration_partners(
         cursor: Pagination cursor.
     """
     return await check_api_list(
-        ctx, "/integration_partners", params=build_params(limit=limit, cursor=cursor)
+        ctx,
+        api_path("integration_partners"),
+        params=build_params(limit=limit, cursor=cursor),
     )
 
 
@@ -274,7 +276,7 @@ async def list_integration_permissions(
     """
     return await check_api_list(
         ctx,
-        "/integration_permissions",
+        api_path("integration_permissions"),
         params=build_params(
             limit=limit, cursor=cursor, integration_partner=integration_partner
         ),
@@ -305,7 +307,7 @@ async def list_integration_accesses(
     """
     return await check_api_list(
         ctx,
-        "/integration_accesses",
+        api_path("integration_accesses"),
         params=build_params(limit=limit, cursor=cursor, company=company),
     )
 
@@ -334,7 +336,7 @@ async def list_accounting_integrations(
     """
     return await check_api_list(
         ctx,
-        "/integrations/accounting",
+        api_path("integrations", "accounting"),
         params=build_params(company=company, limit=limit, cursor=cursor),
     )
 
@@ -490,7 +492,7 @@ async def list_company_groups(
         cursor: Pagination cursor.
     """
     return await check_api_list(
-        ctx, "/company_groups", params=build_params(limit=limit, cursor=cursor)
+        ctx, api_path("company_groups"), params=build_params(limit=limit, cursor=cursor)
     )
 
 
@@ -512,7 +514,7 @@ async def list_users(
         cursor: Pagination cursor from a previous response.
     """
     return await check_api_list(
-        ctx, "/users", params=build_params(limit=limit, cursor=cursor)
+        ctx, api_path("users"), params=build_params(limit=limit, cursor=cursor)
     )
 
 
@@ -552,7 +554,7 @@ async def validate_address(
     """
     return await check_api_post(
         ctx,
-        "/addresses/validate",
+        api_path("addresses", "validate"),
         data=build_body(
             {"line1": line1, "city": city, "state": state, "postal_code": postal_code},
             line2=line2,
@@ -578,7 +580,9 @@ async def list_setups(
         cursor: Pagination cursor.
     """
     return await check_api_list(
-        ctx, "/setups", params=build_params(company=company, limit=limit, cursor=cursor)
+        ctx,
+        api_path("setups"),
+        params=build_params(company=company, limit=limit, cursor=cursor),
     )
 
 
@@ -620,7 +624,7 @@ async def list_requirements(
     """
     return await check_api_list(
         ctx,
-        "/requirements",
+        api_path("requirements"),
         params=build_params(
             company=company,
             limit=limit,
@@ -646,7 +650,7 @@ async def get_requirement(ctx: Ctx, requirement_id: str) -> dict:
 
 async def get_applied_for_ids_report(ctx: Ctx) -> dict:
     """Get the applied-for IDs report across all companies."""
-    return await check_api_get(ctx, "/reports/applied_for_ids")
+    return await check_api_get(ctx, api_path("reports", "applied_for_ids"))
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:

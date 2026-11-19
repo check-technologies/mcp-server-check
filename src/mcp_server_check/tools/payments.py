@@ -64,7 +64,7 @@ async def list_payments(
     """
     return await check_api_list(
         ctx,
-        "/payments",
+        api_path("payments"),
         params=build_params(
             company=company,
             payroll=payroll,
@@ -118,7 +118,7 @@ async def list_payment_attempts(
     """
     return await check_api_list(
         ctx,
-        "/payment_attempts",
+        api_path("payment_attempts"),
         params=build_params(payment=payment_id, limit=limit, cursor=cursor),
     )
 

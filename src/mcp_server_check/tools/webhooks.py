@@ -35,7 +35,7 @@ async def list_webhook_configs(
     """
     return await check_api_list(
         ctx,
-        "/webhook_configs",
+        api_path("webhook_configs"),
         params=build_params(company=company, limit=limit, cursor=cursor),
     )
 
@@ -71,7 +71,7 @@ async def create_webhook_config(
     """
     return await check_api_post(
         ctx,
-        "/webhook_configs",
+        api_path("webhook_configs"),
         data=build_body(
             {"url": url},
             api_version=api_version,
@@ -154,7 +154,7 @@ async def list_event_types(
     """
     return await check_api_get(
         ctx,
-        "/event_types",
+        api_path("event_types"),
         params=build_params(webhook_config=webhook_config, api_version=api_version),
     )
 
@@ -186,7 +186,7 @@ async def list_webhook_deliveries(
     """
     return await check_api_list(
         ctx,
-        "/webhook_deliveries",
+        api_path("webhook_deliveries"),
         params=build_params(
             webhook_config=webhook_config,
             company=company,

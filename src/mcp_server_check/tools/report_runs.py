@@ -42,7 +42,7 @@ async def list_report_runs(
     """
     return await check_api_list(
         ctx,
-        "/report_runs",
+        api_path("report_runs"),
         params=build_params(
             company=company,
             report_type=report_type,
@@ -121,7 +121,7 @@ async def create_report_run(
         }
     return await check_api_post(
         ctx,
-        "/report_runs",
+        api_path("report_runs"),
         data=build_body(
             {"report": report, "parameters": parameters},
             company=company,

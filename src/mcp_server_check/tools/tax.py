@@ -170,7 +170,7 @@ async def list_employee_tax_params(
     """
     return await check_api_list(
         ctx,
-        "/employee_tax_params",
+        api_path("employee_tax_params"),
         params=build_params(
             employee=employee,
             limit=limit,
@@ -309,7 +309,9 @@ async def bulk_get_employee_tax_param_settings(ctx: Ctx, data: dict) -> dict:
     Args:
         data: Bulk request payload with employee IDs or filters.
     """
-    return await check_api_post(ctx, "/employee_tax_param_settings/bulk_get", data=data)
+    return await check_api_post(
+        ctx, api_path("employee_tax_param_settings", "bulk_get"), data=data
+    )
 
 
 async def bulk_update_employee_tax_param_settings(ctx: Ctx, data: dict) -> dict:
@@ -321,7 +323,7 @@ async def bulk_update_employee_tax_param_settings(ctx: Ctx, data: dict) -> dict:
         data: Bulk update payload with settings to update.
     """
     return await check_api_post(
-        ctx, "/employee_tax_param_settings/bulk_update", data=data
+        ctx, api_path("employee_tax_param_settings", "bulk_update"), data=data
     )
 
 
@@ -378,7 +380,7 @@ async def list_company_tax_elections(
     """
     return await check_api_list(
         ctx,
-        "/company_tax_elections",
+        api_path("company_tax_elections"),
         params=build_params(
             company=company,
             tax=tax,
@@ -412,7 +414,7 @@ async def create_company_tax_elections(
     """
     return await check_api_post(
         ctx,
-        "/company_tax_elections",
+        api_path("company_tax_elections"),
         data=data,
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
@@ -438,7 +440,7 @@ async def update_company_tax_elections(ctx: Ctx, data: list[dict]) -> dict:
     Args:
         data: List of tax election updates, e.g. [{"id": "txe_...", "company": "com_...", "setting": {"exempt": true, "effective_start": "2026-01-01"}}].
     """
-    return await check_api_patch(ctx, "/company_tax_elections", data=data)
+    return await check_api_patch(ctx, api_path("company_tax_elections"), data=data)
 
 
 # --- Employee Tax Elections ---
@@ -484,7 +486,7 @@ async def list_employee_tax_elections(
     """
     return await check_api_list(
         ctx,
-        "/employee_tax_elections",
+        api_path("employee_tax_elections"),
         params=build_params(
             employee=employee,
             company=company,
@@ -520,7 +522,7 @@ async def update_employee_tax_elections(ctx: Ctx, data: list[dict]) -> dict:
     Args:
         data: List of tax election updates, e.g. [{"id": "txe_...", "employee": "emp_...", "setting": {"exempt": true, "effective_start": "2026-01-01"}}].
     """
-    return await check_api_patch(ctx, "/employee_tax_elections", data=data)
+    return await check_api_patch(ctx, api_path("employee_tax_elections"), data=data)
 
 
 # --- Filings ---
@@ -559,7 +561,7 @@ async def list_filings(
     """
     return await check_api_list(
         ctx,
-        "/filings",
+        api_path("filings"),
         params=build_params(
             company=company,
             limit=limit,
@@ -655,7 +657,7 @@ async def list_employee_tax_statements(
     """
     return await check_api_list(
         ctx,
-        "/employee_tax_statements",
+        api_path("employee_tax_statements"),
         params=build_params(
             employee=employee,
             limit=limit,
@@ -751,7 +753,7 @@ async def list_contractor_tax_statements(
     """
     return await check_api_list(
         ctx,
-        "/contractor_tax_statements",
+        api_path("contractor_tax_statements"),
         params=build_params(
             contractor=contractor,
             company=company,
@@ -842,7 +844,7 @@ async def list_employee_tax_statement_overrides(
     """
     return await check_api_list(
         ctx,
-        "/employee_tax_statement_overrides",
+        api_path("employee_tax_statement_overrides"),
         params=build_params(
             company=company,
             employee=employee,
@@ -887,7 +889,7 @@ async def create_employee_tax_statement_overrides(
     """
     return await check_api_post(
         ctx,
-        "/employee_tax_statement_overrides",
+        api_path("employee_tax_statement_overrides"),
         data={"company": company, "overrides": overrides},
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
@@ -971,7 +973,7 @@ async def request_tax_package(
 
     return await check_api_post(
         ctx,
-        "/tax_packages",
+        api_path("tax_packages"),
         data=build_body(
             {"company": company},
             contents=contents if contents else None,
@@ -1024,7 +1026,7 @@ async def list_taxes(
     """
     return await check_api_list(
         ctx,
-        "/taxes",
+        api_path("taxes"),
         params=build_params(
             id=ids,
             jurisdiction=jurisdiction,

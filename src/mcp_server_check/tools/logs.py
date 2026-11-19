@@ -57,7 +57,7 @@ async def list_logs(
     """
     return await check_api_list(
         ctx,
-        "/logs",
+        api_path("logs"),
         params=build_params(
             limit=limit,
             cursor=cursor,

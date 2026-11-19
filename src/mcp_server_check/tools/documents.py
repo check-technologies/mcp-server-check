@@ -43,7 +43,7 @@ async def list_company_tax_documents(
     """
     return await check_api_list(
         ctx,
-        "/documents/company_tax_documents",
+        api_path("documents", "company_tax_documents"),
         params=build_params(
             limit=limit, cursor=cursor, company=company, year=year, quarter=quarter
         ),
@@ -97,7 +97,7 @@ async def list_company_authorization_documents(
     """
     return await check_api_list(
         ctx,
-        "/documents/company_authorization_documents",
+        api_path("documents", "company_authorization_documents"),
         params=build_params(limit=limit, cursor=cursor, company=company, year=year),
     )
 
@@ -157,7 +157,7 @@ async def list_employee_tax_documents(
     """
     return await check_api_list(
         ctx,
-        "/documents/employee_tax_documents",
+        api_path("documents", "employee_tax_documents"),
         params=build_params(
             limit=limit, cursor=cursor, employee=employee, company=company, year=year
         ),
@@ -213,7 +213,7 @@ async def list_contractor_tax_documents(
     """
     return await check_api_list(
         ctx,
-        "/documents/contractor_tax_documents",
+        api_path("documents", "contractor_tax_documents"),
         params=build_params(
             limit=limit,
             cursor=cursor,
@@ -270,7 +270,7 @@ async def list_setup_documents(
     """
     return await check_api_list(
         ctx,
-        "/documents/setup_documents",
+        api_path("documents", "setup_documents"),
         params=build_params(limit=limit, cursor=cursor, company=company),
     )
 
@@ -341,7 +341,7 @@ async def list_company_provided_documents(
     """
     return await check_api_list(
         ctx,
-        "/company_provided_documents",
+        api_path("company_provided_documents"),
         params=build_params(limit=limit, cursor=cursor, company=company),
     )
 
@@ -374,7 +374,7 @@ async def create_company_provided_document(
     """
     return await check_api_post(
         ctx,
-        "/company_provided_documents",
+        api_path("company_provided_documents"),
         data=build_body({"company": company}, document_type=document_type),
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )

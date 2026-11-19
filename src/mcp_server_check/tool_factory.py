@@ -8,7 +8,7 @@ Usage:
 
     resource = Resource(
         name="benefits",
-        path="/benefits",
+        path=api_path("benefits"),
         id_param="benefit_id",
         id_description="The Check benefit ID.",
         description="employee benefits",
@@ -31,6 +31,7 @@ from dataclasses import dataclass, field as dataclass_field
 from typing import Any
 
 from mcp_server_check.helpers import (
+    ApiPath,
     Ctx,
     api_path,
     check_api_delete,
@@ -69,7 +70,7 @@ class Resource:
 
     Attributes:
         name: Resource name in plural form (e.g. "benefits", "pay_schedules").
-        path: API path prefix (e.g. "/benefits", "/pay_schedules").
+        path: Validated API path prefix (e.g. ``api_path("benefits")``).
         id_param: Name of the ID parameter (e.g. "benefit_id").
         id_description: Doc string for the ID parameter.
         description: Human-readable description of what this resource is.
@@ -88,7 +89,7 @@ class Resource:
     """
 
     name: str
-    path: str
+    path: ApiPath
     id_param: str
     id_description: str = ""
     description: str = ""

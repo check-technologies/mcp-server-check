@@ -65,7 +65,7 @@ async def list_payrolls(
     """
     return await check_api_list(
         ctx,
-        "/payrolls",
+        api_path("payrolls"),
         params=build_params(
             company=company,
             limit=limit,
@@ -174,7 +174,7 @@ async def create_payroll(
     """
     result = await check_api_post(
         ctx,
-        "/payrolls",
+        api_path("payrolls"),
         data=build_body(
             {
                 "company": company,

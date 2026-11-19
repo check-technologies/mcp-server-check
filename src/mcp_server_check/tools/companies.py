@@ -51,7 +51,7 @@ async def list_companies(
     """
     return await check_api_list(
         ctx,
-        "/companies",
+        api_path("companies"),
         params=merge_metadata_filter_params(
             build_params(
                 limit=limit,
@@ -94,7 +94,7 @@ async def search_companies(
     """
     return await check_api_list(
         ctx,
-        "/companies/search",
+        api_path("companies", "search"),
         params=build_params(term=term, limit=limit, cursor=cursor),
     )
 
@@ -155,7 +155,7 @@ async def create_company(
     """
     return await check_api_post(
         ctx,
-        "/companies",
+        api_path("companies"),
         data=build_body(
             {"legal_name": legal_name},
             trade_name=trade_name,

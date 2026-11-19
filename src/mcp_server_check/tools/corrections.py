@@ -42,7 +42,7 @@ async def list_corrections(
     """
     return await check_api_list(
         ctx,
-        "/corrections",
+        api_path("corrections"),
         params=build_params(
             company=company,
             year=year,
@@ -102,7 +102,7 @@ async def create_correction(
     """
     return await check_api_post(
         ctx,
-        "/corrections",
+        api_path("corrections"),
         data=build_body(
             {"company": company, "year": year},
             settlement_date=settlement_date,
@@ -240,7 +240,7 @@ async def add_payroll_to_correction(
     """
     result = await check_api_post(
         ctx,
-        "/payrolls",
+        api_path("payrolls"),
         data=build_body(
             {
                 "correction": correction,
@@ -312,7 +312,7 @@ async def add_external_payroll(
     """
     result = await check_api_post(
         ctx,
-        "/external_payrolls",
+        api_path("external_payrolls"),
         data=build_body(
             {
                 "correction": correction,
@@ -451,7 +451,7 @@ async def _create_correction_report_run(
         return correction
     return await check_api_post(
         ctx,
-        "/report_runs",
+        api_path("report_runs"),
         data={
             "report": report,
             "company": correction["company"],

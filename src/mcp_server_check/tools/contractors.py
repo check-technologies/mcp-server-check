@@ -44,7 +44,7 @@ async def list_contractors(
     """
     return await check_api_list(
         ctx,
-        "/contractors",
+        api_path("contractors"),
         params=merge_metadata_filter_params(
             build_params(company=company, limit=limit, ids=ids, cursor=cursor),
             metadata,
@@ -75,7 +75,7 @@ async def search_contractors(
     """
     return await check_api_list(
         ctx,
-        "/contractors/search",
+        api_path("contractors", "search"),
         params=build_params(term=term, limit=limit, cursor=cursor),
     )
 
@@ -145,7 +145,7 @@ async def create_contractor(
     """
     return await check_api_post(
         ctx,
-        "/contractors",
+        api_path("contractors"),
         data=build_body(
             {"company": company},
             type=type,

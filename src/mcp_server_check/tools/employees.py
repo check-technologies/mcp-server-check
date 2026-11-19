@@ -48,7 +48,7 @@ async def list_employees(
     """
     return await check_api_list(
         ctx,
-        "/employees",
+        api_path("employees"),
         params=merge_metadata_filter_params(
             build_params(
                 company=company,
@@ -86,7 +86,7 @@ async def search_employees(
     """
     return await check_api_list(
         ctx,
-        "/employees/search",
+        api_path("employees", "search"),
         params=build_params(term=term, limit=limit, cursor=cursor),
     )
 
@@ -150,7 +150,7 @@ async def create_employee(
     """
     return await check_api_post(
         ctx,
-        "/employees",
+        api_path("employees"),
         data=build_body(
             {"company": company, "first_name": first_name, "last_name": last_name},
             middle_name=middle_name,

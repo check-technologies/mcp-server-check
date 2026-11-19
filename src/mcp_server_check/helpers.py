@@ -19,6 +19,16 @@ except PackageNotFoundError:
     _VERSION = "dev"
 
 _USER_AGENT = f"mcp-server-check/{_VERSION}"
+_API_PATH_TOKEN = object()
+
+
+class ApiPath(str):
+    """An absolute Check API path validated and created by :func:`api_path`."""
+
+    def __new__(cls, value: str, *, _token: object | None = None) -> ApiPath:
+        if _token is not _API_PATH_TOKEN:
+            raise TypeError("ApiPath values must be created with api_path().")
+        return super().__new__(cls, value)
 
 
 def _fully_unquote(value: str) -> str:
@@ -46,13 +56,13 @@ def _validate_api_segment(position: int, value: str) -> None:
         )
 
 
-def api_path(*segments: str) -> str:
+def api_path(*segments: str) -> ApiPath:
     """Build an absolute Check API path from individually validated segments."""
     for position, segment in enumerate(segments, 1):
         _validate_api_segment(position, segment)
     path = "/" + "/".join(segments)
     _validate_api_path(path)
-    return path
+    return ApiPath(path, _token=_API_PATH_TOKEN)
 
 
 def _validate_api_path(path: str) -> None:
@@ -321,7 +331,7 @@ def merge_metadata_filter_params(
 async def _check_api_request(
     ctx: Ctx,
     method: str,
-    path: str,
+    path: ApiPath,
     params: dict | None = None,
     data: dict | list | None = None,
     extra_headers: dict[str, str] | None = None,
@@ -333,6 +343,8 @@ async def _check_api_request(
     a JSON body. A 204 or an empty 200 body (the sandbox simulate actions on
     companies answer that way) becomes ``{"success": True}``.
     """
+    if not isinstance(path, ApiPath):
+        raise TypeError("Check API request paths must be created with api_path().")
     _validate_api_path(path)
     check_ctx = ctx.request_context.lifespan_context
     headers: dict[str, str] = {"User-Agent": check_ctx.user_agent}
@@ -373,12 +385,14 @@ async def _check_api_request(
         }
 
 
-async def check_api_get(ctx: Ctx, path: str, params: dict | None = None) -> dict:
+async def check_api_get(ctx: Ctx, path: ApiPath, params: dict | None = None) -> dict:
     """Make a GET request to the Check API."""
     return await _check_api_request(ctx, "GET", path, params=params)
 
 
-async def check_api_get_csv(ctx: Ctx, path: str, params: dict | None = None) -> dict:
+async def check_api_get_csv(
+    ctx: Ctx, path: ApiPath, params: dict | None = None
+) -> dict:
     """Make a GET request for a CSV rendering, returned under the csv key."""
     return await _check_api_request(
         ctx,
@@ -410,7 +424,7 @@ DOWNLOAD_TEXT_LIMIT = 40_000
 _READABLE_DOWNLOADS = "PDF, CSV, plain text, or JSON"
 
 
-async def check_api_download(ctx: Ctx, path: str) -> dict:
+async def check_api_download(ctx: Ctx, path: ApiPath) -> dict:
     """GET a document download and return it as text, by content type.
 
     The document download routes return the file itself, not JSON. A PDF comes
@@ -552,7 +566,7 @@ def _pdf_download(data: bytes, filename: str | None) -> dict:
 
 async def check_api_post(
     ctx: Ctx,
-    path: str,
+    path: ApiPath,
     data: dict | list | None = None,
     headers: dict[str, str] | None = None,
     params: dict | None = None,
@@ -563,24 +577,24 @@ async def check_api_post(
     )
 
 
-async def check_api_patch(ctx: Ctx, path: str, data: dict | list) -> dict:
+async def check_api_patch(ctx: Ctx, path: ApiPath, data: dict | list) -> dict:
     """Make a PATCH request to the Check API."""
     return await _check_api_request(ctx, "PATCH", path, data=data)
 
 
-async def check_api_put(ctx: Ctx, path: str, data: dict) -> dict:
+async def check_api_put(ctx: Ctx, path: ApiPath, data: dict) -> dict:
     """Make a PUT request to the Check API."""
     return await _check_api_request(ctx, "PUT", path, data=data)
 
 
-async def check_api_delete(ctx: Ctx, path: str, params: dict | None = None) -> dict:
+async def check_api_delete(ctx: Ctx, path: ApiPath, params: dict | None = None) -> dict:
     """Make a DELETE request to the Check API."""
     return await _check_api_request(ctx, "DELETE", path, params=params)
 
 
 async def check_api_list(
     ctx: Ctx,
-    path: str,
+    path: ApiPath,
     params: dict | None = None,
     *,
     summarize: bool = True,

@@ -44,7 +44,7 @@ async def list_contractor_payments(
         cursor=cursor,
         payroll=payroll,
     )
-    return await check_api_list(ctx, "/contractor_payments", params=params)
+    return await check_api_list(ctx, api_path("contractor_payments"), params=params)
 
 
 async def get_contractor_payment(ctx: Ctx, contractor_payment_id: str) -> dict:
@@ -99,7 +99,7 @@ async def create_contractor_payment(
         body["paper_check_number"] = paper_check_number
     return await check_api_post(
         ctx,
-        "/contractor_payments",
+        api_path("contractor_payments"),
         data=body,
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )

@@ -54,7 +54,7 @@ async def list_external_payrolls(
     if pay_schedule is not None:
         params["pay_schedule"] = pay_schedule
     params["include_items"] = str(include_items).lower()
-    return await check_api_list(ctx, "/external_payrolls", params=params)
+    return await check_api_list(ctx, api_path("external_payrolls"), params=params)
 
 
 async def get_external_payroll(
@@ -121,7 +121,7 @@ async def create_external_payroll(
         body["contractor_payments"] = contractor_payments
     result = await check_api_post(
         ctx,
-        "/external_payrolls",
+        api_path("external_payrolls"),
         data=body,
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )

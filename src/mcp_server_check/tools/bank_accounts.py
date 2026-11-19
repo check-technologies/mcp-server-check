@@ -40,7 +40,7 @@ async def list_bank_accounts(
     """
     return await check_api_list(
         ctx,
-        "/bank_accounts",
+        api_path("bank_accounts"),
         params=merge_metadata_filter_params(
             build_params(
                 company=company,
@@ -104,7 +104,7 @@ async def create_bank_account(
         body["metadata"] = metadata
     return await check_api_post(
         ctx,
-        "/bank_accounts",
+        api_path("bank_accounts"),
         data=body,
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )

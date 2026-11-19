@@ -7,6 +7,7 @@ import inspect
 import httpx
 import pytest
 
+from mcp_server_check.helpers import api_path
 from mcp_server_check.tool_factory import (
     Field,
     Resource,
@@ -71,7 +72,7 @@ class TestBuildBody:
 def simple_resource():
     return Resource(
         name="widgets",
-        path="/widgets",
+        path=api_path("widgets"),
         id_param="widget_id",
         id_description="The widget ID.",
         description="widgets",
@@ -96,7 +97,7 @@ class TestGenerateTools:
     def test_no_delete_when_has_delete_false(self):
         res = Resource(
             name="things",
-            path="/things",
+            path=api_path("things"),
             id_param="thing_id",
             has_delete=False,
             fields=[],
@@ -170,7 +171,7 @@ async def test_generated_list_calls_api(mock_api, ctx):
     """Generated list function makes the right API call."""
     res = Resource(
         name="widgets",
-        path="/widgets",
+        path=api_path("widgets"),
         id_param="widget_id",
         list_filters=["company"],
         fields=[],
@@ -190,7 +191,7 @@ async def test_generated_get_calls_api(mock_api, ctx):
     """Generated get function makes the right API call."""
     res = Resource(
         name="widgets",
-        path="/widgets",
+        path=api_path("widgets"),
         id_param="widget_id",
         fields=[],
     )
@@ -207,7 +208,7 @@ async def test_generated_create_calls_api(mock_api, ctx):
     """Generated create function sends the right body."""
     res = Resource(
         name="widgets",
-        path="/widgets",
+        path=api_path("widgets"),
         id_param="widget_id",
         fields=[
             Field("company", str, required_for="create"),
@@ -233,7 +234,7 @@ async def test_generated_update_calls_api(mock_api, ctx):
     """Generated update function sends only non-None fields."""
     res = Resource(
         name="widgets",
-        path="/widgets",
+        path=api_path("widgets"),
         id_param="widget_id",
         fields=[
             Field("name", str),
@@ -257,7 +258,7 @@ async def test_generated_delete_calls_api(mock_api, ctx):
     """Generated delete function makes the right API call."""
     res = Resource(
         name="widgets",
-        path="/widgets",
+        path=api_path("widgets"),
         id_param="widget_id",
         fields=[],
     )
