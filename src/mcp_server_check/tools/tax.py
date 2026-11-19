@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
-from mcp_server_check.types import TaxParamUpdate
+from mcp_server_check.types import BulkEmployeeTaxParamUpdate, TaxParamUpdate
 from mcp_server_check.helpers import (
     Ctx,
     api_path,
@@ -346,16 +346,28 @@ async def bulk_get_employee_tax_param_settings(
     )
 
 
-async def bulk_update_employee_tax_param_settings(ctx: Ctx, data: dict) -> dict:
-    """Bulk update employee tax parameter settings.
+async def bulk_update_employee_tax_param_settings(
+    ctx: Ctx, data: list[BulkEmployeeTaxParamUpdate]
+) -> dict:
+    """Bulk update tax parameter settings across one or more employees.
 
-    The payload is a complex bulk structure — pass the full request body as a dict.
+    The request body must be a non-empty JSON array. Each item requires
+    ``id`` (the ``spa_*`` tax parameter ID), ``employee`` and ``company``, plus
+    either ``value`` or ``applied_for`` (not both), and optionally
+    ``effective_start``.
+
+    Example::
+
+        [
+            {"id": "spa_abc123", "employee": "emp_111", "company": "com_222",
+             "value": "0", "effective_start": "2026-01-01"}
+        ]
 
     Args:
-        data: Bulk update payload with settings to update.
+        data: List of tax parameter setting updates.
     """
-    return await check_api_post(
-        ctx, api_path("employee_tax_param_settings", "bulk_update"), data=data
+    return await check_api_patch(
+        ctx, api_path("employee_tax_params", "settings"), data=data
     )
 
 

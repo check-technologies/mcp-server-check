@@ -5,7 +5,11 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
-from mcp_server_check.types import Address, FormParameter
+from mcp_server_check.types import (
+    Address,
+    FormParameter,
+    ReciprocityElectionUpdate,
+)
 from mcp_server_check.helpers import (
     Ctx,
     api_path,
@@ -456,13 +460,21 @@ async def get_employee_reciprocity_elections(ctx: Ctx, employee_id: str) -> dict
 
 
 async def update_employee_reciprocity_elections(
-    ctx: Ctx, employee_id: str, data: dict
+    ctx: Ctx, employee_id: str, data: list[ReciprocityElectionUpdate]
 ) -> dict:
     """Update reciprocity elections for an employee.
 
+    The request body must be a JSON array. Each item names a ``jurisdiction``
+    (``jur_*``, from get_employee_reciprocity_elections) with ``opt_in`` and
+    ``effective_start``.
+
+    Example::
+
+        [{"jurisdiction": "jur_abc123", "opt_in": True, "effective_start": "2026-01-01"}]
+
     Args:
         employee_id: The Check employee ID.
-        data: Reciprocity election data (complex nested structure).
+        data: List of reciprocity elections to set.
     """
     return await check_api_patch(
         ctx,

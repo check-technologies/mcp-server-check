@@ -8,6 +8,7 @@ import httpx
 import pytest
 
 from mcp_server_check.tools.employees import (
+    update_employee_reciprocity_elections,
     create_employee,
     get_employee_paystub,
     list_employee_forms,
@@ -296,3 +297,23 @@ async def test_submit_employee_form(mock_api, ctx):
     )
     result = await submit_employee_form(ctx, employee_id="emp_001", form_id="frm_001")
     assert result["status"] == "submitted"
+
+
+@pytest.mark.anyio
+async def test_update_employee_reciprocity_elections_sends_list(mock_api, ctx):
+    """The API serializes with many=True and 400s on an object ("Expected a
+    list of items but got type \"dict\"")."""
+    route = mock_api.patch("/employees/emp_1/reciprocity_elections").mock(
+        return_value=httpx.Response(
+            200, json={"next": None, "previous": None, "results": []}
+        )
+    )
+    election = {
+        "jurisdiction": "jur_001",
+        "opt_in": True,
+        "effective_start": "2026-01-01",
+    }
+    await update_employee_reciprocity_elections(
+        ctx, employee_id="emp_1", data=[election]
+    )
+    assert json.loads(route.calls.last.request.content) == [election]
