@@ -242,12 +242,27 @@ async def update_company(
 async def onboard_company(
     ctx: Ctx,
     company_id: str,
+    signatory: str | None = None,
+    signer_name: str | None = None,
+    signer_title: str | None = None,
+    email: str | None = None,
     field_permissions: dict[str, str] | None = None,
 ) -> dict:
-    """Onboard a company and return an onboarding link for it.
+    """Mint an onboarding link for a company.
+
+    The API requires a signer for the link: pass either `signatory` (an
+    existing signatory ID from list_signatories) or all three of
+    `signer_name`, `signer_title`, and `email`, never both. Existing
+    signatories on the company are not picked up automatically.
 
     Args:
         company_id: The Check company ID.
+        signatory: ID of an existing signatory (sig_xxxxx) who will sign in
+            the onboarding flow. Find one with list_signatories.
+        signer_name: Full name of the signer, when not passing `signatory`.
+        signer_title: Signer's title with the company (e.g. "Officer"), when
+            not passing `signatory`.
+        email: Signer's email address, when not passing `signatory`.
         field_permissions: Optional map of lockable fields to access levels for
             the minted onboard link. Keys must be one of "company:legal_name",
             "company:trade_name", "company:address", "company:phone", or
@@ -258,7 +273,14 @@ async def onboard_company(
     return await check_api_post(
         ctx,
         api_path("companies", company_id, "onboard"),
-        data=build_body({}, field_permissions=field_permissions),
+        data=build_body(
+            {},
+            signatory=signatory,
+            signer_name=signer_name,
+            signer_title=signer_title,
+            email=email,
+            field_permissions=field_permissions,
+        ),
     )
 
 
