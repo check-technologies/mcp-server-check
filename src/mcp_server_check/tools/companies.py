@@ -10,6 +10,7 @@ from mcp_server_check.reports import ReportFormat, ReportRequest
 from mcp_server_check.types import Address
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     build_body,
     build_params,
     check_api_get,
@@ -50,7 +51,7 @@ async def list_companies(
     """
     return await check_api_list(
         ctx,
-        "/companies",
+        api_path("companies"),
         params=merge_metadata_filter_params(
             build_params(
                 limit=limit,
@@ -93,7 +94,7 @@ async def search_companies(
     """
     return await check_api_list(
         ctx,
-        "/companies/search",
+        api_path("companies", "search"),
         params=build_params(term=term, limit=limit, cursor=cursor),
     )
 
@@ -113,7 +114,7 @@ async def get_company(ctx: Ctx, company_id: str) -> dict:
     Args:
         company_id: The Check company ID (e.g. "com_xxxxx").
     """
-    return await check_api_get(ctx, f"/companies/{company_id}")
+    return await check_api_get(ctx, api_path("companies", company_id))
 
 
 async def create_company(
@@ -154,7 +155,7 @@ async def create_company(
     """
     return await check_api_post(
         ctx,
-        "/companies",
+        api_path("companies"),
         data=build_body(
             {"legal_name": legal_name},
             trade_name=trade_name,
@@ -216,7 +217,7 @@ async def update_company(
     """
     return await check_api_patch(
         ctx,
-        f"/companies/{company_id}",
+        api_path("companies", company_id),
         data=build_body(
             {},
             legal_name=legal_name,
@@ -256,7 +257,7 @@ async def onboard_company(
     """
     return await check_api_post(
         ctx,
-        f"/companies/{company_id}/onboard",
+        api_path("companies", company_id, "onboard"),
         data=build_body({}, field_permissions=field_permissions),
     )
 
@@ -279,7 +280,7 @@ async def get_company_paydays(
     """
     return await check_api_get(
         ctx,
-        f"/companies/{company_id}/paydays",
+        api_path("companies", company_id, "paydays"),
         params=build_params(start=start_date, pay_schedule=pay_schedule),
     )
 
@@ -299,7 +300,7 @@ async def list_company_tax_deposits(
     """
     return await check_api_list(
         ctx,
-        f"/companies/{company_id}/tax_deposits",
+        api_path("companies", company_id, "tax_deposits"),
         params=build_params(limit=limit, cursor=cursor),
     )
 
@@ -319,7 +320,7 @@ async def get_company_benefit_aggregations(
     """
     return await check_api_get(
         ctx,
-        f"/companies/{company_id}/benefit_aggregations",
+        api_path("companies", company_id, "benefit_aggregations"),
         params=build_params(start=start_date, end=end_date),
     )
 
@@ -396,7 +397,7 @@ async def list_federal_ein_verifications(
     """
     return await check_api_list(
         ctx,
-        f"/companies/{company_id}/federal_ein_verifications",
+        api_path("companies", company_id, "federal_ein_verifications"),
         params=build_params(limit=limit, cursor=cursor),
     )
 
@@ -411,7 +412,13 @@ async def get_federal_ein_verification(
         verification_id: The verification ID.
     """
     return await check_api_get(
-        ctx, f"/companies/{company_id}/federal_ein_verifications/{verification_id}"
+        ctx,
+        api_path(
+            "companies",
+            company_id,
+            "federal_ein_verifications",
+            verification_id,
+        ),
     )
 
 
@@ -430,7 +437,7 @@ async def list_signatories(
     """
     return await check_api_list(
         ctx,
-        f"/companies/{company_id}/signatories",
+        api_path("companies", company_id, "signatories"),
         params=build_params(limit=limit, cursor=cursor),
     )
 
@@ -459,7 +466,7 @@ async def create_signatory(
     """
     return await check_api_post(
         ctx,
-        f"/companies/{company_id}/signatories",
+        api_path("companies", company_id, "signatories"),
         data=build_body(
             {
                 "first_name": first_name,
@@ -482,7 +489,9 @@ async def get_enrollment_profile(ctx: Ctx, company_id: str) -> dict:
     Args:
         company_id: The Check company ID.
     """
-    return await check_api_get(ctx, f"/companies/{company_id}/enrollment_profile")
+    return await check_api_get(
+        ctx, api_path("companies", company_id, "enrollment_profile")
+    )
 
 
 async def create_enrollment_profile(
@@ -544,7 +553,7 @@ async def create_enrollment_profile(
     """
     return await check_api_put(
         ctx,
-        f"/companies/{company_id}/enrollment_profile",
+        api_path("companies", company_id, "enrollment_profile"),
         data=build_body(
             {},
             employee_count=employee_count,
@@ -632,7 +641,7 @@ async def update_enrollment_profile(
     """
     return await check_api_patch(
         ctx,
-        f"/companies/{company_id}/enrollment_profile",
+        api_path("companies", company_id, "enrollment_profile"),
         data=build_body(
             {},
             employee_count=employee_count,
@@ -671,7 +680,9 @@ async def start_implementation(ctx: Ctx, company_id: str) -> dict:
     Args:
         company_id: The Check company ID.
     """
-    return await check_api_post(ctx, f"/companies/{company_id}/start_implementation")
+    return await check_api_post(
+        ctx, api_path("companies", company_id, "start_implementation")
+    )
 
 
 async def cancel_implementation(ctx: Ctx, company_id: str) -> dict:
@@ -680,7 +691,9 @@ async def cancel_implementation(ctx: Ctx, company_id: str) -> dict:
     Args:
         company_id: The Check company ID.
     """
-    return await check_api_post(ctx, f"/companies/{company_id}/cancel_implementation")
+    return await check_api_post(
+        ctx, api_path("companies", company_id, "cancel_implementation")
+    )
 
 
 async def request_embedded_setup(ctx: Ctx, company_id: str) -> dict:
@@ -689,7 +702,9 @@ async def request_embedded_setup(ctx: Ctx, company_id: str) -> dict:
     Args:
         company_id: The Check company ID.
     """
-    return await check_api_post(ctx, f"/companies/{company_id}/request_embedded_setup")
+    return await check_api_post(
+        ctx, api_path("companies", company_id, "request_embedded_setup")
+    )
 
 
 # --- Sandbox simulation: tax statements ---
@@ -711,7 +726,13 @@ async def simulate_publish_employee_tax_statements(ctx: Ctx, company_id: str) ->
         company_id: The Check company ID (e.g. "com_xxxxx").
     """
     return await check_api_post(
-        ctx, f"/companies/{company_id}/simulate/publish_employee_tax_statements"
+        ctx,
+        api_path(
+            "companies",
+            company_id,
+            "simulate",
+            "publish_employee_tax_statements",
+        ),
     )
 
 
@@ -727,7 +748,13 @@ async def simulate_unpublish_employee_tax_statements(ctx: Ctx, company_id: str) 
         company_id: The Check company ID (e.g. "com_xxxxx").
     """
     return await check_api_post(
-        ctx, f"/companies/{company_id}/simulate/unpublish_employee_tax_statements"
+        ctx,
+        api_path(
+            "companies",
+            company_id,
+            "simulate",
+            "unpublish_employee_tax_statements",
+        ),
     )
 
 
@@ -746,7 +773,13 @@ async def simulate_publish_contractor_tax_statements(ctx: Ctx, company_id: str) 
         company_id: The Check company ID (e.g. "com_xxxxx").
     """
     return await check_api_post(
-        ctx, f"/companies/{company_id}/simulate/publish_contractor_tax_statements"
+        ctx,
+        api_path(
+            "companies",
+            company_id,
+            "simulate",
+            "publish_contractor_tax_statements",
+        ),
     )
 
 
@@ -764,7 +797,13 @@ async def simulate_unpublish_contractor_tax_statements(
         company_id: The Check company ID (e.g. "com_xxxxx").
     """
     return await check_api_post(
-        ctx, f"/companies/{company_id}/simulate/unpublish_contractor_tax_statements"
+        ctx,
+        api_path(
+            "companies",
+            company_id,
+            "simulate",
+            "unpublish_contractor_tax_statements",
+        ),
     )
 
 

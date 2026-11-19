@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     build_params,
     check_api_delete,
     check_api_get,
@@ -43,7 +44,7 @@ async def list_contractor_payments(
         cursor=cursor,
         payroll=payroll,
     )
-    return await check_api_list(ctx, "/contractor_payments", params=params)
+    return await check_api_list(ctx, api_path("contractor_payments"), params=params)
 
 
 async def get_contractor_payment(ctx: Ctx, contractor_payment_id: str) -> dict:
@@ -52,7 +53,9 @@ async def get_contractor_payment(ctx: Ctx, contractor_payment_id: str) -> dict:
     Args:
         contractor_payment_id: The Check contractor payment ID.
     """
-    return await check_api_get(ctx, f"/contractor_payments/{contractor_payment_id}")
+    return await check_api_get(
+        ctx, api_path("contractor_payments", contractor_payment_id)
+    )
 
 
 async def create_contractor_payment(
@@ -96,7 +99,7 @@ async def create_contractor_payment(
         body["paper_check_number"] = paper_check_number
     return await check_api_post(
         ctx,
-        "/contractor_payments",
+        api_path("contractor_payments"),
         data=body,
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
@@ -141,7 +144,9 @@ async def update_contractor_payment(
     if paper_check_number is not None:
         body["paper_check_number"] = paper_check_number
     return await check_api_patch(
-        ctx, f"/contractor_payments/{contractor_payment_id}", data=body
+        ctx,
+        api_path("contractor_payments", contractor_payment_id),
+        data=body,
     )
 
 
@@ -151,7 +156,9 @@ async def delete_contractor_payment(ctx: Ctx, contractor_payment_id: str) -> dic
     Args:
         contractor_payment_id: The Check contractor payment ID.
     """
-    return await check_api_delete(ctx, f"/contractor_payments/{contractor_payment_id}")
+    return await check_api_delete(
+        ctx, api_path("contractor_payments", contractor_payment_id)
+    )
 
 
 async def get_contractor_payment_paper_check(
@@ -163,7 +170,8 @@ async def get_contractor_payment_paper_check(
         contractor_payment_id: The Check contractor payment ID.
     """
     return await check_api_get(
-        ctx, f"/contractor_payments/{contractor_payment_id}/paper_check"
+        ctx,
+        api_path("contractor_payments", contractor_payment_id, "paper_check"),
     )
 
 

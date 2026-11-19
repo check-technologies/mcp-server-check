@@ -8,6 +8,7 @@ from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.types import Address
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     build_body,
     build_params,
     check_api_get,
@@ -40,7 +41,7 @@ async def list_workplaces(
     """
     return await check_api_list(
         ctx,
-        "/workplaces",
+        api_path("workplaces"),
         params=merge_metadata_filter_params(
             build_params(company=company, limit=limit, cursor=cursor),
             metadata,
@@ -54,7 +55,7 @@ async def get_workplace(ctx: Ctx, workplace_id: str) -> dict:
     Args:
         workplace_id: The Check workplace ID (e.g. "wrk_xxxxx").
     """
-    return await check_api_get(ctx, f"/workplaces/{workplace_id}")
+    return await check_api_get(ctx, api_path("workplaces", workplace_id))
 
 
 async def create_workplace(
@@ -79,7 +80,7 @@ async def create_workplace(
     """
     return await check_api_post(
         ctx,
-        "/workplaces",
+        api_path("workplaces"),
         data=build_body(
             {"company": company, "address": address},
             name=name,
@@ -111,7 +112,7 @@ async def update_workplace(
     """
     return await check_api_patch(
         ctx,
-        f"/workplaces/{workplace_id}",
+        api_path("workplaces", workplace_id),
         data=build_body(
             {},
             company=company,

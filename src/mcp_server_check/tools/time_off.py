@@ -11,7 +11,14 @@ from fastmcp import FastMCP
 
 from mcp_server_check import helpers
 from mcp_server_check.annotations import add_annotated_tool
-from mcp_server_check.helpers import Ctx, apply_clear_fields, build_body, build_params
+from mcp_server_check.helpers import (
+    ApiPath,
+    Ctx,
+    api_path,
+    apply_clear_fields,
+    build_body,
+    build_params,
+)
 
 _ENROLLMENT_CLEARABLE = frozenset({"effective_end"})
 
@@ -34,33 +41,37 @@ async def _explain_not_found(ctx: Ctx, result: dict) -> dict:
     # that case, so one probe after a 404 tells the two apart.
     if result.get("status_code") != 404:
         return result
-    probe = await helpers.check_api_get(ctx, "/time_off_policies", params={"limit": 1})
+    probe = await helpers.check_api_get(
+        ctx, api_path("time_off_policies"), params={"limit": 1}
+    )
     return dict(_NOT_ENABLED) if probe.get("status_code") == 404 else result
 
 
-async def _get(ctx: Ctx, path: str) -> dict:
+async def _get(ctx: Ctx, path: ApiPath) -> dict:
     return await _explain_not_found(ctx, await helpers.check_api_get(ctx, path))
 
 
-async def _list(ctx: Ctx, path: str, params: dict | None) -> dict:
+async def _list(ctx: Ctx, path: ApiPath, params: dict | None) -> dict:
     return await _explain_not_found(
         ctx, await helpers.check_api_list(ctx, path, params=params)
     )
 
 
-async def _post(ctx: Ctx, path: str, data: dict, headers: dict | None = None) -> dict:
+async def _post(
+    ctx: Ctx, path: ApiPath, data: dict, headers: dict | None = None
+) -> dict:
     return await _explain_not_found(
         ctx, await helpers.check_api_post(ctx, path, data=data, headers=headers)
     )
 
 
-async def _patch(ctx: Ctx, path: str, data: dict) -> dict:
+async def _patch(ctx: Ctx, path: ApiPath, data: dict) -> dict:
     return await _explain_not_found(
         ctx, await helpers.check_api_patch(ctx, path, data=data)
     )
 
 
-async def _delete(ctx: Ctx, path: str) -> dict:
+async def _delete(ctx: Ctx, path: ApiPath) -> dict:
     return await _explain_not_found(ctx, await helpers.check_api_delete(ctx, path))
 
 
@@ -85,7 +96,7 @@ async def list_time_off_policies(
     """
     return await _list(
         ctx,
-        "/time_off_policies",
+        api_path("time_off_policies"),
         params=build_params(company=company, status=status, limit=limit, cursor=cursor),
     )
 
@@ -96,7 +107,7 @@ async def get_time_off_policy(ctx: Ctx, policy_id: str) -> dict:
     Args:
         policy_id: The time off policy ID (e.g. "time_off_policy_xxxxx").
     """
-    return await _get(ctx, f"/time_off_policies/{policy_id}")
+    return await _get(ctx, api_path("time_off_policies", policy_id))
 
 
 async def create_time_off_policy(
@@ -145,7 +156,7 @@ async def create_time_off_policy(
     """
     return await _post(
         ctx,
-        "/time_off_policies",
+        api_path("time_off_policies"),
         data=build_body(
             {
                 "company": company,
@@ -175,7 +186,9 @@ async def update_time_off_policy(ctx: Ctx, policy_id: str, status: str) -> dict:
         policy_id: The time off policy ID.
         status: "active" or "archived".
     """
-    return await _patch(ctx, f"/time_off_policies/{policy_id}", data={"status": status})
+    return await _patch(
+        ctx, api_path("time_off_policies", policy_id), data={"status": status}
+    )
 
 
 async def list_time_off_balances(
@@ -193,7 +206,7 @@ async def list_time_off_balances(
     """
     return await _list(
         ctx,
-        "/time_off_balances",
+        api_path("time_off_balances"),
         params=build_params(employee=employee, limit=limit, cursor=cursor),
     )
 
@@ -204,7 +217,7 @@ async def get_time_off_balance(ctx: Ctx, balance_id: str) -> dict:
     Args:
         balance_id: The time off balance ID (e.g. "time_off_balance_xxxxx").
     """
-    return await _get(ctx, f"/time_off_balances/{balance_id}")
+    return await _get(ctx, api_path("time_off_balances", balance_id))
 
 
 async def create_time_off_balance(
@@ -227,7 +240,7 @@ async def create_time_off_balance(
     """
     return await _post(
         ctx,
-        "/time_off_balances",
+        api_path("time_off_balances"),
         data=build_body({"employee": employee, "label": label}, metadata=metadata),
         headers=_idempotency_headers(idempotency_key),
     )
@@ -242,7 +255,9 @@ async def update_time_off_balance(ctx: Ctx, balance_id: str, metadata: dict) -> 
             removed, and {} clears it.
     """
     return await _patch(
-        ctx, f"/time_off_balances/{balance_id}", data={"metadata": metadata}
+        ctx,
+        api_path("time_off_balances", balance_id),
+        data={"metadata": metadata},
     )
 
 
@@ -265,7 +280,7 @@ async def list_time_off_enrollments(
     """
     return await _list(
         ctx,
-        "/time_off_enrollments",
+        api_path("time_off_enrollments"),
         params=build_params(
             balance=balance,
             employee=employee,
@@ -282,7 +297,7 @@ async def get_time_off_enrollment(ctx: Ctx, enrollment_id: str) -> dict:
     Args:
         enrollment_id: The time off enrollment ID (e.g. "time_off_enrollment_xxxxx").
     """
-    return await _get(ctx, f"/time_off_enrollments/{enrollment_id}")
+    return await _get(ctx, api_path("time_off_enrollments", enrollment_id))
 
 
 async def create_time_off_enrollment(
@@ -312,7 +327,7 @@ async def create_time_off_enrollment(
     """
     return await _post(
         ctx,
-        "/time_off_enrollments",
+        api_path("time_off_enrollments"),
         data=build_body(
             {"balance": balance, "policy": policy},
             effective_start=effective_start,
@@ -345,7 +360,7 @@ async def update_time_off_enrollment(
     """
     body = build_body({}, effective_end=effective_end, metadata=metadata)
     apply_clear_fields(body, clear_fields, _ENROLLMENT_CLEARABLE)
-    return await _patch(ctx, f"/time_off_enrollments/{enrollment_id}", data=body)
+    return await _patch(ctx, api_path("time_off_enrollments", enrollment_id), data=body)
 
 
 async def delete_time_off_enrollment(ctx: Ctx, enrollment_id: str) -> dict:
@@ -357,7 +372,7 @@ async def delete_time_off_enrollment(ctx: Ctx, enrollment_id: str) -> dict:
     Args:
         enrollment_id: The time off enrollment ID.
     """
-    return await _delete(ctx, f"/time_off_enrollments/{enrollment_id}")
+    return await _delete(ctx, api_path("time_off_enrollments", enrollment_id))
 
 
 async def list_time_off_entries(
@@ -380,7 +395,7 @@ async def list_time_off_entries(
     """
     return await _list(
         ctx,
-        "/time_off_entries",
+        api_path("time_off_entries"),
         params=build_params(
             balance=balance, employee=employee, limit=limit, cursor=cursor
         ),
@@ -393,7 +408,7 @@ async def get_time_off_entry(ctx: Ctx, entry_id: str) -> dict:
     Args:
         entry_id: The time off entry ID (e.g. "time_off_entry_xxxxx").
     """
-    return await _get(ctx, f"/time_off_entries/{entry_id}")
+    return await _get(ctx, api_path("time_off_entries", entry_id))
 
 
 async def create_time_off_entry(
@@ -421,7 +436,7 @@ async def create_time_off_entry(
     """
     return await _post(
         ctx,
-        "/time_off_entries",
+        api_path("time_off_entries"),
         data=build_body(
             {"balance": balance, "hours": hours, "source": "manual"},
             date=date,

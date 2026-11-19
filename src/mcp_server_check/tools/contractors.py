@@ -8,6 +8,7 @@ from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.types import Address, FormParameter
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     apply_clear_fields,
     build_body,
     build_params,
@@ -43,7 +44,7 @@ async def list_contractors(
     """
     return await check_api_list(
         ctx,
-        "/contractors",
+        api_path("contractors"),
         params=merge_metadata_filter_params(
             build_params(company=company, limit=limit, ids=ids, cursor=cursor),
             metadata,
@@ -74,7 +75,7 @@ async def search_contractors(
     """
     return await check_api_list(
         ctx,
-        "/contractors/search",
+        api_path("contractors", "search"),
         params=build_params(term=term, limit=limit, cursor=cursor),
     )
 
@@ -85,7 +86,7 @@ async def get_contractor(ctx: Ctx, contractor_id: str) -> dict:
     Args:
         contractor_id: The Check contractor ID (e.g. "ctr_xxxxx").
     """
-    return await check_api_get(ctx, f"/contractors/{contractor_id}")
+    return await check_api_get(ctx, api_path("contractors", contractor_id))
 
 
 async def create_contractor(
@@ -144,7 +145,7 @@ async def create_contractor(
     """
     return await check_api_post(
         ctx,
-        "/contractors",
+        api_path("contractors"),
         data=build_body(
             {"company": company},
             type=type,
@@ -261,7 +262,7 @@ async def update_contractor(
     if clear_mailing_address and "mailing_address" not in merged_clear_fields:
         merged_clear_fields.append("mailing_address")
     apply_clear_fields(body, merged_clear_fields, CLEARABLE_CONTRACTOR_FIELDS)
-    return await check_api_patch(ctx, f"/contractors/{contractor_id}", data=body)
+    return await check_api_patch(ctx, api_path("contractors", contractor_id), data=body)
 
 
 async def onboard_contractor(ctx: Ctx, contractor_id: str) -> dict:
@@ -270,7 +271,7 @@ async def onboard_contractor(ctx: Ctx, contractor_id: str) -> dict:
     Args:
         contractor_id: The Check contractor ID.
     """
-    return await check_api_post(ctx, f"/contractors/{contractor_id}/onboard")
+    return await check_api_post(ctx, api_path("contractors", contractor_id, "onboard"))
 
 
 async def list_contractor_payments_for_contractor(
@@ -292,7 +293,7 @@ async def list_contractor_payments_for_contractor(
     """
     return await check_api_list(
         ctx,
-        f"/contractors/{contractor_id}/payments",
+        api_path("contractors", contractor_id, "payments"),
         params=build_params(limit=limit, cursor=cursor, payroll=payroll, status=status),
     )
 
@@ -307,7 +308,8 @@ async def get_contractor_payment_for_payroll(
         payroll_id: The Check payroll ID.
     """
     return await check_api_get(
-        ctx, f"/contractors/{contractor_id}/payments/{payroll_id}"
+        ctx,
+        api_path("contractors", contractor_id, "payments", payroll_id),
     )
 
 
@@ -326,7 +328,7 @@ async def list_contractor_forms(
     """
     return await check_api_list(
         ctx,
-        f"/contractors/{contractor_id}/forms",
+        api_path("contractors", contractor_id, "forms"),
         params=build_params(limit=limit, cursor=cursor),
     )
 
@@ -349,7 +351,9 @@ async def submit_contractor_form(
     if parameters is not None:
         body = {"parameters": parameters}
     return await check_api_post(
-        ctx, f"/contractors/{contractor_id}/forms/{form_id}/submit", data=body
+        ctx,
+        api_path("contractors", contractor_id, "forms", form_id, "submit"),
+        data=body,
     )
 
 
