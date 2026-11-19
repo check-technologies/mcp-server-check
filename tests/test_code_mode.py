@@ -897,6 +897,124 @@ def test_sandbox_hint():
         "The program did not finish within 25 seconds. Make fewer or more "
         "parallel calls."
     )
+    assert "await main()" in sandbox_hint(
+        "RuntimeError: asyncio.run() cannot be called from a running event loop"
+    )
+
+
+def test_await_asyncio_run():
+    from mcp_server_check.code_mode import await_asyncio_run
+
+    assert await_asyncio_run("x = asyncio.run(main())") == "x = (await main())"
+    # Subscripting the result keeps working: await binds looser than [].
+    assert await_asyncio_run("asyncio.run(main())['a']") == "(await main())['a']"
+    # Newlines the call spanned stay, so later line numbers do not move.
+    code = "r = asyncio.run(\n    main()\n)\nboom"
+    rewritten = await_asyncio_run(code)
+    assert rewritten.count("\n") == code.count("\n")
+    assert rewritten.startswith("r = (await main()")
+    # Columns are UTF-8 bytes; a non-ASCII string before the call must not
+    # shift the rewrite.
+    assert (
+        await_asyncio_run("print('é'); asyncio.run(main())")
+        == "print('é'); (await main())"
+    )
+    # Inside a plain def, await would be a SyntaxError, so it is left alone.
+    code = "def go():\n    return asyncio.run(main())\n"
+    assert await_asyncio_run(code) == code
+    code = "async def go():\n    return asyncio.run(main())\n"
+    assert await_asyncio_run(code) == "async def go():\n    return (await main())\n"
+    for untouched in ("asyncio.run(main(), debug=True)", "x = 1", "asyncio.run("):
+        assert await_asyncio_run(untouched) == untouched
+
+
+@pytest.mark.anyio
+async def test_run_code_runs_a_program_that_calls_asyncio_run(mock_api, code_server):
+    """asyncio.run(main()), the usual end of an async script, used to fail
+    with "cannot be called from a running event loop" before any call."""
+    mock_api.get("/companies/com_1").mock(
+        return_value=httpx.Response(200, json={"id": "com_1"})
+    )
+    code = """
+import asyncio
+
+async def main():
+    return await check.get_company(company_id="com_1")
+
+company = asyncio.run(main())
+company["id"]
+"""
+    is_error, payload = await _run(code_server, code)
+    assert not is_error, payload
+    assert payload["result"] == "com_1"
+
+
+@pytest.mark.anyio
+async def test_run_code_says_get_stubs_is_not_callable_in_a_program(code_server):
+    is_error, payload = await _run(code_server, "await get_stubs()")
+    assert is_error
+    assert "NameError" in payload["detail"]
+    assert "get_stubs: a tool of this server" in payload["detail"]
+
+
+@pytest.mark.anyio
+async def test_run_code_says_tools_need_the_check_prefix(code_server):
+    is_error, payload = await _run(code_server, 'await get_company(company_id="com_1")')
+    assert is_error
+    assert "await check.get_company(...)" in payload["detail"]
+
+
+@pytest.mark.anyio
+async def test_run_code_gives_no_note_for_an_ordinary_undefined_name(code_server):
+    is_error, payload = await _run(code_server, "payroll_rows")
+    assert is_error
+    assert "name 'payroll_rows' is not defined" in payload["detail"]
+    assert "a tool of this server" not in payload["detail"]
+    assert "live on the `check` module" not in payload["detail"]
+
+
+@pytest.mark.anyio
+async def test_run_code_wraps_a_string_passed_for_a_list(mock_api, code_server):
+    """list_taxes(jurisdiction="nm") failed validation; it means ["nm"]."""
+    route = mock_api.get("/taxes").mock(
+        return_value=httpx.Response(200, json={"results": [], "next": None})
+    )
+    is_error, payload = await _run(
+        code_server, 'await check.list_taxes(jurisdiction="nm")'
+    )
+    assert not is_error, payload
+    assert route.calls.last.request.url.params.get_list("jurisdiction") == ["nm"]
+    assert payload["calls"][0]["arguments"] == {"jurisdiction": ["nm"]}
+
+
+@pytest.mark.anyio
+async def test_run_code_wrong_argument_name_shows_the_signature(code_server):
+    """list_company_tax_deposits takes company_id where most lists take company."""
+    is_error, payload = await _run(
+        code_server, 'await check.list_company_tax_deposits(company="com_1")'
+    )
+    assert is_error
+    assert (
+        "list_company_tax_deposits takes: async def list_company_tax_deposits("
+        "company_id: str" in payload["detail"]
+    )
+
+
+@pytest.mark.anyio
+async def test_run_code_too_large_names_the_largest_parts(mock_api, monkeypatch):
+    monkeypatch.setenv("CHECK_API_KEY", "test-key")
+    monkeypatch.delenv("CHECK_API_BASE_URL", raising=False)
+    monkeypatch.setenv("CHECK_CODE_MODE", "1")
+    monkeypatch.setenv("CHECK_MAX_RESULT_CHARS", "5000")
+    server = CheckMCP("Test Code", lifespan=lifespan)
+    setup_tools(server)
+    is_error, payload = await _run(
+        server, '[{"id": "log_1", "response_body": "x" * 20000}]'
+    )
+    assert is_error
+    assert payload["response_too_large"] is True
+    detail = payload["detail"]
+    assert "Largest parts: result[0]['response_body'] (20,002 characters)" in detail
 
 
 def test_unawaited_coroutines():

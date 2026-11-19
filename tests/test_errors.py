@@ -43,6 +43,18 @@ class TestCheckToolError:
         call = ResponseTooLargeError("get_company", 10, 5)
         assert "Narrow the request" in call.payload["detail"]
 
+    def test_too_large_names_the_largest_parts(self):
+        error = ResponseTooLargeError(
+            "run_code",
+            10,
+            5,
+            unit="character",
+            largest=["result[0]['response_body'] (9 characters)"],
+        )
+        assert error.payload["detail"].endswith(
+            "Largest parts: result[0]['response_body'] (9 characters)."
+        )
+
     def test_remedies_are_part_of_payload_and_message(self):
         error = ResponseTooLargeError("get_company", 10, 5)
         base = dict(error.payload)

@@ -47,7 +47,14 @@ class CheckAPIError(CheckToolError):
 class ResponseTooLargeError(CheckToolError):
     """Raised when a tool result is too large to deliver to the client."""
 
-    def __init__(self, tool: str, size: int, limit: int, unit: str = "byte") -> None:
+    def __init__(
+        self,
+        tool: str,
+        size: int,
+        limit: int,
+        unit: str = "byte",
+        largest: list[str] | None = None,
+    ) -> None:
         advice = (
             # A program's result is whatever it returned, so the fix is in
             # what it returns, not in the calls it made.
@@ -57,6 +64,10 @@ class ResponseTooLargeError(CheckToolError):
             if tool == "run_code"
             else "Narrow the request with filters, a lower limit, or specific IDs."
         )
+        if largest:
+            # Without this a program rerun tends to cut the wrong thing and
+            # fail again on the same oversized field.
+            advice += f" Largest parts: {'; '.join(largest)}."
         super().__init__(
             {
                 "error": True,

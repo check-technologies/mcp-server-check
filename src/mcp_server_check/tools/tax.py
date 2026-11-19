@@ -301,16 +301,48 @@ async def get_employee_tax_param_setting(
     )
 
 
-async def bulk_get_employee_tax_param_settings(ctx: Ctx, data: dict) -> dict:
-    """Bulk get employee tax parameter settings.
+async def bulk_get_employee_tax_param_settings(
+    ctx: Ctx,
+    company: str,
+    employee: list[str] | None = None,
+    as_of: str | None = None,
+    jurisdiction: str | None = None,
+    submitter: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
+) -> dict:
+    """Get the tax parameter settings of a company's employees, one entry per employee and parameter.
 
-    The payload is a complex bulk structure — pass the full request body as a dict.
+    Each entry carries ``employee``, the setting ``id`` (``spa_*``), ``value``
+    and ``effective_start`` (what applies on ``as_of``), and ``settings[]``,
+    every write that has not been deleted, newest ``effective_start`` first.
+    Paging is by employee, so a page holds every parameter of the employees
+    it covers.
 
     Args:
-        data: Bulk request payload with employee IDs or filters.
+        company: The Check company ID (e.g. "com_xxxxx"). Required.
+        employee: Narrow to these Check employee IDs (up to 100).
+        as_of: Return as ``value`` what applies on this date (YYYY-MM-DD).
+            Defaults to today.
+        jurisdiction: Filter by tax jurisdiction.
+        submitter: Filter by submitter: "employee" or "company".
+        limit: Maximum number of employees per page (default 100, max 100).
+            Each employee brings every applicable parameter, so a full page
+            is large; pass employee or a small limit.
+        cursor: Pagination cursor from a previous response.
     """
-    return await check_api_post(
-        ctx, api_path("employee_tax_param_settings", "bulk_get"), data=data
+    return await check_api_list(
+        ctx,
+        api_path("employee_tax_params", "settings"),
+        params=build_params(
+            company=company,
+            employee=employee,
+            as_of=as_of,
+            jurisdiction=jurisdiction,
+            submitter=submitter,
+            limit=limit,
+            cursor=cursor,
+        ),
     )
 
 

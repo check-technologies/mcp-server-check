@@ -44,6 +44,12 @@ async def list_payments(
     list_payment_attempts for each payment (or get_payment, which includes
     the attempts) rather than filtering this list on status.
 
+    Filtering by company alone is slow for a company with a long payment
+    history: several seconds for a small page, and a page of 100 can outrun
+    a run_code program's time limit. Filter by payroll or parent_id when you
+    know them, keep the limit small, and do not fan out over many companies
+    in one program.
+
     Args:
         company: Filter to payments belonging to this Check company ID (e.g. "com_xxxxx").
         payroll: Filter by payroll ID (e.g. "pay_xxxxx").
