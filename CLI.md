@@ -65,7 +65,7 @@ Commands follow a `check <resource> <action>` pattern:
 check <group> <command> [ARGS] [OPTIONS]
 ```
 
-There are 21 resource groups, each with multiple commands:
+There are 23 resource groups, each with multiple commands:
 
 | Group | Examples |
 |---|---|
@@ -81,6 +81,7 @@ There are 21 resource groups, each with multiple commands:
 | `payroll-items` | `list`, `get`, `create`, `update`, `delete`, `gross-up` |
 | `contractor-payments` | `list`, `get`, `create`, `delete` |
 | `external-payrolls` | `list`, `get`, `create`, `approve` |
+| `time-off` | `list-policies`, `create-balance`, `create-enrollment`, `create-entry` |
 | `webhooks` | `list-configs`, `create-config`, `ping-config`, `retry-events` |
 | `documents` | `list-company-tax-documents`, `download-employee-tax-document` |
 | `report-runs` | `list`, `get`, `create`, `download` |

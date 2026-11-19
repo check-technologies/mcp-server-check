@@ -33,6 +33,7 @@ TOOLSETS: frozenset[str] = frozenset(
         "platform",
         "report_runs",
         "tax",
+        "time_off",
         "webhooks",
         "workflows",
         "workplaces",

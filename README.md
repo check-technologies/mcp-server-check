@@ -70,7 +70,7 @@ The server supports fine-grained tool filtering, configurable via environment va
 
 #### Toolsets
 
-There are 21 toolsets, one per API module: `agencies`, `bank_accounts`, `companies`, `compensation`, `components`, `contractor_payments`, `contractors`, `documents`, `employees`, `external_payrolls`, `forms`, `logs`, `payments`, `payroll_items`, `payrolls`, `platform`, `report_runs`, `tax`, `webhooks`, `workflows`, `workplaces`.
+There are 23 toolsets, one per API module: `agencies`, `bank_accounts`, `companies`, `compensation`, `components`, `contractor_payments`, `contractors`, `corrections`, `documents`, `employees`, `external_payrolls`, `forms`, `logs`, `payments`, `payroll_items`, `payrolls`, `platform`, `report_runs`, `tax`, `time_off`, `webhooks`, `workflows`, `workplaces`.
 
 Enable only specific toolsets:
 
@@ -601,6 +601,29 @@ The counterparties Check files and remits to (IRS, state revenue departments). G
 |---|---|---|
 | `list_agencies` | GET | List agencies; filter by jurisdiction or label |
 | `get_agency` | GET | Get a specific agency |
+
+### Time Off (16 tools)
+
+Enabled per partner; without access every endpoint returns not found.
+
+| Tool | Method | Description |
+|---|---|---|
+| `list_time_off_policies` | GET | List time off policies |
+| `get_time_off_policy` | GET | Get a time off policy |
+| `create_time_off_policy` | POST | Create a time off policy |
+| `update_time_off_policy` | PATCH | Archive or reactivate a policy |
+| `list_time_off_balances` | GET | List time off balances |
+| `get_time_off_balance` | GET | Get a time off balance |
+| `create_time_off_balance` | POST | Open a time off balance for an employee |
+| `update_time_off_balance` | PATCH | Update a balance's metadata |
+| `list_time_off_enrollments` | GET | List time off enrollments |
+| `get_time_off_enrollment` | GET | Get a time off enrollment |
+| `create_time_off_enrollment` | POST | Enroll a balance in a policy |
+| `update_time_off_enrollment` | PATCH | End, extend, or reopen an enrollment, or update its metadata |
+| `delete_time_off_enrollment` | DELETE | Delete an enrollment no entries reference |
+| `list_time_off_entries` | GET | List time off entries |
+| `get_time_off_entry` | GET | Get a time off entry |
+| `create_time_off_entry` | POST | Record a manual time off entry |
 
 ### Webhooks (10 tools)
 
