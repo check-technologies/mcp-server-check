@@ -215,9 +215,13 @@ async def test_http_error_with_text_body(mock_api, ctx):
 @pytest.mark.parametrize(
     ("status", "headers", "expected"),
     [
-        (302, {"location": "https://docs.checkhq.com"}, "docs"),
-        (301, {"location": "https://example.com/elsewhere"}, "example.com/elsewhere"),
-        (302, {}, "no target"),
+        (302, {"location": "https://docs.checkhq.com"}, "such as Console"),
+        (
+            301,
+            {"location": "https://example.com/elsewhere"},
+            "to https://example.com/elsewhere. Redirects are not followed.",
+        ),
+        (302, {}, "gave no target"),
     ],
 )
 async def test_redirect_returns_readable_detail(
