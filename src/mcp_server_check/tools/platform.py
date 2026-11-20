@@ -12,10 +12,12 @@ from mcp_server_check.helpers import (
     build_body,
     build_params,
     check_api_get,
+    check_api_get_csv,
     check_api_list,
     check_api_patch,
     check_api_post,
 )
+from mcp_server_check.reports import ReportFormat
 
 
 # --- Notifications ---
@@ -648,9 +650,34 @@ async def get_requirement(ctx: Ctx, requirement_id: str) -> dict:
 # --- Reports ---
 
 
-async def get_applied_for_ids_report(ctx: Ctx) -> dict:
-    """Get the applied-for IDs report across all companies."""
-    return await check_api_get(ctx, api_path("reports", "applied_for_ids"))
+_PER_COMPANY_APPLIED_FOR_IDS = (
+    "Outside a Console session, get the report one company at a time with "
+    'get_company_report and report_type="applied_for_ids_detailed".'
+)
+
+
+async def get_applied_for_ids_report(ctx: Ctx, response_format: str = "csv") -> dict:
+    """Get the Tax Inputs (Applied-for IDs) report across all companies; Console-only.
+
+    Lists applied-for IDs by individual tax ID, the same report as Console's
+    Reports page. The Check API serves this provider-wide report only to a
+    Check Console session; an API key or another app's token is redirected to
+    Check's docs. Outside Console, call get_company_report with
+    report_type="applied_for_ids_detailed" for each company instead.
+
+    Args:
+        response_format: "csv" (default) returns the report as a CSV string
+            under the csv key; "json" returns the report rows as objects.
+    """
+    try:
+        report_format = ReportFormat.parse("response_format", response_format)
+    except ValueError as e:
+        return {"error": True, "detail": str(e)}
+    fetch = check_api_get_csv if report_format is ReportFormat.CSV else check_api_get
+    result = await fetch(ctx, api_path("reports", "applied_for_ids_detailed"))
+    if result.get("error") and 300 <= result.get("status_code", 0) < 400:
+        result["detail"] = f"{result['detail']} {_PER_COMPANY_APPLIED_FOR_IDS}"
+    return result
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:

@@ -7,6 +7,8 @@ import json
 import httpx
 import pytest
 
+from mcp_server_check.tool_filter import ToolFilter
+from mcp_server_check.tool_index import ToolIndex
 from mcp_server_check.tools.platform import (
     create_communication,
     get_accounting_mappings,
@@ -330,12 +332,54 @@ async def test_validate_address(mock_api, ctx):
 
 
 @pytest.mark.anyio
-async def test_get_applied_for_ids_report(mock_api, ctx):
-    mock_api.get("/reports/applied_for_ids").mock(
-        return_value=httpx.Response(200, json={"report": "data"})
+async def test_get_applied_for_ids_report_defaults_to_csv(mock_api, ctx):
+    route = mock_api.get("/reports/applied_for_ids_detailed").mock(
+        return_value=httpx.Response(
+            200, text="tax_id,company\n1,acme\n", headers={"content-type": "text/csv"}
+        )
     )
     result = await get_applied_for_ids_report(ctx)
-    assert result["report"] == "data"
+    assert route.calls.last.request.headers["accept"] == "text/csv"
+    assert result == {"csv": "tax_id,company\n1,acme\n"}
+
+
+@pytest.mark.anyio
+async def test_get_applied_for_ids_report_json(mock_api, ctx):
+    mock_api.get("/reports/applied_for_ids_detailed").mock(
+        return_value=httpx.Response(200, json={"results": [{"tax_id": "1"}]})
+    )
+    result = await get_applied_for_ids_report(ctx, response_format="json")
+    assert result == {"results": [{"tax_id": "1"}]}
+
+
+@pytest.mark.anyio
+async def test_get_applied_for_ids_report_redirect_points_to_company_report(
+    mock_api, ctx
+):
+    mock_api.get("/reports/applied_for_ids_detailed").mock(
+        return_value=httpx.Response(
+            302, headers={"location": "https://docs.checkhq.com"}
+        )
+    )
+    result = await get_applied_for_ids_report(ctx)
+    assert result["error"] is True
+    assert result["status_code"] == 302
+    assert "get_company_report" in result["detail"]
+    assert "applied_for_ids_detailed" in result["detail"]
+
+
+@pytest.mark.anyio
+async def test_get_applied_for_ids_report_rejects_unknown_format(mock_api, ctx):
+    result = await get_applied_for_ids_report(ctx, response_format="xml")
+    assert result["error"] is True
+    assert "response_format" in result["detail"]
+
+
+def test_tax_inputs_search_finds_applied_for_ids_report():
+    index = ToolIndex()
+    index.build()
+    names = [r["name"] for r in index.search("tax inputs", ToolFilter())]
+    assert "get_applied_for_ids_report" in names
 
 
 USER = {
