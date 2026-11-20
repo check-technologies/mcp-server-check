@@ -613,6 +613,7 @@ async def test_list_taxes_with_filters(mock_api, ctx):
         remittable=False,
         effective=False,
         label_contains="unemployment",
+        political_subdivision_code="461301",
         limit=100,
     )
     params = route.calls[0].request.url.params
@@ -623,6 +624,7 @@ async def test_list_taxes_with_filters(mock_api, ctx):
     assert params["remittable"] == "false"
     assert params["effective"] == "false"
     assert params["label_contains"] == "unemployment"
+    assert params["political_subdivision_code"] == "461301"
     assert params["limit"] == "100"
 
 

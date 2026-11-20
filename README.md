@@ -590,7 +590,7 @@ Tax parameters, elections (including tax exemptions), filings, statements, packa
 | `request_tax_package` | POST | Request a tax package |
 | `get_tax_package` | GET | Get a specific tax package |
 | **Taxes (reference data)** | | |
-| `list_taxes` | GET | List tax objects (payroll levies); filter by jurisdiction, payer, supported/remittable, effective status |
+| `list_taxes` | GET | List tax objects (payroll levies); filter by jurisdiction, political subdivision code, supported/remittable, effective status |
 | `get_tax` | GET | Get a specific tax object |
 
 ### Agencies (2 tools)
