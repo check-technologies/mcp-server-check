@@ -1046,6 +1046,7 @@ async def list_taxes(
     remittable: bool | None = None,
     effective: bool | None = None,
     label_contains: str | None = None,
+    political_subdivision_code: str | None = None,
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
@@ -1065,6 +1066,9 @@ async def list_taxes(
         effective: Filter by whether the tax obligation is currently in
             effect (defaults to true on the API side).
         label_contains: Case-insensitive substring match on the tax label.
+        political_subdivision_code: Exact match on the political subdivision
+            code (PSD) for the tax, when applicable (e.g. Pennsylvania local
+            earned income taxes).
         limit: Maximum number of results to return (default 25, max 500).
         cursor: Pagination cursor from a previous response.
     """
@@ -1078,6 +1082,7 @@ async def list_taxes(
             remittable=remittable,
             effective=effective,
             label_contains=label_contains,
+            political_subdivision_code=political_subdivision_code,
             limit=limit,
             cursor=cursor,
         ),
