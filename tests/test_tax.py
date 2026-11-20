@@ -15,12 +15,15 @@ from mcp_server_check.tools.tax import (
     get_company_tax_param_setting,
     get_company_tax_params,
     get_contractor_tax_statement,
+    get_contractor_tax_statement_preview,
+    get_contractor_tax_statement_preview_download,
     get_employee_tax_param_setting,
     get_employee_tax_statement_override,
     get_filing,
     get_tax,
     list_company_tax_elections,
     list_company_tax_param_settings,
+    list_contractor_tax_statement_previews,
     list_contractor_tax_statements,
     list_employee_tax_elections,
     list_employee_tax_param_settings,
@@ -786,3 +789,66 @@ async def test_get_contractor_tax_statement(mock_api, ctx):
     result = await get_contractor_tax_statement(ctx, statement_id="cts_001")
     assert result["id"] == "cts_001"
     assert result["publication_status"] == "draft"
+
+
+# --- Contractor tax statement previews ---
+
+
+@pytest.mark.anyio
+async def test_list_contractor_tax_statement_previews_with_filters(mock_api, ctx):
+    mock_api.get("/contractor_tax_statement_previews").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "cts_prv_001"}]},
+        )
+    )
+    result = await list_contractor_tax_statement_previews(
+        ctx,
+        correction="cor_123",
+        company="com_456",
+        contractor="ctr_789",
+        year=2025,
+    )
+    assert result["results"] == [{"id": "cts_prv_001"}]
+    req = mock_api.get("/contractor_tax_statement_previews").calls.last.request
+    assert req.url.params["correction"] == "cor_123"
+    assert req.url.params["company"] == "com_456"
+    assert req.url.params["contractor"] == "ctr_789"
+    assert req.url.params["year"] == "2025"
+
+
+@pytest.mark.anyio
+async def test_get_contractor_tax_statement_preview(mock_api, ctx):
+    mock_api.get("/contractor_tax_statement_previews/cts_prv_001").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "id": "cts_prv_001",
+                "contractor": "ctr_123",
+                "company": "com_456",
+                "year": 2025,
+                "correction": "cor_789",
+                "amends": None,
+            },
+        )
+    )
+    result = await get_contractor_tax_statement_preview(ctx, preview_id="cts_prv_001")
+    assert result["id"] == "cts_prv_001"
+
+
+@pytest.mark.anyio
+async def test_get_contractor_tax_statement_preview_download(mock_api, ctx):
+    mock_api.get("/contractor_tax_statement_previews/cts_prv_001/download").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "download_url": "https://example.com/preview.pdf",
+                "content_type": "application/pdf",
+                "expires_at": "2026-01-01T00:00:00Z",
+            },
+        )
+    )
+    result = await get_contractor_tax_statement_preview_download(
+        ctx, preview_id="cts_prv_001"
+    )
+    assert result["download_url"] == "https://example.com/preview.pdf"

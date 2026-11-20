@@ -4,7 +4,7 @@
 
 > **Terms of Service** — By using this MCP server to access the Check API, you agree to the [MCP Usage Terms](TERMS_OF_SERVICE.md), which are in addition to your existing agreement with Check.
 
-An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 301 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
+An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 304 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
 
@@ -250,7 +250,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 ## Available Tools
 
-301 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
+304 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
 
 ### Companies (30 tools)
 
@@ -539,7 +539,7 @@ Asynchronous reporting. `create_report_run` returns a `run_` ID, `get_report_run
 | `simulate_complete_payment` | POST | Settle one pending payment (sandbox, manual simulation mode) |
 | `simulate_fail_payment` | POST | Fail one pending payment so it can be retried (sandbox, manual simulation mode) |
 
-### Tax (37 tools)
+### Tax (40 tools)
 
 Tax parameters, elections (including tax exemptions), filings, statements, packages, and tax reference data.
 
@@ -580,6 +580,10 @@ Tax parameters, elections (including tax exemptions), filings, statements, packa
 | `get_contractor_tax_statement` | GET | Get a specific contractor tax statement |
 | `simulate_publish_contractor_tax_statement` | POST | Publish one draft 1099 (sandbox only) |
 | `simulate_unpublish_contractor_tax_statement` | POST | Revert one published 1099 to draft (sandbox only) |
+| **Contractor Tax Statement Previews** | | |
+| `list_contractor_tax_statement_previews` | GET | List draft 1099 previews from corrections (requires corrections API) |
+| `get_contractor_tax_statement_preview` | GET | Get a specific contractor tax statement preview |
+| `get_contractor_tax_statement_preview_download` | GET | Short-lived presigned URL for the preview PDF |
 | **Employee Tax Statement Overrides** | | |
 | `list_employee_tax_statement_overrides` | GET | List W-2 supplement overrides (requires company or employee filter) |
 | `get_employee_tax_statement_override` | GET | Get a specific override |
