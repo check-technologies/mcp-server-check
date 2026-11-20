@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing_extensions import TypedDict
+from typing_extensions import NotRequired, TypedDict
 
 
 class Address(TypedDict, total=False):
@@ -41,9 +41,10 @@ class FormParameter(TypedDict):
 class OffCycleOptions(TypedDict):
     """Options for an off-cycle payroll.
 
-    Check API requires all three keys whenever the object is sent; leaving one
-    out is a 400 ("This field is required."). Omit the object entirely to take
-    the defaults, all false.
+    Check API requires force_supplemental_withholding, apply_benefits, and
+    apply_post_tax_deductions whenever the object is sent; leaving one out is a
+    400 ("This field is required."). Omit the object entirely to take the
+    defaults, all false.
     """
 
     force_supplemental_withholding: bool
@@ -54,6 +55,12 @@ class OffCycleOptions(TypedDict):
 
     apply_post_tax_deductions: bool
     """Whether to apply post-tax deductions."""
+
+    apply_time_off_policies: NotRequired[bool]
+    """Whether to apply time off policy accruals on this off-cycle payroll.
+    Optional; providers without the time off feature never see this field in
+    API responses and the API ignores an unknown key without the feature.
+    When time off is enabled, defaults to false if omitted."""
 
 
 class VoidSubset(TypedDict, total=False):
