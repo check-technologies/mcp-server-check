@@ -130,7 +130,7 @@ _TOOLSET_DESCRIPTIONS: dict[str, str] = {
     "payrolls": "Create, preview, approve, and manage payroll runs. Includes sandbox simulation tools.",
     "platform": "Platform-level tools: notifications, communications, usage, integrations, accounting, setups, requirements, and the Console users of your organization (list_users/get_user).",
     "report_runs": "Asynchronous report generation — start a payroll journal or payroll summary run, poll its status, and download the result.",
-    "tax": "Manage company and employee tax parameters, filings, tax statements, and employee tax statement overrides (W-2 supplement line values). Tax exemptions (e.g. a minister exempt from Social Security/Medicare, a company exempt from unemployment tax) are tax elections: list_/update_employee_tax_elections and list_/update_company_tax_elections. Includes tax reference data (list_taxes/get_tax).",
+    "tax": "Manage company and employee tax parameters, filings, tax statements, contractor tax statement previews (draft 1099s from corrections), and employee tax statement overrides (W-2 supplement line values). Tax exemptions (e.g. a minister exempt from Social Security/Medicare, a company exempt from unemployment tax) are tax elections: list_/update_employee_tax_elections and list_/update_company_tax_elections. Includes tax reference data (list_taxes/get_tax).",
     "time_off": (
         "Time off management, enabled per partner: a partner without access gets "
         "an error with time_off_not_enabled from every tool here, which means the "

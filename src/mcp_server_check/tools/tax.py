@@ -850,6 +850,77 @@ async def simulate_unpublish_contractor_tax_statement(
     )
 
 
+# --- Contractor Tax Statement Previews ---
+
+
+async def list_contractor_tax_statement_previews(
+    ctx: Ctx,
+    correction: str | None = None,
+    company: str | None = None,
+    contractor: str | None = None,
+    year: int | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
+) -> dict:
+    """List draft 1099 previews produced during correction workflows.
+
+    Requires the corrections API for the provider. Partners without contractor
+    tax statements enabled get a 404. Invalidated previews are omitted from list
+    results but remain retrievable by ID.
+
+    Args:
+        correction: Filter to previews for this correction session
+            (e.g. "cor_xxxxx").
+        company: Filter by company ID (e.g. "com_xxxxx").
+        contractor: Filter by contractor ID (e.g. "ctr_xxxxx").
+        year: Filter by tax year.
+        limit: Maximum number of results to return.
+        cursor: Pagination cursor.
+    """
+    return await check_api_list(
+        ctx,
+        api_path("contractor_tax_statement_previews"),
+        params=build_params(
+            correction=correction,
+            company=company,
+            contractor=contractor,
+            year=year,
+            limit=limit,
+            cursor=cursor,
+        ),
+    )
+
+
+async def get_contractor_tax_statement_preview(
+    ctx: Ctx, preview_id: str
+) -> dict:
+    """Get a contractor tax statement preview (draft 1099 from a correction).
+
+    Args:
+        preview_id: The preview ID (e.g. "cts_prv_xxxxx").
+    """
+    return await check_api_get(
+        ctx, api_path("contractor_tax_statement_previews", preview_id)
+    )
+
+
+async def get_contractor_tax_statement_preview_download(
+    ctx: Ctx, preview_id: str
+) -> dict:
+    """Get a short-lived presigned URL for a contractor tax statement preview PDF.
+
+    Each call mints a fresh URL with download_url, content_type, and expires_at.
+    Requires contractor tax statements to be enabled for the provider.
+
+    Args:
+        preview_id: The preview ID (e.g. "cts_prv_xxxxx").
+    """
+    return await check_api_get(
+        ctx,
+        api_path("contractor_tax_statement_previews", preview_id, "download"),
+    )
+
+
 # --- Employee Tax Statement Overrides ---
 
 
@@ -1105,6 +1176,10 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     # Contractor Tax Statements
     add_annotated_tool(mcp, list_contractor_tax_statements)
     add_annotated_tool(mcp, get_contractor_tax_statement)
+    # Contractor Tax Statement Previews
+    add_annotated_tool(mcp, list_contractor_tax_statement_previews)
+    add_annotated_tool(mcp, get_contractor_tax_statement_preview)
+    add_annotated_tool(mcp, get_contractor_tax_statement_preview_download)
     # Employee Tax Statement Overrides
     add_annotated_tool(mcp, list_employee_tax_statement_overrides)
     add_annotated_tool(mcp, get_employee_tax_statement_override)
