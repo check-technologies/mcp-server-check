@@ -760,14 +760,17 @@ async def list_contractor_tax_statements(
     year: int | None = None,
     publication_status: str | None = None,
     published_from: str | None = None,
+    correction: list[str] | None = None,
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
     """List contractor tax statements (1099s) for a contractor or a company.
 
-    At least one of contractor, company, or company_copy_bundle is required;
-    the API rejects an unscoped list. Partners without contractor tax statements
-    enabled get a 404.
+    At least one of contractor, company, company_copy_bundle, or correction is
+    required when the corrections API is enabled for the provider; otherwise at
+    least one of contractor, company, or company_copy_bundle is required. The API
+    rejects an unscoped list. Partners without contractor tax statements enabled
+    get a 404.
 
     Args:
         contractor: Filter to statements for this Check contractor ID
@@ -780,6 +783,9 @@ async def list_contractor_tax_statements(
         publication_status: "draft" or "published".
         published_from: ISO-8601 datetime lower bound on published_at
             (inclusive), e.g. "2026-01-15T00:00:00Z".
+        correction: Filter to tax statements produced by these correction sessions
+            (e.g. "cor_xxxxx"). Multiple values are OR'd (max 500 per request).
+            Requires the corrections API for the provider.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
@@ -793,6 +799,7 @@ async def list_contractor_tax_statements(
             year=year,
             publication_status=publication_status,
             published_from=published_from,
+            correction=correction,
             limit=limit,
             cursor=cursor,
         ),
