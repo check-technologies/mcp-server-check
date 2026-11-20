@@ -211,6 +211,25 @@ async def test_http_error_with_text_body(mock_api, ctx):
     assert result["status_code"] == 500
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("status", "headers", "expected"),
+    [
+        (302, {"location": "https://docs.checkhq.com"}, "docs"),
+        (301, {"location": "https://example.com/elsewhere"}, "example.com/elsewhere"),
+        (302, {}, "no target"),
+    ],
+)
+async def test_redirect_returns_readable_detail(
+    mock_api, ctx, status, headers, expected
+):
+    mock_api.get("/moved").mock(return_value=httpx.Response(status, headers=headers))
+    result = await check_api_get(ctx, api_path("moved"))
+    assert result["error"] is True
+    assert result["status_code"] == status
+    assert expected in result["detail"]
+
+
 def test_merge_metadata_filter_params() -> None:
     assert merge_metadata_filter_params(None, None) is None
     assert merge_metadata_filter_params({"company": "com_1"}, None) == {

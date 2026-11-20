@@ -361,10 +361,13 @@ async def _check_api_request(
             return {"success": True}
         return parse(response)
     except httpx.HTTPStatusError as e:
-        try:
-            error_body = e.response.json()
-        except Exception:
-            error_body = e.response.text
+        if 300 <= e.response.status_code < 400:
+            error_body = _redirect_detail(e.response)
+        else:
+            try:
+                error_body = e.response.json()
+            except Exception:
+                error_body = e.response.text
         return {
             "error": True,
             "status_code": e.response.status_code,
@@ -383,6 +386,30 @@ async def _check_api_request(
             "transport_error": type(e).__name__,
             "detail": str(e) or type(e).__name__,
         }
+
+
+_CHECK_DOCS_HOST = "docs.checkhq.com"
+
+
+def _redirect_detail(response: httpx.Response) -> str:
+    """Explain a redirect the client did not follow; its body is usually empty."""
+    location = response.headers.get("location")
+    if location and urlparse(location).hostname == _CHECK_DOCS_HOST:
+        return (
+            f"The Check API redirected this request to its docs ({location}). "
+            "It does that for a route that has been removed, and for a route "
+            "limited to Check's own apps, such as Console, when called with "
+            "this credential."
+        )
+    if location:
+        return (
+            f"The Check API redirected this request to {location}. "
+            "Redirects are not followed."
+        )
+    return (
+        "The Check API answered with a redirect but gave no target. "
+        "Redirects are not followed."
+    )
 
 
 async def check_api_get(ctx: Ctx, path: ApiPath, params: dict | None = None) -> dict:
