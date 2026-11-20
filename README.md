@@ -557,7 +557,7 @@ Tax parameters, elections (including tax exemptions), filings, statements, packa
 | `list_employee_tax_param_settings` | GET | List employee tax param settings |
 | `get_employee_tax_param_setting` | GET | Get a specific setting |
 | `bulk_get_employee_tax_param_settings` | GET | Tax param settings for a company's employees |
-| `bulk_update_employee_tax_param_settings` | POST | Bulk update tax param settings |
+| `bulk_update_employee_tax_param_settings` | PATCH | Bulk update tax param settings |
 | **Company Tax Elections** | | |
 | `list_company_tax_elections` | GET | List a company's tax exemptions (tax elections) for employer-paid taxes; `exemptible: false` (e.g. SUI/FUTA) means only Check Support can set it |
 | `create_company_tax_elections` | POST | Create company tax elections |

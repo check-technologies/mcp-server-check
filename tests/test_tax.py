@@ -9,6 +9,7 @@ import pytest
 
 from mcp_server_check.tools.tax import (
     bulk_get_employee_tax_param_settings,
+    bulk_update_employee_tax_param_settings,
     create_employee_tax_statement_overrides,
     delete_employee_tax_statement_override,
     get_company_tax_param_setting,
@@ -95,6 +96,29 @@ async def test_bulk_get_employee_tax_param_settings(mock_api, ctx):
     assert params["company"] == "com_1"
     assert params.get_list("employee") == ["emp_1", "emp_2"]
     assert params["as_of"] == "2026-01-01"
+
+
+@pytest.mark.anyio
+async def test_bulk_update_employee_tax_param_settings(mock_api, ctx):
+    """PATCH /employee_tax_params/settings with a list body. The old POST to
+    /employee_tax_param_settings/bulk_update is not a route (302 to the docs
+    site), and the API rejects a non-list body with "Request body must be a
+    list"."""
+    route = mock_api.patch("/employee_tax_params/settings").mock(
+        return_value=httpx.Response(
+            200, json={"next": None, "previous": None, "results": [{"id": "spa_001"}]}
+        )
+    )
+    update = {
+        "id": "spa_001",
+        "employee": "emp_1",
+        "company": "com_1",
+        "value": "0",
+        "effective_start": "2026-01-01",
+    }
+    result = await bulk_update_employee_tax_param_settings(ctx, data=[update])
+    assert result["results"] == [{"id": "spa_001"}]
+    assert json.loads(route.calls.last.request.content) == [update]
 
 
 def test_list_employee_tax_params_requires_company():
