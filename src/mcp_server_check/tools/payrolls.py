@@ -139,7 +139,9 @@ async def create_payroll(
         pay_frequency: Pay frequency — "weekly", "biweekly", "semimonthly", "monthly",
             "quarterly", or "annually". Default: "biweekly". Omit when passing
             pay_schedule.
-        funding_payment_method: Funding method — "ach" or "wire". Default: "ach".
+        funding_payment_method: Funding method — "ach", "wire", or "square_banking".
+            Default: "ach". square_banking debits the employer's Square bank account
+            and is only available when enabled for the company.
         pay_schedule: ID of the pay schedule this payroll relates to. Pass this or
             pay_frequency, not both: Check API rejects a payroll that sets both
             ("Payroll may not have 'pay_frequency' and 'pay_schedule'"). The
@@ -230,7 +232,9 @@ async def update_payroll(
         pay_frequency: Pay frequency — "weekly", "biweekly", "semimonthly", "monthly",
             "quarterly", or "annually". Omit when the payroll has or is given a
             pay_schedule.
-        funding_payment_method: Funding method — "ach" or "wire".
+        funding_payment_method: Funding method — "ach", "wire", or "square_banking".
+            square_banking debits the employer's Square bank account and is only
+            available when enabled for the company.
         pay_schedule: ID of the pay schedule this payroll relates to. Pass this or
             pay_frequency, not both: Check API rejects a payroll that sets both
             ("Payroll may not have 'pay_frequency' and 'pay_schedule'"). The

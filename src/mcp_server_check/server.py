@@ -631,7 +631,7 @@ def _register_resources(server: CheckMCP) -> None:
         },
         "funding_payment_method": {
             "description": "Valid values for funding_payment_method on payrolls.",
-            "values": ["ach", "wire"],
+            "values": ["ach", "wire", "square_banking"],
         },
         "bank_account_subtype": {
             "description": "Valid values for bank account subtype.",
