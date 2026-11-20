@@ -377,6 +377,92 @@ async def get_payroll_paper_checks_report(ctx: Ctx, payroll_id: str) -> dict:
     )
 
 
+async def get_payroll_journal(
+    ctx: Ctx,
+    payroll_id: str,
+    taxable_wages: bool | None = None,
+    gross_taxable_wages: bool | None = None,
+    contractors: bool | None = None,
+    additional_columns: list[str] | None = None,
+    group_by: str | None = None,
+    always_use_benefit_label: bool | None = None,
+) -> dict:
+    """Get payroll journal generation status for an approved payroll.
+
+    Poll after create_payroll_journal with the same options until `status` is
+    `completed` or `failed`. When `status` is `completed`, `download_url` is a
+    short-lived CSV link (about one minute); call this again for a fresh URL.
+    Returns 404 when no journal has been started for this payroll with these
+    options, or the file expired 30 days after completion.
+
+    Args:
+        payroll_id: The Check payroll ID (e.g. "pay_xxxxx").
+        taxable_wages: Include taxable wage columns.
+        gross_taxable_wages: Include gross taxable wage columns.
+        contractors: Include contractor payments.
+        additional_columns: Extra columns: "employee.id", "contractor.id", or
+            "payroll.id".
+        group_by: When set to "workplace", groups rows by workplace.
+        always_use_benefit_label: Name benefit columns by benefit type instead
+            of benefit description.
+    """
+    return await check_api_get(
+        ctx,
+        f"/payrolls/{payroll_id}/journal",
+        params=build_params(
+            taxable_wages=taxable_wages,
+            gross_taxable_wages=gross_taxable_wages,
+            contractors=contractors,
+            additional_columns=additional_columns,
+            group_by=group_by,
+            always_use_benefit_label=always_use_benefit_label,
+        ),
+    )
+
+
+async def create_payroll_journal(
+    ctx: Ctx,
+    payroll_id: str,
+    taxable_wages: bool | None = None,
+    gross_taxable_wages: bool | None = None,
+    contractors: bool | None = None,
+    additional_columns: list[str] | None = None,
+    group_by: str | None = None,
+    always_use_benefit_label: bool | None = None,
+) -> dict:
+    """Start generating a payroll journal CSV for an approved payroll.
+
+    Returns `generating`, `completed`, or `failed` status. If generation is
+    already in progress for the same options, returns that run. Poll
+    get_payroll_journal with the same options until terminal. The payroll must
+    be approved.
+
+    Args:
+        payroll_id: The Check payroll ID (e.g. "pay_xxxxx").
+        taxable_wages: Include taxable wage columns.
+        gross_taxable_wages: Include gross taxable wage columns.
+        contractors: Include contractor payments.
+        additional_columns: Extra columns: "employee.id", "contractor.id", or
+            "payroll.id".
+        group_by: When set to "workplace", groups rows by workplace.
+        always_use_benefit_label: Name benefit columns by benefit type instead
+            of benefit description.
+    """
+    return await check_api_post(
+        ctx,
+        f"/payrolls/{payroll_id}/journal",
+        data=build_body(
+            {},
+            taxable_wages=taxable_wages,
+            gross_taxable_wages=gross_taxable_wages,
+            contractors=contractors,
+            additional_columns=additional_columns,
+            group_by=group_by,
+            always_use_benefit_label=always_use_benefit_label,
+        ),
+    )
+
+
 # --- Simulation ---
 
 
@@ -495,11 +581,13 @@ def register(mcp: FastMCP, *, read_only: bool = False) -> None:
     add_annotated_tool(mcp, get_payroll_paper_checks)
     add_annotated_tool(mcp, get_payroll_cash_requirement_report)
     add_annotated_tool(mcp, get_payroll_paper_checks_report)
+    add_annotated_tool(mcp, get_payroll_journal)
     if not read_only:
         add_annotated_tool(mcp, create_payroll)
         add_annotated_tool(mcp, update_payroll)
         add_annotated_tool(mcp, delete_payroll)
         add_annotated_tool(mcp, approve_payroll)
+        add_annotated_tool(mcp, create_payroll_journal)
         add_annotated_tool(mcp, reopen_payroll)
         add_annotated_tool(mcp, simulate_start_processing)
         add_annotated_tool(mcp, simulate_complete_funding)

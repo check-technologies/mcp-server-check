@@ -4,7 +4,7 @@
 
 > **Terms of Service** — By using this MCP server to access the Check API, you agree to the [MCP Usage Terms](TERMS_OF_SERVICE.md), which are in addition to your existing agreement with Check.
 
-An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 301 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
+An [MCP](https://modelcontextprotocol.io/) server that wraps the [Check Payroll API](https://docs.checkhq.com/), providing 303 tools for managing companies, employees, contractors, payrolls, tax configuration, embedded components, and more.
 
 ## Quickstart
 
@@ -250,7 +250,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 
 ## Available Tools
 
-301 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
+303 tools organized across 21 categories. All list tools support `limit` and `cursor` parameters for cursor-based pagination — pass the `cursor` value from a previous response to fetch the next page.
 
 ### Companies (30 tools)
 
@@ -326,7 +326,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 | `create_workplace` | POST | Create a new workplace |
 | `update_workplace` | PATCH | Update an existing workplace |
 
-### Payrolls (17 tools)
+### Payrolls (19 tools)
 
 | Tool | Method | Description |
 |---|---|---|
@@ -341,6 +341,8 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 | `get_payroll_paper_checks` | GET | Get paper checks for a payroll |
 | `get_payroll_cash_requirement_report` | GET | Get cash requirement report |
 | `get_payroll_paper_checks_report` | GET | Get paper checks report |
+| `get_payroll_journal` | GET | Poll payroll journal generation status and download URL |
+| `create_payroll_journal` | POST | Start payroll journal CSV generation for an approved payroll |
 | `simulate_start_processing` | POST | Simulate starting processing (sandbox; payroll needs `simulation_mode: "manual"`) |
 | `simulate_complete_funding` | POST | Simulate completing funding (sandbox) |
 | `simulate_fail_funding` | POST | Simulate failing funding (sandbox) |
