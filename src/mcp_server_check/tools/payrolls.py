@@ -46,7 +46,9 @@ async def list_payrolls(
 
     Args:
         company: Filter to payrolls belonging to this Check company ID (e.g. "com_xxxxx").
-        limit: Maximum number of results to return (default 25, max 25; a larger value still returns 25).
+        limit: Maximum number of results to return (default 25). Max 100 when
+            items and contractor payments are not inlined; max 25 when either
+            is included. A larger value returns a page of the maximum size.
         ids: Filter to specific payroll IDs.
         cursor: Pagination cursor from a previous response.
         type: Filter by payroll type(s) — "regular", "off_cycle", "amendment", or
