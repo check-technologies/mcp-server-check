@@ -13,8 +13,10 @@ import pytest
 from fastmcp import Client, Context
 from mcp.server.lowlevel.server import Server
 from mcp_server_check.code_mode import (
+    MAX_CALLS_WITH_ARGUMENTS,
     CallRecord,
     CodeModeSettings,
+    call_log,
     render_signature,
     render_stub,
     render_stubs,
@@ -734,6 +736,47 @@ def test_call_summary_and_trace():
     assert CallRecord.from_dict(failed.to_dict()) == failed
 
 
+def test_call_log_drops_arguments_past_the_threshold():
+    calls = [
+        CallRecord(
+            tool="get_company",
+            arguments={"company_id": f"com_{i}"},
+            status="ok",
+            duration_ms=5,
+        )
+        for i in range(MAX_CALLS_WITH_ARGUMENTS)
+    ]
+    failed = CallRecord(
+        tool="get_employee",
+        arguments={"employee_id": "emp_9"},
+        status="error",
+        duration_ms=95,
+        retries=1,
+        error={"error": True, "status_code": 404, "detail": "Not found."},
+    )
+
+    at_threshold = call_log(calls)
+    assert set(at_threshold) == {"calls"}
+    assert at_threshold["calls"][0]["arguments"] == {"company_id": "com_0"}
+
+    over = call_log([*calls, failed])
+    assert all("arguments" not in c for c in over["calls"])
+    assert over["calls"][0] == {"tool": "get_company", "status": "ok", "duration_ms": 5}
+    assert over["calls"][-1] == {
+        "tool": "get_employee",
+        "status": "error",
+        "duration_ms": 95,
+        "retries": 1,
+        "error": {"error": True, "status_code": 404, "detail": "Not found."},
+    }
+    assert f"{MAX_CALLS_WITH_ARGUMENTS + 1} calls" in over["calls_note"]
+    assert f"more than the {MAX_CALLS_WITH_ARGUMENTS}" in over["calls_note"]
+    # The trace rendered from the log shows that the arguments were left out.
+    record = CallRecord.from_dict(over["calls"][0])
+    assert record.arguments is None
+    assert record.summary() == "get_company(…) ok 5ms"
+
+
 @pytest.mark.anyio
 async def test_run_code_returns_trace_block(mock_api, code_server):
     mock_api.get("/companies").mock(return_value=httpx.Response(200, json=COMPANIES))
@@ -1015,6 +1058,86 @@ async def test_run_code_too_large_names_the_largest_parts(mock_api, monkeypatch)
     assert payload["response_too_large"] is True
     detail = payload["detail"]
     assert "Largest parts: result[0]['response_body'] (20,002 characters)" in detail
+
+
+@pytest.mark.anyio
+async def test_run_code_result_alone_over_the_budget_is_too_large(code_server):
+    """The default budget still rejects a program whose own result is too big,
+    and the size it reports is the program's output, not the envelope."""
+    is_error, payload = await _run(code_server, '"x" * 60000')
+    assert is_error
+    assert payload["response_too_large"] is True
+    assert payload["limit"] == 50_000
+    assert payload["size"] == len(
+        json.dumps({"result": "x" * 60000, "logs": ""}, indent=2)
+    )
+    assert payload["detail"].startswith(
+        f"The run_code result is {payload['size']} characters"
+    )
+
+
+@pytest.mark.anyio
+async def test_run_code_call_log_does_not_count_against_the_budget(
+    mock_api, code_server, monkeypatch
+):
+    """A program with a small result and a long call log passes through: the
+    budget is on what the program returned, which is all it can shrink."""
+    monkeypatch.setenv("CHECK_MAX_RESULT_CHARS", "3000")
+    mock_api.get("/companies/com_1").mock(
+        return_value=httpx.Response(200, json={"id": "com_1"})
+    )
+    code = """
+import asyncio
+import check
+for _ in range(6):
+    await asyncio.gather(*[check.get_company(company_id="com_1") for _ in range(10)])
+"x" * 1000
+"""
+    async with Client(code_server) as client:
+        result = await client.call_tool(
+            "run_code", {"code": code}, raise_on_error=False
+        )
+
+    assert result.is_error is False, result.content[0].text
+    assert sum(len(block.text) for block in result.content) > 3000
+    payload = json.loads(result.content[0].text)
+    assert payload["result"] == "x" * 1000
+    assert len(payload["calls"]) == 60
+
+
+@pytest.mark.anyio
+async def test_run_code_over_the_call_threshold_returns_argument_less_calls(
+    mock_api, code_server
+):
+    mock_api.get("/companies/com_1").mock(
+        return_value=httpx.Response(200, json={"id": "com_1"})
+    )
+    count = MAX_CALLS_WITH_ARGUMENTS + 1
+    code = f"""
+import asyncio
+import check
+await asyncio.gather(*[check.get_company(company_id="com_1") for _ in range({count})])
+"done"
+"""
+    async with Client(code_server) as client:
+        result = await client.call_tool(
+            "run_code", {"code": code}, raise_on_error=False
+        )
+
+    assert result.is_error is False, result.content[0].text
+    payload = json.loads(result.content[0].text)
+    assert payload["result"] == "done"
+    assert len(payload["calls"]) == count
+    assert all(set(c) == {"tool", "status", "duration_ms"} for c in payload["calls"])
+    assert all(c["status"] == "ok" for c in payload["calls"])
+    assert payload["calls_note"] == (
+        f"Arguments are omitted from the call log: the program made {count} "
+        f"calls, more than the {MAX_CALLS_WITH_ARGUMENTS} at which each call's "
+        "arguments are returned."
+    )
+    trace = result.content[1].text.splitlines()
+    assert trace[0].startswith(f"Tool calls: {count} in ")
+    assert trace[1].startswith("1. get_company(…) ok ")
 
 
 def test_unawaited_coroutines():

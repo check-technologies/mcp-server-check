@@ -177,13 +177,17 @@ class ResultBudgetMiddleware(Middleware):
             or context.message.name in self.EXEMPT_TOOLS
         ):
             return result
-        size = _text_length(result)
+        tool = ToolCall.from_request(context.message).name
+        size = (
+            _program_output_length(result)
+            if tool == "run_code"
+            else _text_length(result)
+        )
         if size <= self.max_chars:
             return result
         trimmed = self._trim_list(result)
         if trimmed is not None:
             return trimmed
-        tool = ToolCall.from_request(context.message).name
         largest = (
             _largest_program_parts(result, self.max_chars // 5)
             if tool == "run_code"
@@ -227,6 +231,38 @@ def _text_length(result: ToolResult) -> int:
     return sum(len(b.text) for b in result.content if isinstance(b, TextContent))
 
 
+# The parts of a run_code outcome the program itself produced.
+_PROGRAM_OUTPUT_KEYS = ("result", "logs")
+
+
+def _program_outcome(result: ToolResult) -> dict[str, Any] | None:
+    """The JSON outcome of a run_code result, its first content block."""
+    block = result.content[0] if result.content else None
+    if not isinstance(block, TextContent):
+        return None
+    try:
+        outcome = json.loads(block.text)
+    except json.JSONDecodeError:
+        return None
+    return outcome if isinstance(outcome, dict) else None
+
+
+def _program_output_length(result: ToolResult) -> int:
+    """The characters of a run_code result that its program produced.
+
+    The budget is on the program's result and logs, which the program can
+    shrink by returning less. The rest of the envelope, mostly the call log
+    and its readable trace, grows with the calls the program made, and a
+    20-employee write program's log alone ran to 15k-19k characters; it is
+    capped on its own in code_mode. Measured as the envelope serializes it.
+    """
+    outcome = _program_outcome(result)
+    if outcome is None:
+        return _text_length(result)
+    output = {key: outcome.get(key) for key in _PROGRAM_OUTPUT_KEYS}
+    return len(json.dumps(output, indent=2, default=str))
+
+
 def largest_parts(
     value: Any, floor: int, path: str = "", count: int = 3
 ) -> list[tuple[str, int, int | None]]:
@@ -262,18 +298,12 @@ def largest_parts(
 
 def _largest_program_parts(result: ToolResult, floor: int) -> list[str] | None:
     """Where a run_code result's characters are, as readable paths."""
-    block = result.content[0] if result.content else None
-    if not isinstance(block, TextContent):
-        return None
-    try:
-        outcome = json.loads(block.text)
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(outcome, dict):
+    outcome = _program_outcome(result)
+    if outcome is None:
         return None
     parts = [
         part
-        for key in ("result", "logs")
+        for key in _PROGRAM_OUTPUT_KEYS
         for part in largest_parts(outcome.get(key), floor, path=key)
     ]
     parts.sort(key=lambda part: part[1], reverse=True)
