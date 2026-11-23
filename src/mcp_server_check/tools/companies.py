@@ -66,7 +66,7 @@ async def list_companies(
 
 async def search_companies(
     ctx: Ctx,
-    term: str,
+    query: str,
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
@@ -87,14 +87,14 @@ async def search_companies(
     on the returned id; in code mode, chain it in the same program.
 
     Args:
-        term: Search term to match against company legal name, trade name, or ID.
+        query: Text to match against company legal name, trade name, or ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor from a previous response.
     """
     return await check_api_list(
         ctx,
         api_path("companies", "search"),
-        params=build_params(term=term, limit=limit, cursor=cursor),
+        params=build_params(term=query, limit=limit, cursor=cursor),
     )
 
 

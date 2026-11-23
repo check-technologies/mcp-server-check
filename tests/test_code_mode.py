@@ -723,7 +723,7 @@ async def test_get_stubs_header_shows_search_then_get_in_one_program(code_server
         )
     for stubs in (by_query, by_toolset):
         assert "search_* results are" in stubs
-        assert 'hits = (await check.search_companies(term="Golden Crust"))' in stubs
+        assert 'hits = (await check.search_companies(query="Golden Crust"))' in stubs
         assert 'company = await check.get_company(company_id=hits[0]["id"])' in stubs
         assert '{"matches": hits, "company": company}' in stubs
         # Programs get full list records, so the header no longer tells the

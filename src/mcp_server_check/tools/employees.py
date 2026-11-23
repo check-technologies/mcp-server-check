@@ -70,29 +70,34 @@ async def list_employees(
 
 async def search_employees(
     ctx: Ctx,
-    term: str,
+    query: str,
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
     """Search employees by name.
 
-    Splits the search term by spaces and matches each word against first name,
+    Splits the query by spaces and matches each word against first name,
     middle name, last name, or employee ID using case-insensitive matching.
-    All terms must match (AND logic).
+    All words must match (AND logic).
 
-    Results carry only id and name fields. Anything else about the employee
-    (status, company, email, start_date) needs get_employee on the returned
+    Results carry only id, company and name fields. Anything else about the
+    employee (status, email, start_date) needs get_employee on the returned
     id; in code mode, chain it in the same program.
 
+    There is no company filter: this searches every company of the partner.
+    Each result carries its ``company``, so to find someone at one company,
+    keep the results whose company matches (or filter list_employees(company=...)
+    by name inside a program).
+
     Args:
-        term: Search term to match against employee name fields or ID.
+        query: Text to match against employee name fields or ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor from a previous response.
     """
     return await check_api_list(
         ctx,
         api_path("employees", "search"),
-        params=build_params(term=term, limit=limit, cursor=cursor),
+        params=build_params(term=query, limit=limit, cursor=cursor),
     )
 
 
