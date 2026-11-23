@@ -196,6 +196,9 @@ class TestReportRequestRemedies:
 
         assert [type(r) for r in request.remedies(failure)] == expected
 
+    def test_unavailable_endpoint_has_no_remedies(self):
+        assert self.journal().remedies(Failure.UNAVAILABLE) == []
+
     @pytest.mark.parametrize(
         "arguments",
         [

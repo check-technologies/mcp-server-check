@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, ClassVar, TypeVar
 
-from mcp_server_check.helpers import api_path, build_params
+from mcp_server_check.helpers import (
+    api_path,
+    build_params,
+    check_api_get,
+    check_api_get_csv,
+)
 from mcp_server_check.recovery import Alternative, Failure, Hint, Remedy
 
 _ChoiceT = TypeVar("_ChoiceT", bound="Choice")
@@ -74,6 +80,18 @@ _PAYROLL_FILTER_TYPES = frozenset(
 class ReportFormat(Choice):
     JSON = "json"
     CSV = "csv"
+
+    @property
+    def fetch(self) -> Callable[..., Awaitable[dict]]:
+        return check_api_get_csv if self is ReportFormat.CSV else check_api_get
+
+
+def _csv_alternative(tool: str) -> Alternative:
+    return Alternative(
+        tool=tool,
+        description="Return the smaller CSV rendering of the report.",
+        arguments={"response_format": ReportFormat.CSV.value},
+    )
 
 
 @dataclass(frozen=True)
@@ -160,17 +178,13 @@ class ReportRequest:
         A CSV rendering is smaller but takes as long to generate, so it is only
         offered for a result that was too large.
         """
+        if failure is Failure.UNAVAILABLE:
+            return []
         remedies: list[Remedy] = []
         if self.report_type.has_report_run:
             remedies.append(self._report_run_remedy())
         if failure is Failure.TOO_LARGE and self.response_format is ReportFormat.JSON:
-            remedies.append(
-                Alternative(
-                    tool=self.TOOL,
-                    description="Return the smaller CSV rendering of the report.",
-                    arguments={"response_format": ReportFormat.CSV.value},
-                )
-            )
+            remedies.append(_csv_alternative(self.TOOL))
         if self.report_type.takes_payroll_filter and not self.payroll:
             remedies.append(
                 Hint(
