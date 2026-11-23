@@ -195,7 +195,7 @@ https://<server>/mcp?hybrid_mode=1
 Code mode replaces the three dynamic-mode tools with two, so every API call goes through a program:
 
 - **`get_stubs(query?, toolset?, tools?)`** — With no arguments, the catalog: every toolset with its description and tool names, write tools marked with `*`. With a keyword `query`, a `toolset`, or a list of `tools`, typed Python signatures (with docstrings) for the `check` module, one `async def` per tool.
-- **`run_code(code, writes?)`** — Run a program. The `check` module is pre-imported and exposes every allowed tool as an async function; the program's last expression is returned along with anything it printed and a trace of every tool call it made (tool, arguments, status, duration).
+- **`run_code(code, writes?)`** — Run a program. The `check` module is pre-imported and exposes every allowed tool as an async function; the program's last expression is returned along with anything it printed and a trace of every tool call it made (tool, arguments, status, duration). The `CHECK_MAX_RESULT_CHARS` budget applies to the program's result and logs only, not to the call trace; past 40 calls the trace drops each call's arguments and says so.
 
 ```python
 import asyncio

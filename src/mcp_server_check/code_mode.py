@@ -305,12 +305,19 @@ class CodeModeSettings:
         )
 
 
+# Past this many calls, the call log returned with a result drops each call's
+# arguments. At about 124 characters a call, a 20-employee write program's log
+# alone ran to 15k-19k characters, most of it arguments the model wrote itself.
+MAX_CALLS_WITH_ARGUMENTS = 40
+
+
 @dataclass
 class CallRecord:
     """One tool call a program made, for the trace returned with the result."""
 
     tool: str
-    arguments: dict[str, Any]
+    # None in a record read back from a call log that omitted its arguments.
+    arguments: dict[str, Any] | None
     # "pending" until the tool returns, so a timeout trace shows calls that
     # had not finished (and, for writes, may still land).
     status: str = "pending"
@@ -318,13 +325,12 @@ class CallRecord:
     retries: int = 0
     error: Any = None
 
-    def to_dict(self) -> dict[str, Any]:
-        record: dict[str, Any] = {
-            "tool": self.tool,
-            "arguments": self.arguments,
-            "status": self.status,
-            "duration_ms": self.duration_ms,
-        }
+    def to_dict(self, arguments: bool = True) -> dict[str, Any]:
+        record: dict[str, Any] = {"tool": self.tool}
+        if arguments:
+            record["arguments"] = self.arguments
+        record["status"] = self.status
+        record["duration_ms"] = self.duration_ms
         if self.retries:
             record["retries"] = self.retries
         if self.error is not None:
@@ -333,12 +339,17 @@ class CallRecord:
 
     @classmethod
     def from_dict(cls, record: dict[str, Any]) -> CallRecord:
-        """The inverse of to_dict."""
-        return cls(**{k: v for k, v in record.items() if k in cls.__dataclass_fields__})
+        """The inverse of to_dict; a record without arguments reads as None."""
+        fields = {k: v for k, v in record.items() if k in cls.__dataclass_fields__}
+        fields.setdefault("arguments", None)
+        return cls(**fields)
 
     def summary(self, max_args_chars: int = 120) -> str:
         """One line for a progress message or trace: the call and its outcome."""
-        args = ", ".join(f"{k}={v!r}" for k, v in self.arguments.items())
+        if self.arguments is None:
+            args = "…"
+        else:
+            args = ", ".join(f"{k}={v!r}" for k, v in self.arguments.items())
         if len(args) > max_args_chars:
             args = args[: max_args_chars - 1] + "…"
         line = f"{self.tool}({args}) {self.status}"
@@ -360,6 +371,25 @@ def _error_summary(error: Any) -> str:
         text = str(error)
     text = " ".join(text.split())
     return text if len(text) <= 160 else text[:159] + "…"
+
+
+def call_log(calls: Sequence[CallRecord]) -> dict[str, Any]:
+    """The calls a program made, as the result or failure payload carries them.
+
+    Over MAX_CALLS_WITH_ARGUMENTS calls, each record keeps its tool, status,
+    duration, retries and error but not its arguments, and calls_note says
+    so, so a long program's log cannot crowd out the result it produced.
+    """
+    if len(calls) <= MAX_CALLS_WITH_ARGUMENTS:
+        return {"calls": [c.to_dict() for c in calls]}
+    return {
+        "calls": [c.to_dict(arguments=False) for c in calls],
+        "calls_note": (
+            f"Arguments are omitted from the call log: the program made "
+            f"{len(calls)} calls, more than the {MAX_CALLS_WITH_ARGUMENTS} at "
+            "which each call's arguments are returned."
+        ),
+    }
 
 
 def render_trace(calls: Sequence[CallRecord], duration_ms: int | None = None) -> str:
@@ -714,7 +744,7 @@ def _program_failure(
         "kind": kind,
         "detail": detail,
         "logs": logs,
-        "calls": [c.to_dict() for c in calls],
+        **call_log(calls),
     }
     if hint:
         payload["hint"] = hint
@@ -950,7 +980,7 @@ class CodeRunner:
         outcome: dict[str, Any] = {
             "result": value,
             "logs": logs,
-            "calls": [c.to_dict() for c in program.calls],
+            **call_log(program.calls),
             "duration_ms": int((time.monotonic() - started) * 1000),
         }
         if value is None and not program.calls:

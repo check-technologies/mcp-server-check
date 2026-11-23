@@ -8,8 +8,10 @@ import logging
 import httpx
 import pytest
 from fastmcp import Client
+from fastmcp.server.middleware import MiddlewareContext
 from fastmcp.tools import ToolResult
-from mcp.types import CallToolRequestParams, CallToolResult
+from mcp.types import CallToolRequestParams, CallToolResult, TextContent
+from mcp_server_check.code_mode import CallRecord, render_trace
 from mcp_server_check.errors import CheckToolError
 from mcp_server_check.middleware import (
     ResponseSize,
@@ -90,6 +92,35 @@ async def call(server: CheckMCP, tool_mode: str, name: str, arguments: dict):
 def error_of(result) -> dict:
     assert result.is_error is True, "error_of: Expected a tool error"
     return json.loads(result.content[0].text)
+
+
+def run_code_result(value, calls: list[CallRecord]) -> ToolResult:
+    """A run_code result as the server builds it, with every call's arguments."""
+    outcome = {
+        "result": value,
+        "logs": "",
+        "calls": [c.to_dict() for c in calls],
+        "duration_ms": 1234,
+    }
+    return ToolResult(
+        content=[
+            TextContent(type="text", text=json.dumps(outcome, indent=2, default=str)),
+            TextContent(type="text", text=render_trace(calls, 1234)),
+        ]
+    )
+
+
+async def budget_run_code(result: ToolResult) -> ToolResult:
+    """Pass a run_code result through ResultBudgetMiddleware at its default budget."""
+    context = MiddlewareContext(
+        message=CallToolRequestParams(name="run_code", arguments={"code": "..."}),
+        method="tools/call",
+    )
+
+    async def call_next(_context):
+        return result
+
+    return await ResultBudgetMiddleware().on_call_tool(context, call_next)
 
 
 class TestToolCall:
@@ -368,6 +399,50 @@ class TestResultBudgetMiddleware:
 
         assert result.is_error is False
         assert len(result.content[0].text) > 200
+
+    @pytest.mark.anyio
+    async def test_run_code_call_log_is_not_budgeted(self):
+        """A 10k result with the call log of a 20-employee write program: the
+        whole text is over the default budget, the program's output is not."""
+        calls = [
+            CallRecord(
+                tool="create_employee" if i % 7 else "list_employees",
+                arguments={
+                    "company_id": "com_00000000000000000001",
+                    "first_name": "Jane",
+                    "last_name": f"Doe {i}",
+                    "email": f"jane.doe{i}@example.com",
+                },
+                status="ok",
+                duration_ms=120 + i,
+            )
+            for i in range(150)
+        ]
+        result = run_code_result("x" * 10_000, calls)
+        assert sum(len(b.text) for b in result.content) > 50_000
+
+        assert await budget_run_code(result) is result
+
+    @pytest.mark.anyio
+    async def test_run_code_result_over_budget_is_measured_without_the_log(self):
+        value = "x" * 50_001
+        calls = [
+            CallRecord(tool="get_company", arguments={"company_id": "com_1"})
+            for _ in range(10)
+        ]
+        result = run_code_result(value, calls)
+
+        with pytest.raises(CheckToolError) as info:
+            await budget_run_code(result)
+
+        error = info.value.payload
+        assert error["response_too_large"] is True
+        assert error["limit"] == 50_000
+        assert error["size"] == len(json.dumps({"result": value, "logs": ""}, indent=2))
+        assert error["size"] < sum(len(b.text) for b in result.content)
+        assert error["detail"].startswith(
+            f"The run_code result is {error['size']} characters, over the 50000-"
+        )
 
     def test_default_budget(self, make_server):
         budgets = [
