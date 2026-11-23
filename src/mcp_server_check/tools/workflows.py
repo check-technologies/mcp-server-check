@@ -19,6 +19,7 @@ from mcp_server_check.helpers import (
     check_api_get,
     check_api_list,
     shape_payroll,
+    shape_payroll_page,
 )
 
 
@@ -60,10 +61,11 @@ async def get_company_overview(
         A dict with one key per piece, not a company record: "company" (the
         full company, with start_date and pay_frequency), "employees",
         "payrolls" and "bank_accounts". The last three are list pages,
-        {"results": [...], "result_count", "next_cursor"}, holding list
-        summaries (an employee summary has id, first_name, last_name, email,
-        status, start_date). Read overview["employees"]["results"]; iterating
-        overview["employees"] itself yields its key names.
+        {"results": [...], "result_count", "next_cursor"}: full records in a
+        run_code program, list summaries elsewhere (an employee summary has
+        id, first_name, last_name, email, status, start_date).
+        Read overview["employees"]["results"]; iterating overview["employees"]
+        itself yields its key names.
     """
     calls: dict[str, Coroutine[Any, Any, Any]] = {
         "company": check_api_get(ctx, api_path("companies", company_id)),
@@ -87,7 +89,10 @@ async def get_company_overview(
             params={"company": company_id},
         )
 
-    return await _gather_named(calls)
+    overview = await _gather_named(calls)
+    if "payrolls" in overview:
+        overview["payrolls"] = shape_payroll_page(overview["payrolls"])
+    return overview
 
 
 async def get_employee_snapshot(

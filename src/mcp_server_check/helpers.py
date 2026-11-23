@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from importlib.metadata import PackageNotFoundError, version
 from io import BytesIO
@@ -90,6 +91,16 @@ Ctx = Context
 
 # Default max results for list endpoints to avoid blowing context windows.
 DEFAULT_LIST_LIMIT = 10
+
+# True while the code-mode runner is serving a program's tool call. A list
+# page a program fetches stays inside the sandbox, where the program filters
+# it and only its final value reaches the model, so check_api_list returns
+# full records there instead of the summaries below; otherwise a program
+# lists records and then calls get_* once per record for the fields the
+# summary dropped. The plain tool path and the CLI never set it.
+code_mode_full_records: ContextVar[bool] = ContextVar(
+    "code_mode_full_records", default=False
+)
 
 # Fields to keep in summary mode per entity type (by ID prefix or path hint).
 # When a list response contains many records, only these fields are returned
@@ -263,6 +274,23 @@ def shape_payroll(payroll: dict, *, include_items: bool = False) -> dict:
             del shaped[name]
             shaped[count_field] = len(value)
     return shaped
+
+
+def shape_payroll_page(page: dict, *, include_items: bool = False) -> dict:
+    """Apply :func:`shape_payroll` to every record of a payroll list page.
+
+    A summarized page already lacks the inlined lists, so this matters for the
+    full records code mode returns: a page of payrolls from a key pinned
+    before API version 2025-01-01 would otherwise carry every item of every
+    payroll. Error payloads pass through untouched.
+    """
+    results = page.get("results")
+    if not isinstance(results, list):
+        return page
+    return {
+        **page,
+        "results": [shape_payroll(p, include_items=include_items) for p in results],
+    }
 
 
 def build_body(required: dict, **optional: object) -> dict:
@@ -636,9 +664,13 @@ async def check_api_list(
         ctx: MCP context.
         path: API path.
         params: Query parameters.
-        summarize: If True (default), return summary views of results.
+        summarize: If True (default), return summary views of results. A call
+            made for a code-mode program (``code_mode_full_records`` is set)
+            returns full records regardless.
     """
     data = await check_api_get(ctx, path, params=params)
     if "error" in data:
         return data
+    if code_mode_full_records.get():
+        summarize = False
     return _format_list_response(data, summarize=summarize)

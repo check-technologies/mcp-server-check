@@ -15,8 +15,10 @@ from mcp_server_check.helpers import (
     check_api_patch,
     check_api_post,
     check_api_put,
+    code_mode_full_records,
     merge_metadata_filter_params,
     shape_payroll,
+    shape_payroll_page,
     with_next_cursor,
 )
 
@@ -359,6 +361,65 @@ async def test_check_api_list_summarizes_payroll_entities(
     assert row["id"] == record_id
     assert row["status"] == "paid"
     assert bulky_field not in row
+
+
+@pytest.mark.anyio
+async def test_check_api_list_returns_full_records_for_code_mode(mock_api, ctx):
+    """While the code-mode runner serves a program's call, a list page keeps
+    every field; the summary table applies again once the call is over."""
+    mock_api.get("/employees").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "next": None,
+                "previous": None,
+                "results": [
+                    {
+                        "id": "emp_001",
+                        "first_name": "Jane",
+                        "residence": {"state": "CA"},
+                    }
+                ],
+            },
+        )
+    )
+    token = code_mode_full_records.set(True)
+    try:
+        full = await check_api_list(ctx, api_path("employees"))
+    finally:
+        code_mode_full_records.reset(token)
+    summary = await check_api_list(ctx, api_path("employees"))
+    assert full["results"][0]["residence"] == {"state": "CA"}
+    assert full["result_count"] == 1
+    assert "residence" not in summary["results"][0]
+
+
+def test_shape_payroll_page_counts_inlined_lists_on_every_record():
+    page = {
+        "results": [
+            {"id": "pay_1", "items": [{"id": "itm_1"}], "contractor_payments": []},
+            {"id": "pay_2"},
+        ],
+        "result_count": 2,
+        "next_cursor": None,
+    }
+    shaped = shape_payroll_page(page)
+    assert shaped["results"] == [
+        {"id": "pay_1", "items_count": 1, "contractor_payments_count": 0},
+        {"id": "pay_2"},
+    ]
+    assert shaped["result_count"] == 2
+    assert page["results"][0]["items"] == [{"id": "itm_1"}]  # input untouched
+
+
+def test_shape_payroll_page_keeps_lists_when_items_are_wanted():
+    page = {"results": [{"id": "pay_1", "items": [{"id": "itm_1"}]}]}
+    assert shape_payroll_page(page, include_items=True) == page
+
+
+def test_shape_payroll_page_passes_errors_through():
+    error = {"error": True, "status_code": 404, "detail": "Not found."}
+    assert shape_payroll_page(error) is error
 
 
 def test_summary_prefixes_are_real_check_prefixes() -> None:
