@@ -211,6 +211,25 @@ async def test_http_error_with_text_body(mock_api, ctx):
     assert result["status_code"] == 500
 
 
+@pytest.mark.anyio
+async def test_redirect_is_reported_as_unavailable(mock_api, ctx):
+    mock_api.get("/reports/gone").mock(
+        return_value=httpx.Response(
+            302, headers={"location": "https://docs.checkhq.com"}
+        )
+    )
+    result = await check_api_get(ctx, api_path("reports", "gone"))
+    assert result == {
+        "error": True,
+        "endpoint_unavailable": True,
+        "status_code": 302,
+        "detail": (
+            "The Check API redirected to https://docs.checkhq.com instead of "
+            "answering: the route does not exist or this credential cannot call it."
+        ),
+    }
+
+
 def test_merge_metadata_filter_params() -> None:
     assert merge_metadata_filter_params(None, None) is None
     assert merge_metadata_filter_params({"company": "com_1"}, None) == {

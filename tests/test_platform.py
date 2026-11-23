@@ -331,11 +331,11 @@ async def test_validate_address(mock_api, ctx):
 
 @pytest.mark.anyio
 async def test_get_applied_for_ids_report(mock_api, ctx):
-    mock_api.get("/reports/applied_for_ids").mock(
-        return_value=httpx.Response(200, json={"report": "data"})
+    mock_api.get("/reports/applied_for_ids_detailed").mock(
+        return_value=httpx.Response(200, json={"results": [{"company": "com_001"}]})
     )
     result = await get_applied_for_ids_report(ctx)
-    assert result["report"] == "data"
+    assert result == {"results": [{"company": "com_001"}]}
 
 
 USER = {
