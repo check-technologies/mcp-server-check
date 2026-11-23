@@ -94,7 +94,7 @@ async def test_list_payment_attempts(mock_api, ctx):
             json={"next": None, "previous": None, "results": [{"id": "pa_001"}]},
         )
     )
-    result = await list_payment_attempts(ctx, payment_id="pyt_001")
+    result = await list_payment_attempts(ctx, payment="pyt_001")
     assert result["results"] == [{"id": "pa_001"}]
     req = mock_api.get("/payment_attempts").calls.last.request
     assert req.url.params["payment"] == "pyt_001"

@@ -274,7 +274,7 @@ async def onboard_employee(ctx: Ctx, employee_id: str) -> dict:
 
 async def list_employee_paystubs(
     ctx: Ctx,
-    employee_id: str,
+    employee: str,
     limit: int | None = None,
     cursor: str | None = None,
     payroll: str | None = None,
@@ -286,7 +286,7 @@ async def list_employee_paystubs(
     """List paystubs for an employee.
 
     Args:
-        employee_id: The Check employee ID.
+        employee: The Check employee ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
         payroll: Filter by payroll ID.
@@ -297,7 +297,7 @@ async def list_employee_paystubs(
     """
     return await check_api_list(
         ctx,
-        api_path("employees", employee_id, "paystubs"),
+        api_path("employees", employee, "paystubs"),
         params=build_params(
             limit=limit,
             cursor=cursor,
@@ -328,20 +328,20 @@ async def get_employee_paystub(ctx: Ctx, employee_id: str, payroll_id: str) -> d
 
 async def list_employee_forms(
     ctx: Ctx,
-    employee_id: str,
+    employee: str,
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
     """List forms for an employee.
 
     Args:
-        employee_id: The Check employee ID.
+        employee: The Check employee ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     return await check_api_list(
         ctx,
-        api_path("employees", employee_id, "forms"),
+        api_path("employees", employee, "forms"),
         params=build_params(limit=limit, cursor=cursor),
     )
 

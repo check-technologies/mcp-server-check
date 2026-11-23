@@ -292,7 +292,7 @@ check employees create \
 check employees onboard emp_xxxxx
 
 # Check their forms
-check employees list-forms emp_xxxxx
+check employees list-forms --employee emp_xxxxx
 ```
 
 ### Reports

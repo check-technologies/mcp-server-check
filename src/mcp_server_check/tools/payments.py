@@ -106,7 +106,7 @@ async def get_payment(ctx: Ctx, payment_id: str) -> dict:
 
 async def list_payment_attempts(
     ctx: Ctx,
-    payment_id: str,
+    payment: str,
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
@@ -118,14 +118,14 @@ async def list_payment_attempts(
     with only a failed attempt is still unfunded.
 
     Args:
-        payment_id: The Check payment ID.
+        payment: The Check payment ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     return await check_api_list(
         ctx,
         api_path("payment_attempts"),
-        params=build_params(payment=payment_id, limit=limit, cursor=cursor),
+        params=build_params(payment=payment, limit=limit, cursor=cursor),
     )
 
 

@@ -187,7 +187,7 @@ async def test_list_contractor_payments_for_contractor(mock_api, ctx):
             json={"next": None, "previous": None, "results": [{"id": "cp_001"}]},
         )
     )
-    result = await list_contractor_payments_for_contractor(ctx, contractor_id="ctr_001")
+    result = await list_contractor_payments_for_contractor(ctx, contractor="ctr_001")
     assert result["results"] == [{"id": "cp_001"}]
 
 
@@ -200,7 +200,7 @@ async def test_list_contractor_payments_for_contractor_with_filters(mock_api, ct
         )
     )
     result = await list_contractor_payments_for_contractor(
-        ctx, contractor_id="ctr_001", payroll="pay_123", status="paid"
+        ctx, contractor="ctr_001", payroll="pay_123", status="paid"
     )
     assert result["results"] == [{"id": "cp_001"}]
     req = mock_api.get("/contractors/ctr_001/payments").calls.last.request
@@ -216,5 +216,5 @@ async def test_list_contractor_forms(mock_api, ctx):
             json={"next": None, "previous": None, "results": [{"id": "frm_001"}]},
         )
     )
-    result = await list_contractor_forms(ctx, contractor_id="ctr_001")
+    result = await list_contractor_forms(ctx, contractor="ctr_001")
     assert result["results"] == [{"id": "frm_001"}]

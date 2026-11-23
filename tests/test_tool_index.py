@@ -6,6 +6,7 @@ import json
 
 import pytest
 from fastmcp.exceptions import ToolError
+from mcp_server_check.code_mode import tool_parameters
 from mcp_server_check.tool_filter import ToolFilter
 from mcp_server_check.tool_index import (
     _TOOLSET_DESCRIPTIONS,
@@ -115,6 +116,20 @@ class TestToolIndexBuild:
         entry = self.index.entries["list_companies"]
         # The function has "limit", "active", "ids", "cursor" params
         assert "limit" in entry.search_tokens
+
+    def test_list_tools_take_the_entity_not_its_id(self):
+        """list_* tools take company=, employee=, ... whether the ID filters
+        or names the path; only single-record tools take <entity>_id=. A
+        list tool whose first parameter ends in _id breaks the one-line rule
+        the stub header states, and programs written to it die."""
+        offenders = {
+            name: params[0].name
+            for name, entry in self.index.entries.items()
+            if name.startswith("list_")
+            and (params := tool_parameters(entry.tool.fn))
+            and params[0].name.endswith("_id")
+        }
+        assert offenders == {}
 
 
 # --- ToolIndex.search ---

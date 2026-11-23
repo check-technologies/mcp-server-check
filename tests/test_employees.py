@@ -65,7 +65,7 @@ async def test_list_employee_paystubs_with_filters(mock_api, ctx):
     )
     result = await list_employee_paystubs(
         ctx,
-        employee_id="emp_001",
+        employee="emp_001",
         payroll="pay_123",
         status="paid",
         start="2026-01-01",
@@ -263,7 +263,7 @@ async def test_list_employee_paystubs(mock_api, ctx):
             json={"next": None, "previous": None, "results": [{"id": "ps_001"}]},
         )
     )
-    result = await list_employee_paystubs(ctx, employee_id="emp_001")
+    result = await list_employee_paystubs(ctx, employee="emp_001")
     assert result["results"] == [{"id": "ps_001"}]
 
 
@@ -286,7 +286,7 @@ async def test_list_employee_forms(mock_api, ctx):
             json={"next": None, "previous": None, "results": [{"id": "frm_001"}]},
         )
     )
-    result = await list_employee_forms(ctx, employee_id="emp_001")
+    result = await list_employee_forms(ctx, employee="emp_001")
     assert result["results"] == [{"id": "frm_001"}]
 
 

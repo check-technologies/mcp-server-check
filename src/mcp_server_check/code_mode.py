@@ -55,6 +55,11 @@ results carry "results",
 are marked below and must be named in run_code's `writes` argument before a
 program can call them.
 
+Parameter names follow one rule: list_* tools take the entity itself
+(`company=`, `employee=`, `contractor=`, `payment=`), whether it filters or
+names the path; single-record tools (get_*, update_*, delete_*) take
+`<entity>_id=`.
+
 Make the answer the program's last expression; the server serializes it.
 Programs run in CPython 3.13 with the standard library and no third-party
 packages. The server already caps concurrent calls and retries throttled
