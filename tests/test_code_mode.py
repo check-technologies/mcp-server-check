@@ -361,6 +361,149 @@ async def test_hybrid_server_lists_and_runs_both_routes(mock_api, hybrid_server)
         assert "async def list_companies(" in stubs.content[0].text
 
 
+# --- list pages in programs ---
+
+
+@pytest.mark.anyio
+async def test_run_code_list_pages_carry_full_records(mock_api, code_server):
+    """A program filters list pages inside the sandbox and returns only its
+    final value, so list tools give it full records. Summaries there forced
+    an N+1: list, then get_* per record for the fields the summary dropped
+    (one week of production traffic: 317 get_employee calls after
+    list_employees in five programs)."""
+    mock_api.get("/companies").mock(return_value=httpx.Response(200, json=COMPANIES))
+    is_error, payload = await _run(
+        code_server,
+        "page = await check.list_companies()\n"
+        '[c.get("secret_field") for c in page["results"]]',
+    )
+    assert not is_error, payload
+    assert payload["result"] == ["x", "y"]
+    assert [c["tool"] for c in payload["calls"]] == ["list_companies"]
+
+
+@pytest.mark.anyio
+async def test_run_tool_list_pages_stay_summaries_beside_run_code(
+    mock_api, hybrid_server
+):
+    """Full records are a code-mode affordance: the same list tool through
+    run_tool, whose result reaches the model whole, still summarizes, before
+    and after a program on the same server."""
+    mock_api.get("/companies").mock(return_value=httpx.Response(200, json=COMPANIES))
+    program = 'page = await check.list_companies()\nsorted(page["results"][0])'
+
+    async def run_tool_fields(client) -> list[str]:
+        direct = await client.call_tool(
+            "run_tool", {"tool_name": "list_companies", "arguments": {}}
+        )
+        return sorted(json.loads(direct.content[0].text)["results"][0])
+
+    async with Client(hybrid_server) as client:
+        assert await run_tool_fields(client) == ["id", "legal_name"]
+        result = await client.call_tool("run_code", {"code": program})
+        assert json.loads(result.content[0].text)["result"] == [
+            "id",
+            "legal_name",
+            "secret_field",
+        ]
+        assert await run_tool_fields(client) == ["id", "legal_name"]
+
+
+@pytest.mark.anyio
+async def test_run_code_composite_tools_carry_full_list_records(mock_api, code_server):
+    """Composite tools build their list pieces with check_api_list, so a
+    program gets full records from them too, with a payroll's inlined items
+    replaced by a count the way get_payroll does."""
+    mock_api.get("/companies/com_1").mock(
+        return_value=httpx.Response(200, json={"id": "com_1", "legal_name": "Acme"})
+    )
+    mock_api.get("/employees").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "results": [
+                    {"id": "emp_1", "first_name": "Jane", "residence": {"state": "CA"}}
+                ],
+                "next": None,
+                "previous": None,
+            },
+        )
+    )
+    mock_api.get("/payrolls").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "results": [
+                    {
+                        "id": "pay_1",
+                        "status": "paid",
+                        "items": [{"id": "itm_1"}, {"id": "itm_2"}],
+                    }
+                ],
+                "next": None,
+                "previous": None,
+            },
+        )
+    )
+    mock_api.get("/bank_accounts").mock(
+        return_value=httpx.Response(
+            200, json={"results": [], "next": None, "previous": None}
+        )
+    )
+    is_error, payload = await _run(
+        code_server,
+        'overview = await check.get_company_overview(company_id="com_1")\n'
+        'employee = overview["employees"]["results"][0]\n'
+        'payroll = overview["payrolls"]["results"][0]\n'
+        '{"residence": employee.get("residence"), "payroll": payroll}',
+    )
+    assert not is_error, payload
+    assert payload["result"] == {
+        "residence": {"state": "CA"},
+        "payroll": {"id": "pay_1", "status": "paid", "items_count": 2},
+    }
+
+
+@pytest.mark.anyio
+async def test_run_code_list_payrolls_keeps_item_counts_unless_asked(
+    mock_api, code_server
+):
+    """A key pinned before API version 2025-01-01 inlines every item of every
+    payroll on a list page. Summaries used to hide that; full records keep
+    the count instead, and the lists themselves only when the program asks."""
+    mock_api.get("/payrolls").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "results": [
+                    {
+                        "id": "pay_1",
+                        "status": "paid",
+                        "items": [{"id": "itm_1"}, {"id": "itm_2"}],
+                        "contractor_payments": [],
+                    }
+                ],
+                "next": None,
+                "previous": None,
+            },
+        )
+    )
+    is_error, payload = await _run(
+        code_server,
+        'plain = await check.list_payrolls(company="com_1")\n'
+        'full = await check.list_payrolls(company="com_1", include_items=True)\n'
+        '{"plain": plain["results"][0], "full": full["results"][0]}',
+    )
+    assert not is_error, payload
+    assert payload["result"]["plain"] == {
+        "id": "pay_1",
+        "status": "paid",
+        "items_count": 2,
+        "contractor_payments_count": 0,
+    }
+    assert payload["result"]["full"]["items"] == [{"id": "itm_1"}, {"id": "itm_2"}]
+
+
 @pytest.mark.anyio
 async def test_hybrid_header_enables_both_sets_per_request(
     mock_api, monkeypatch, dynamic_server
@@ -419,6 +562,7 @@ def test_hybrid_instructions_replace_the_code_mode_block(monkeypatch):
     assert "run_tool" in created.instructions
     assert "run_code" in created.instructions
     assert "get_stubs is the one discovery tool" in created.instructions
+    assert "List pages carry full records inside a program" in created.instructions
 
 
 @pytest.mark.anyio
@@ -582,6 +726,11 @@ async def test_get_stubs_header_shows_search_then_get_in_one_program(code_server
         assert 'hits = (await check.search_companies(term="Golden Crust"))' in stubs
         assert 'company = await check.get_company(company_id=hits[0]["id"])' in stubs
         assert '{"matches": hits, "company": company}' in stubs
+        # Programs get full list records, so the header no longer tells the
+        # model to call get_* per record or carries the summary field table.
+        assert "List pages carry full records in programs" in stubs
+        assert "List results are summaries" not in stubs
+        assert "com_* ->" not in stubs
         assert "{summary_fields}" not in stubs
     assert "Results carry only id, legal_name, and trade_name" in by_query
 

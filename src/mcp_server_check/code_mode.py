@@ -30,6 +30,7 @@ from typing_extensions import is_typeddict
 
 from mcp_server_check import types as check_types
 from mcp_server_check.errors import CheckToolError
+from mcp_server_check.helpers import code_mode_full_records
 from mcp_server_check.tool_filter import PREVIEW_TOOLSETS, ToolFilter
 from mcp_server_check.tool_index import ToolEntry, ToolIndex
 
@@ -75,11 +76,11 @@ the IDs and values you still need into the new program as literals, or
 fetch them again, and when a task needs several steps prefer one program
 that does them all.
 
-List results are summaries: each record keeps only the fields below, by ID
-prefix. Call the matching get_* tool for a full record. search_* results are
-thinner still: the API returns only id and name fields, so anything else
-(pay_frequency, status, onboarding, email) needs the get_* tool.
-{{summary_fields}}
+List pages carry full records in programs: a record on a list_* page has
+the fields its get_* tool returns, so filter and read them in the program
+instead of calling get_* once per record. search_* results are thin: the
+API returns only id and name fields, so anything else (pay_frequency,
+status, onboarding, email) needs the get_* tool or a list_* page.
 
 Composite get_* tools (get_company_overview, get_employee_snapshot,
 get_payroll_details, diagnose_payment, get_contractor_snapshot,
@@ -105,15 +106,6 @@ branch on its result inside the program instead of returning to look:
 from typing import Any
 from typing_extensions import TypedDict
 '''
-
-
-def _summary_field_lines() -> str:
-    from mcp_server_check.helpers import _SUMMARY_FIELDS
-
-    return "\n".join(
-        f"  {prefix}* -> {', '.join(fields)}"
-        for prefix, fields in sorted(_SUMMARY_FIELDS.items())
-    )
 
 
 _WRITE_NOTE = "# write tool: name it in run_code(writes=[...]) to call it"
@@ -267,8 +259,7 @@ def render_stubs(entries: Iterable[ToolEntry], *, mark_writes: bool = False) -> 
     by_toolset: dict[str, list[ToolEntry]] = {}
     for entry in entries:
         by_toolset.setdefault(entry.toolset, []).append(entry)
-    header = _STUB_HEADER.replace("{summary_fields}", _summary_field_lines())
-    parts = [header, _render_typed_dicts()]
+    parts = [_STUB_HEADER, _render_typed_dicts()]
     for toolset, toolset_entries in by_toolset.items():
         parts.append(f"# ---- {toolset} ----\n")
         parts.extend(render_stub(e, mark_writes=mark_writes) for e in toolset_entries)
@@ -872,6 +863,10 @@ class CodeRunner:
             if task is not None:
                 run.tasks.add(task)
             started = time.monotonic()
+            # The program filters the page inside the sandbox, so list tools
+            # return full records to it rather than the summaries the plain
+            # tool path gets (see check_api_list).
+            full_records = code_mode_full_records.set(True)
             try:
                 while True:
                     try:
@@ -917,6 +912,7 @@ class CodeRunner:
             else:
                 record.status = "ok"
             finally:
+                code_mode_full_records.reset(full_records)
                 if task is not None:
                     run.tasks.discard(task)
                 record.duration_ms = int((time.monotonic() - started) * 1000)

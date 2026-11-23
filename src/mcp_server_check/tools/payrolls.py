@@ -17,6 +17,7 @@ from mcp_server_check.helpers import (
     check_api_patch,
     check_api_post,
     shape_payroll,
+    shape_payroll_page,
 )
 
 # Query parameters that make API version 2025-01-01 and later inline items and
@@ -63,7 +64,7 @@ async def list_payrolls(
             list_payroll_items(payroll=...) for one payroll's items.
         include_contractor_payments: Return contractor payments inline.
     """
-    return await check_api_list(
+    page = await check_api_list(
         ctx,
         api_path("payrolls"),
         params=build_params(
@@ -82,6 +83,11 @@ async def list_payrolls(
             include_items=include_items,
             include_contractor_payments=include_contractor_payments,
         ),
+    )
+    # Full records (code mode) from a pre-2025-01-01 key inline every item of
+    # every payroll; keep counts unless the caller asked for the lists.
+    return shape_payroll_page(
+        page, include_items=bool(include_items or include_contractor_payments)
     )
 
 
