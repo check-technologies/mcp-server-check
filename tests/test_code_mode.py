@@ -1274,6 +1274,16 @@ async def test_run_code_too_large_names_the_largest_parts(mock_api, monkeypatch)
     assert payload["response_too_large"] is True
     detail = payload["detail"]
     assert "Largest parts: result[0]['response_body'] (20,002 characters)" in detail
+    assert payload["shape"] == {
+        "type": "list",
+        "size": len(
+            json.dumps(
+                [{"id": "log_1", "response_body": "x" * 20000}], separators=(",", ":")
+            )
+        ),
+        "length": 1,
+        "item_keys": ["id", "response_body"],
+    }
 
 
 @pytest.mark.anyio

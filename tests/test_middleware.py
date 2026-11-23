@@ -12,7 +12,7 @@ from fastmcp.server.middleware import MiddlewareContext
 from fastmcp.tools import ToolResult
 from mcp.types import CallToolRequestParams, CallToolResult, TextContent
 from mcp_server_check.code_mode import CallRecord, render_trace
-from mcp_server_check.errors import CheckToolError
+from mcp_server_check.errors import CheckToolError, ResponseTooLargeError
 from mcp_server_check.middleware import (
     ResponseSize,
     ResponseSizeLimitMiddleware,
@@ -467,6 +467,91 @@ class TestResultBudgetMiddleware:
     def test_rejects_non_positive_budget(self):
         with pytest.raises(ValueError, match="max_chars must be positive"):
             ResultBudgetMiddleware(max_chars=0)
+
+
+class TestTooLargeShape:
+    """A too-large run_code result describes itself, so the next program can
+    pick its part instead of probing the keys and lengths first."""
+
+    BUDGET = 500
+
+    async def too_large(self, name: str, text: str) -> dict:
+        middleware = ResultBudgetMiddleware(max_chars=self.BUDGET)
+        context = MiddlewareContext(
+            message=CallToolRequestParams(name=name, arguments={}),
+            method="tools/call",
+        )
+
+        async def call_next(_context):
+            return ToolResult(content=text)
+
+        with pytest.raises(ResponseTooLargeError) as info:
+            await middleware.on_call_tool(context, call_next)
+        return info.value.payload
+
+    @pytest.mark.anyio
+    async def test_run_code_result_carries_the_shape_of_its_result(self):
+        value = {
+            "employees": [{"id": "emp_1", "first_name": "Jane"}] * 20,
+            "count": 20,
+        }
+        envelope = {"result": value, "logs": "", "calls": [], "duration_ms": 3}
+
+        payload = await self.too_large("run_code", json.dumps(envelope))
+
+        assert payload["response_too_large"] is True
+        assert payload["size"] == len(
+            json.dumps({"result": value, "logs": ""}, indent=2)
+        )
+        assert payload["limit"] == self.BUDGET
+        assert payload["shape"]["type"] == "dict"
+        assert payload["shape"]["keys"]["employees"] == {
+            "type": "list",
+            "size": len(json.dumps(value["employees"], separators=(",", ":"))),
+            "length": 20,
+            "item_keys": ["id", "first_name"],
+        }
+        assert payload["shape"]["keys"]["count"] == {"type": "int", "size": 2}
+        assert '"shape" below describes the result' in payload["detail"]
+
+    @pytest.mark.anyio
+    async def test_run_code_text_without_an_envelope_is_shaped_whole(self):
+        """Whatever JSON the budget measured is what gets described."""
+        value = [{"id": f"log_{i}", "response_body": "x" * 300} for i in range(3)]
+
+        payload = await self.too_large("run_code", json.dumps(value))
+
+        assert payload["shape"] == {
+            "type": "list",
+            "size": len(json.dumps(value, separators=(",", ":"))),
+            "length": 3,
+            "item_keys": ["id", "response_body"],
+        }
+
+    @pytest.mark.anyio
+    async def test_run_code_text_that_is_not_json_has_no_shape(self):
+        payload = await self.too_large("run_code", "x" * 600)
+
+        assert "shape" not in payload
+        assert payload["response_too_large"] is True
+
+    @pytest.mark.anyio
+    async def test_other_tool_error_is_unchanged(self):
+        value = {"id": "com_001", "notes": "x" * 600}
+
+        payload = await self.too_large("get_company", json.dumps(value))
+
+        assert payload == {
+            "error": True,
+            "response_too_large": True,
+            "detail": (
+                f"The get_company result is {len(json.dumps(value))} characters, "
+                f"over the {self.BUDGET}-character response limit. Narrow the "
+                "request with filters, a lower limit, or specific IDs."
+            ),
+            "size": len(json.dumps(value)),
+            "limit": self.BUDGET,
+        }
 
 
 class TestLargestParts:
