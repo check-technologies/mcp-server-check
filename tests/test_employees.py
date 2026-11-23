@@ -310,7 +310,7 @@ async def test_update_employee_reciprocity_elections_sends_list(mock_api, ctx):
         )
     )
     election = {
-        "jurisdiction": "jur_001",
+        "jurisdiction": "pa",
         "opt_in": True,
         "effective_start": "2026-01-01",
     }
