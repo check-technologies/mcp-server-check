@@ -85,7 +85,7 @@ async def update_company_tax_params(
 
 async def list_company_tax_param_settings(
     ctx: Ctx,
-    company_id: str,
+    company: str,
     limit: int | None = None,
     cursor: str | None = None,
     as_of: str | None = None,
@@ -125,7 +125,7 @@ async def list_company_tax_param_settings(
     case, and a null ``actor``, need Check Support.
 
     Args:
-        company_id: The Check company ID.
+        company: The Check company ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
         as_of: Return as ``value`` what applies on this date (YYYY-MM-DD).
@@ -135,7 +135,7 @@ async def list_company_tax_param_settings(
     """
     return await check_api_list(
         ctx,
-        api_path("company_tax_params", company_id, "settings"),
+        api_path("company_tax_params", company, "settings"),
         params=build_params(
             limit=limit,
             cursor=cursor,
@@ -296,7 +296,7 @@ async def update_employee_tax_params(
 
 async def list_employee_tax_param_settings(
     ctx: Ctx,
-    employee_id: str,
+    employee: str,
     limit: int | None = None,
     cursor: str | None = None,
     as_of: str | None = None,
@@ -336,7 +336,7 @@ async def list_employee_tax_param_settings(
     case, and a null ``actor``, need Check Support.
 
     Args:
-        employee_id: The Check employee ID.
+        employee: The Check employee ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
         as_of: Return as ``value`` what applies on this date (YYYY-MM-DD).
@@ -346,7 +346,7 @@ async def list_employee_tax_param_settings(
     """
     return await check_api_list(
         ctx,
-        api_path("employee_tax_params", employee_id, "settings"),
+        api_path("employee_tax_params", employee, "settings"),
         params=build_params(
             limit=limit,
             cursor=cursor,

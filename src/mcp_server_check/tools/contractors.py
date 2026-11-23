@@ -276,7 +276,7 @@ async def onboard_contractor(ctx: Ctx, contractor_id: str) -> dict:
 
 async def list_contractor_payments_for_contractor(
     ctx: Ctx,
-    contractor_id: str,
+    contractor: str,
     limit: int | None = None,
     cursor: str | None = None,
     payroll: str | None = None,
@@ -289,7 +289,7 @@ async def list_contractor_payments_for_contractor(
     contractor payment IDs (cpa_*) use list_contractor_payments.
 
     Args:
-        contractor_id: The Check contractor ID.
+        contractor: The Check contractor ID.
         limit: Maximum number of results to return (max 25).
         cursor: Pagination cursor.
         payroll: Filter by payroll ID.
@@ -297,7 +297,7 @@ async def list_contractor_payments_for_contractor(
     """
     return await check_api_list(
         ctx,
-        api_path("contractors", contractor_id, "payments"),
+        api_path("contractors", contractor, "payments"),
         params=build_params(limit=limit, cursor=cursor, payroll=payroll, status=status),
     )
 
@@ -319,20 +319,20 @@ async def get_contractor_payment_for_payroll(
 
 async def list_contractor_forms(
     ctx: Ctx,
-    contractor_id: str,
+    contractor: str,
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
     """List forms for a contractor.
 
     Args:
-        contractor_id: The Check contractor ID.
+        contractor: The Check contractor ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     return await check_api_list(
         ctx,
-        api_path("contractors", contractor_id, "forms"),
+        api_path("contractors", contractor, "forms"),
         params=build_params(limit=limit, cursor=cursor),
     )
 

@@ -1060,6 +1060,16 @@ async def test_stub_header_says_not_to_call_asyncio_run(code_server):
 
 
 @pytest.mark.anyio
+async def test_stub_header_states_the_parameter_naming_rule(code_server):
+    async with Client(code_server) as client:
+        result = await client.call_tool("get_stubs", {"toolset": "platform"})
+    stubs = result.content[0].text
+    assert "list_* tools take the entity itself" in stubs
+    assert "single-record tools (get_*, update_*, delete_*) take" in stubs
+    assert "`<entity>_id=`" in stubs
+
+
+@pytest.mark.anyio
 async def test_run_code_says_get_stubs_is_not_callable_in_a_program(code_server):
     is_error, payload = await _run(code_server, "await get_stubs()")
     assert is_error
@@ -1099,15 +1109,27 @@ async def test_run_code_wraps_a_string_passed_for_a_list(mock_api, code_server):
 
 @pytest.mark.anyio
 async def test_run_code_wrong_argument_name_shows_the_signature(code_server):
-    """list_company_tax_deposits takes company_id where most lists take company."""
+    """get_company takes company_id where list tools take company."""
     is_error, payload = await _run(
-        code_server, 'await check.list_company_tax_deposits(company="com_1")'
+        code_server, 'await check.get_company(company="com_1")'
     )
     assert is_error
     assert (
-        "list_company_tax_deposits takes: async def list_company_tax_deposits("
-        "company_id: str" in payload["detail"]
+        "get_company takes: async def get_company(company_id: str" in payload["detail"]
     )
+
+
+@pytest.mark.anyio
+async def test_run_code_list_tools_take_the_entity_name(mock_api, code_server):
+    """A path-based list takes company=, like every other list tool."""
+    route = mock_api.get("/companies/com_1/tax_deposits").mock(
+        return_value=httpx.Response(200, json={"results": [], "next": None})
+    )
+    is_error, payload = await _run(
+        code_server, 'await check.list_company_tax_deposits(company="com_1")'
+    )
+    assert not is_error, payload
+    assert route.called
 
 
 @pytest.mark.anyio

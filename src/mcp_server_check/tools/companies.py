@@ -308,20 +308,20 @@ async def get_company_paydays(
 
 async def list_company_tax_deposits(
     ctx: Ctx,
-    company_id: str,
+    company: str,
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
     """List tax deposits for a company.
 
     Args:
-        company_id: The Check company ID.
+        company: The Check company ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     return await check_api_list(
         ctx,
-        api_path("companies", company_id, "tax_deposits"),
+        api_path("companies", company, "tax_deposits"),
         params=build_params(limit=limit, cursor=cursor),
     )
 
@@ -404,18 +404,18 @@ async def get_company_report(
 
 
 async def list_federal_ein_verifications(
-    ctx: Ctx, company_id: str, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx, company: str, limit: int | None = None, cursor: str | None = None
 ) -> dict:
     """List federal EIN verifications for a company.
 
     Args:
-        company_id: The Check company ID.
+        company: The Check company ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     return await check_api_list(
         ctx,
-        api_path("companies", company_id, "federal_ein_verifications"),
+        api_path("companies", company, "federal_ein_verifications"),
         params=build_params(limit=limit, cursor=cursor),
     )
 
@@ -444,18 +444,18 @@ async def get_federal_ein_verification(
 
 
 async def list_signatories(
-    ctx: Ctx, company_id: str, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx, company: str, limit: int | None = None, cursor: str | None = None
 ) -> dict:
     """List signatories for a company.
 
     Args:
-        company_id: The Check company ID.
+        company: The Check company ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     return await check_api_list(
         ctx,
-        api_path("companies", company_id, "signatories"),
+        api_path("companies", company, "signatories"),
         params=build_params(limit=limit, cursor=cursor),
     )
 

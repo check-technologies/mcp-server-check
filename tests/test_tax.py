@@ -363,7 +363,7 @@ async def test_list_company_tax_param_settings_with_filters(mock_api, ctx):
         )
     )
     result = await list_company_tax_param_settings(
-        ctx, company_id="com_001", as_of="2026-01-01", jurisdiction="CA"
+        ctx, company="com_001", as_of="2026-01-01", jurisdiction="CA"
     )
     assert result["results"] == [{"id": "sps_001"}]
     req = mock_api.get("/company_tax_params/com_001/settings").calls.last.request
@@ -380,7 +380,7 @@ async def test_list_employee_tax_param_settings_with_filters(mock_api, ctx):
         )
     )
     result = await list_employee_tax_param_settings(
-        ctx, employee_id="emp_001", jurisdiction="NY", submitter="employer"
+        ctx, employee="emp_001", jurisdiction="NY", submitter="employer"
     )
     assert result["results"] == [{"id": "sps_001"}]
     req = mock_api.get("/employee_tax_params/emp_001/settings").calls.last.request

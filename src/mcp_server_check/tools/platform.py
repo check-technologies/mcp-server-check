@@ -345,21 +345,21 @@ async def list_accounting_integrations(
 
 async def list_accounting_accounts(
     ctx: Ctx,
-    accounting_integration_id: str,
+    accounting_integration: str,
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
     """List the QuickBooks chart of accounts for an accounting integration.
 
     Args:
-        accounting_integration_id: The accounting integration ID
+        accounting_integration: The accounting integration ID
             (e.g. "ai_xxxxx"), from list_accounting_integrations.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     return await check_api_list(
         ctx,
-        api_path("integrations", "accounting", accounting_integration_id, "accounts"),
+        api_path("integrations", "accounting", accounting_integration, "accounts"),
         params=build_params(limit=limit, cursor=cursor),
     )
 
@@ -454,7 +454,7 @@ async def sync_accounting(
 
 async def list_accounting_sync_attempts(
     ctx: Ctx,
-    accounting_integration_id: str,
+    accounting_integration: str,
     payroll: str | None = None,
     limit: int | None = None,
     cursor: str | None = None,
@@ -462,7 +462,7 @@ async def list_accounting_sync_attempts(
     """List sync attempts, with the status and failure reason of each.
 
     Args:
-        accounting_integration_id: The accounting integration ID
+        accounting_integration: The accounting integration ID
             (e.g. "ai_xxxxx"), from list_accounting_integrations.
         payroll: Filter to attempts for this Check payroll ("pay_xxxxx").
         limit: Maximum number of results to return.
@@ -473,7 +473,7 @@ async def list_accounting_sync_attempts(
         api_path(
             "integrations",
             "accounting",
-            accounting_integration_id,
+            accounting_integration,
             "sync",
             "attempts",
         ),

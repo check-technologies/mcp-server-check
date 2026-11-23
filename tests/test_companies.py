@@ -396,7 +396,7 @@ async def test_list_signatories(mock_api, ctx):
             json={"next": None, "previous": None, "results": [{"id": "sig_001"}]},
         )
     )
-    result = await list_signatories(ctx, company_id="com_001")
+    result = await list_signatories(ctx, company="com_001")
     assert result["results"] == [{"id": "sig_001"}]
 
 
