@@ -29,7 +29,11 @@ async def get_company_tax_params(
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
-    """Get tax parameters for a company.
+    """Get tax parameters for a company: each parameter's current value.
+
+    This has no history. For when a value changed, who changed it, or what it
+    was before, use list_company_tax_param_settings or
+    get_company_tax_param_setting.
 
     The response is one page: ``results`` is the list of params, each with
     ``id`` (``spa_...``), ``name``, ``value``, ``tax``, and ``jurisdiction``.
@@ -105,8 +109,20 @@ async def list_company_tax_param_settings(
     after it. When a recent write is not the current ``value``, look for an
     entry dated after the write's ``effective_start``; that entry is why.
 
-    Deleted values are not listed. A form submission deletes a setting's
-    earlier values, so a setting last set through a form shows one entry.
+    Each ``settings[]`` entry also says when and by whom it was written:
+    ``created_at`` is the write time, and ``actor`` is ``{"party", "user"}``.
+    ``party`` is "partner", "check", "company" (an employer user, e.g. in
+    Onboard) or "employee" (the employee themself); ``user`` is the partner
+    user's ``usr_*`` ID (see get_user) and null for the other parties.
+    ``actor`` is null when the writer was not recorded. Console sessions also
+    get ``set_by``: the writer's email, "Check", or "api".
+
+    This is the change history: answer "when did it change, who changed it,
+    what was it before" from these entries, including that a value was
+    written once. Deleted values are not listed. A form submission deletes a
+    setting's earlier values, so a setting last set through a form shows one
+    entry and its history before the form is not available here; only that
+    case, and a null ``actor``, need Check Support.
 
     Args:
         company_id: The Check company ID.
@@ -150,8 +166,20 @@ async def get_company_tax_param_setting(
     after it. When a recent write is not the current ``value``, look for an
     entry dated after the write's ``effective_start``; that entry is why.
 
-    Deleted values are not listed. A form submission deletes a setting's
-    earlier values, so a setting last set through a form shows one entry.
+    Each ``settings[]`` entry also says when and by whom it was written:
+    ``created_at`` is the write time, and ``actor`` is ``{"party", "user"}``.
+    ``party`` is "partner", "check", "company" (an employer user, e.g. in
+    Onboard) or "employee" (the employee themself); ``user`` is the partner
+    user's ``usr_*`` ID (see get_user) and null for the other parties.
+    ``actor`` is null when the writer was not recorded. Console sessions also
+    get ``set_by``: the writer's email, "Check", or "api".
+
+    This is the change history: answer "when did it change, who changed it,
+    what was it before" from these entries, including that a value was
+    written once. Deleted values are not listed. A form submission deletes a
+    setting's earlier values, so a setting last set through a form shows one
+    entry and its history before the form is not available here; only that
+    case, and a null ``actor``, need Check Support.
 
     Args:
         company_id: The Check company ID.
@@ -212,7 +240,11 @@ async def get_employee_tax_params(
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
-    """Get tax parameters for a specific employee.
+    """Get tax parameters for a specific employee: each parameter's current value.
+
+    This has no history. For when a value changed, who changed it, or what it
+    was before, use list_employee_tax_param_settings or
+    get_employee_tax_param_setting.
 
     The response is one page: ``results`` is the list of params, each with
     ``id`` (``spa_...``), ``name``, ``value``, ``tax``, and ``jurisdiction``.
@@ -288,8 +320,20 @@ async def list_employee_tax_param_settings(
     after it. When a recent write is not the current ``value``, look for an
     entry dated after the write's ``effective_start``; that entry is why.
 
-    Deleted values are not listed. A form submission deletes a setting's
-    earlier values, so a setting last set through a form shows one entry.
+    Each ``settings[]`` entry also says when and by whom it was written:
+    ``created_at`` is the write time, and ``actor`` is ``{"party", "user"}``.
+    ``party`` is "partner", "check", "company" (an employer user, e.g. in
+    Onboard) or "employee" (the employee themself); ``user`` is the partner
+    user's ``usr_*`` ID (see get_user) and null for the other parties.
+    ``actor`` is null when the writer was not recorded. Console sessions also
+    get ``set_by``: the writer's email, "Check", or "api".
+
+    This is the change history: answer "when did it change, who changed it,
+    what was it before" from these entries, including that a value was
+    written once. Deleted values are not listed. A form submission deletes a
+    setting's earlier values, so a setting last set through a form shows one
+    entry and its history before the form is not available here; only that
+    case, and a null ``actor``, need Check Support.
 
     Args:
         employee_id: The Check employee ID.
@@ -333,8 +377,20 @@ async def get_employee_tax_param_setting(
     after it. When a recent write is not the current ``value``, look for an
     entry dated after the write's ``effective_start``; that entry is why.
 
-    Deleted values are not listed. A form submission deletes a setting's
-    earlier values, so a setting last set through a form shows one entry.
+    Each ``settings[]`` entry also says when and by whom it was written:
+    ``created_at`` is the write time, and ``actor`` is ``{"party", "user"}``.
+    ``party`` is "partner", "check", "company" (an employer user, e.g. in
+    Onboard) or "employee" (the employee themself); ``user`` is the partner
+    user's ``usr_*`` ID (see get_user) and null for the other parties.
+    ``actor`` is null when the writer was not recorded. Console sessions also
+    get ``set_by``: the writer's email, "Check", or "api".
+
+    This is the change history: answer "when did it change, who changed it,
+    what was it before" from these entries, including that a value was
+    written once. Deleted values are not listed. A form submission deletes a
+    setting's earlier values, so a setting last set through a form shows one
+    entry and its history before the form is not available here; only that
+    case, and a null ``actor``, need Check Support.
 
     Args:
         employee_id: The Check employee ID.
@@ -360,7 +416,9 @@ async def bulk_get_employee_tax_param_settings(
 
     Each entry carries ``employee``, the setting ``id`` (``spa_*``), ``value``
     and ``effective_start`` (what applies on ``as_of``), and ``settings[]``,
-    every write that has not been deleted, newest ``effective_start`` first.
+    every write that has not been deleted, newest ``effective_start`` first,
+    each with ``created_at`` and ``actor`` as list_employee_tax_param_settings
+    describes.
     Paging is by employee, so a page holds every parameter of the employees
     it covers.
 
@@ -436,6 +494,10 @@ async def list_company_tax_elections(
     the current ``exempt`` value and its effective dates (``setting_timeline``
     has the history). Use it to answer "is this company exempt from X?" and to
     find the ``txe_*`` ID to pass to update_company_tax_elections.
+
+    ``setting_timeline`` holds only ``exempt`` and effective dates: it does
+    not say who set an exemption or when it was written. For that, draft a
+    Check Support request.
 
     These are company-level settings only. A ``setting`` of null here does not
     mean an employee is not exempt: the same tax can be exempted per employee,
@@ -555,6 +617,10 @@ async def list_employee_tax_elections(
     (``setting_timeline`` has the history). Employee elections also cover the
     employer halves of Social Security and Medicare, so a minister/clergy
     FICA exemption is handled entirely here.
+
+    ``setting_timeline`` holds only ``exempt`` and effective dates: it does
+    not say who set an exemption or when it was written. For that, draft a
+    Check Support request.
 
     ``exemptible: true`` means the partner can set the exemption directly with
     update_employee_tax_elections — no Check Support request is needed.
