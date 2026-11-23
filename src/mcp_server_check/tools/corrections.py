@@ -167,6 +167,7 @@ async def void_payroll(
     payroll_id: str,
     correction: str,
     subset: VoidSubset | None,
+    requester_email: str | None = None,
 ) -> dict:
     """Void a paid payroll, or part of it, as part of a draft correction.
 
@@ -180,11 +181,16 @@ async def void_payroll(
         subset: What to void. Required: pass null to void the entire payroll, or an
             object with "payroll_items" and/or "contractor_payments" lists of IDs
             to void only those.
+        requester_email: Optional email address added as a Zendesk ticket collaborator
+            when the void opens a support ticket. Omit to leave collaborators empty.
     """
     return await check_api_post(
         ctx,
         api_path("payrolls", payroll_id, "void"),
-        data={"correction": correction, "subset": subset},
+        data=build_body(
+            {"correction": correction, "subset": subset},
+            requester_email=requester_email,
+        ),
     )
 
 

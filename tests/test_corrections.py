@@ -138,6 +138,25 @@ async def test_void_payroll_subset(mock_api, ctx):
 
 
 @pytest.mark.anyio
+async def test_void_payroll_requester_email(mock_api, ctx):
+    route = mock_api.post("/payrolls/pay_001/void").mock(
+        return_value=httpx.Response(201, json={"id": "pay_void"})
+    )
+    await void_payroll(
+        ctx,
+        payroll_id="pay_001",
+        correction="cor_001",
+        subset=None,
+        requester_email="ops@partner.com",
+    )
+    assert json.loads(route.calls.last.request.content) == {
+        "correction": "cor_001",
+        "subset": None,
+        "requester_email": "ops@partner.com",
+    }
+
+
+@pytest.mark.anyio
 async def test_add_payroll_to_correction(mock_api, ctx):
     route = mock_api.post("/payrolls").mock(
         return_value=httpx.Response(201, json={"id": "pay_new"})
