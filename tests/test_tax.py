@@ -16,6 +16,7 @@ from mcp_server_check.tools.tax import (
     get_company_tax_params,
     get_contractor_tax_statement,
     get_employee_tax_param_setting,
+    get_employee_tax_params,
     get_employee_tax_statement_override,
     get_filing,
     get_tax,
@@ -40,13 +41,105 @@ from mcp_server_check.tools.tax import (
 )
 
 
+_TAX_PARAM = {
+    "id": "spa_001",
+    "name": "EIN",
+    "value": "12-3456789",
+    "tax": "tax_fed",
+    "jurisdiction": "US",
+}
+
+
 @pytest.mark.anyio
 async def test_get_company_tax_params(mock_api, ctx):
-    mock_api.get("/company_tax_params/com_001").mock(
-        return_value=httpx.Response(200, json={"id": "com_001", "ein": "12-3456789"})
+    """A page with no cursor or limit, as before. ``next_cursor`` is derived
+    from the full ``next`` URL the API returns, and ``next`` stays in place."""
+    route = mock_api.get("/company_tax_params/com_001").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "next": (
+                    "https://api.checkhq.com/company_tax_params/com_001?cursor=cD0lNUIl"
+                ),
+                "previous": None,
+                "results": [_TAX_PARAM],
+            },
+        )
     )
     result = await get_company_tax_params(ctx, company_id="com_001")
-    assert result["ein"] == "12-3456789"
+    assert result["results"] == [_TAX_PARAM]
+    assert result["next_cursor"] == "cD0lNUIl"
+    assert result["next"].endswith("?cursor=cD0lNUIl")
+    assert "cursor" not in route.calls.last.request.url.params
+    assert "limit" not in route.calls.last.request.url.params
+
+
+@pytest.mark.anyio
+async def test_get_company_tax_params_forwards_cursor_and_limit(mock_api, ctx):
+    """The second page of a Pennsylvania employer's local tax params: the
+    cursor and limit are forwarded as query params, and the last page's
+    ``next_cursor`` is None."""
+    route = mock_api.get("/company_tax_params/com_001").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [_TAX_PARAM]},
+        )
+    )
+    result = await get_company_tax_params(
+        ctx, company_id="com_001", limit=50, cursor="cD0lNUIl"
+    )
+    params = route.calls.last.request.url.params
+    assert params["cursor"] == "cD0lNUIl"
+    assert params["limit"] == "50"
+    assert result["next_cursor"] is None
+    assert result["next"] is None
+
+
+@pytest.mark.anyio
+async def test_get_company_tax_params_error_has_no_cursor(mock_api, ctx):
+    mock_api.get("/company_tax_params/com_404").mock(
+        return_value=httpx.Response(404, json={"detail": "Not found."})
+    )
+    result = await get_company_tax_params(ctx, company_id="com_404")
+    assert result["error"] is True
+    assert "next_cursor" not in result
+
+
+@pytest.mark.anyio
+async def test_get_employee_tax_params_pages(mock_api, ctx):
+    route = mock_api.get("/employee_tax_params/emp_001").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "next": (
+                    "https://api.checkhq.com/employee_tax_params/emp_001"
+                    "?cursor=abc123&limit=10"
+                ),
+                "previous": None,
+                "results": [{**_TAX_PARAM, "id": "spa_010"}],
+            },
+        )
+    )
+    result = await get_employee_tax_params(
+        ctx, employee_id="emp_001", limit=10, cursor="prev"
+    )
+    params = route.calls.last.request.url.params
+    assert params["cursor"] == "prev"
+    assert params["limit"] == "10"
+    assert result["results"] == [{**_TAX_PARAM, "id": "spa_010"}]
+    assert result["next_cursor"] == "abc123"
+
+
+@pytest.mark.anyio
+async def test_get_employee_tax_params_last_page(mock_api, ctx):
+    route = mock_api.get("/employee_tax_params/emp_001").mock(
+        return_value=httpx.Response(
+            200, json={"next": None, "previous": None, "results": []}
+        )
+    )
+    result = await get_employee_tax_params(ctx, employee_id="emp_001")
+    assert result["next_cursor"] is None
+    assert "cursor" not in route.calls.last.request.url.params
 
 
 @pytest.mark.anyio

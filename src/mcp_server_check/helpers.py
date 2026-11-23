@@ -217,6 +217,22 @@ def _format_list_response(data: dict, *, summarize: bool = True) -> dict:
     }
 
 
+def with_next_cursor(data: dict) -> dict:
+    """Add ``next_cursor`` to a paged response that keeps the API's raw shape.
+
+    Some detail endpoints (``/company_tax_params/{id}``,
+    ``/employee_tax_params/{id}``) page like list endpoints but are fetched
+    with :func:`check_api_get` so their full records come through. Their
+    ``next`` is a full URL whose ``cursor`` query value is what the API wants
+    back; this pulls it out into ``next_cursor`` (``None`` on the last page)
+    so callers page the same way they do with every list tool. ``next`` and
+    ``previous`` stay in place. Error payloads pass through untouched.
+    """
+    if not isinstance(data, dict) or data.get("error"):
+        return data
+    return {**data, "next_cursor": _extract_cursor(data.get("next"))}
+
+
 _INLINE_PAYROLL_LISTS = (
     ("items", "items_count"),
     ("contractor_payments", "contractor_payments_count"),
