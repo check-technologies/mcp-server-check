@@ -122,6 +122,22 @@ class ReciprocityElectionUpdate(TypedDict, total=False):
     """Effective start date (YYYY-MM-DD)."""
 
 
+class CompanyDefinedAttributeUpdate(TypedDict, total=False):
+    """One company-defined attribute value for an employee."""
+
+    name: str
+    """The attribute name (e.g. "in_job_title"), from
+    get_employee_company_defined_attributes."""
+
+    value: str
+    """The new value, as a string the way the API returns it (e.g. "true" or
+    "false" for a boolean attribute)."""
+
+    effective_start: str
+    """Effective start date (YYYY-MM-DD); required when the attribute's
+    effective_start_required is true."""
+
+
 class EmailDetails(TypedDict, total=False):
     """Email details for a communication."""
 

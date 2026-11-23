@@ -295,6 +295,13 @@ class TestBuildParams:
         params = _build_params(sample)
         assert isinstance(params[0].type, JSONParam)
 
+    def test_list_dict_or_dict_union(self):
+        async def sample(ctx: Ctx, attributes: list[dict] | dict | None = None) -> dict:
+            pass
+
+        params = _build_params(sample)
+        assert isinstance(params[0].type, JSONParam)
+
     def test_float_param(self):
         async def sample(ctx: Ctx, amount: float | None = None) -> dict:
             pass

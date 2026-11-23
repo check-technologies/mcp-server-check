@@ -8,6 +8,7 @@ import httpx
 import pytest
 
 from mcp_server_check.tools.employees import (
+    update_employee_company_defined_attributes,
     update_employee_reciprocity_elections,
     create_employee,
     get_employee_paystub,
@@ -317,3 +318,83 @@ async def test_update_employee_reciprocity_elections_sends_list(mock_api, ctx):
         ctx, employee_id="emp_1", data=[election]
     )
     assert json.loads(route.calls.last.request.content) == [election]
+
+
+CDA_PATH = "/employees/emp_1/company_defined_attributes"
+CDA_ITEMS = [
+    {"name": "in_job_title", "value": "Bartender"},
+    {"name": "in_soc_code", "value": "353011", "effective_start": "2026-01-01"},
+]
+
+
+def _mock_cda_patch(mock_api):
+    return mock_api.patch(CDA_PATH).mock(
+        return_value=httpx.Response(200, json={"company_defined_attributes": CDA_ITEMS})
+    )
+
+
+@pytest.mark.anyio
+async def test_update_employee_company_defined_attributes_wraps_list(mock_api, ctx):
+    """The API wants ``{"company_defined_attributes": [{name, value, ...}]}``."""
+    route = _mock_cda_patch(mock_api)
+    await update_employee_company_defined_attributes(
+        ctx, employee_id="emp_1", attributes=CDA_ITEMS
+    )
+    assert json.loads(route.calls.last.request.content) == {
+        "company_defined_attributes": CDA_ITEMS
+    }
+
+
+@pytest.mark.anyio
+async def test_update_employee_company_defined_attributes_converts_flat_dict(
+    mock_api, ctx
+):
+    """A flat ``{name: value}`` dict gets a 200 from the API and persists
+    nothing, so it is converted to the list form instead of sent as is."""
+    route = _mock_cda_patch(mock_api)
+    await update_employee_company_defined_attributes(
+        ctx,
+        employee_id="emp_1",
+        attributes={"in_soc_code": "353011", "in_job_title": "Bartender"},
+    )
+    assert json.loads(route.calls.last.request.content) == {
+        "company_defined_attributes": [
+            {"name": "in_soc_code", "value": "353011"},
+            {"name": "in_job_title", "value": "Bartender"},
+        ]
+    }
+
+
+@pytest.mark.anyio
+async def test_update_employee_company_defined_attributes_passes_wrapped_dict(
+    mock_api, ctx
+):
+    route = _mock_cda_patch(mock_api)
+    body = {"company_defined_attributes": CDA_ITEMS}
+    await update_employee_company_defined_attributes(
+        ctx, employee_id="emp_1", attributes=body
+    )
+    assert json.loads(route.calls.last.request.content) == body
+
+
+@pytest.mark.anyio
+async def test_update_employee_company_defined_attributes_legacy_data_kwarg(
+    mock_api, ctx
+):
+    route = _mock_cda_patch(mock_api)
+    await update_employee_company_defined_attributes(
+        ctx, employee_id="emp_1", data={"in_job_title": "Bartender"}
+    )
+    assert json.loads(route.calls.last.request.content) == {
+        "company_defined_attributes": [{"name": "in_job_title", "value": "Bartender"}]
+    }
+
+
+@pytest.mark.anyio
+async def test_update_employee_company_defined_attributes_requires_attributes(
+    mock_api, ctx
+):
+    route = _mock_cda_patch(mock_api)
+    with pytest.raises(ValueError, match="attributes is required"):
+        await update_employee_company_defined_attributes(ctx, employee_id="emp_1")
+    assert not route.called

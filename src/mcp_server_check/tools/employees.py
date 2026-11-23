@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.types import (
     Address,
+    CompanyDefinedAttributeUpdate,
     FormParameter,
     ReciprocityElectionUpdate,
 )
@@ -426,22 +427,61 @@ async def get_employee_company_defined_attributes(ctx: Ctx, employee_id: str) ->
     )
 
 
+def _company_defined_attributes_body(
+    attributes: list[CompanyDefinedAttributeUpdate] | dict,
+) -> dict:
+    """Wrap attribute updates in the body the API expects.
+
+    A dict already carrying ``company_defined_attributes`` passes through. A
+    flat ``{name: value}`` dict is converted to the list form, since the API
+    answers the flat shape with a 200 and persists nothing.
+    """
+    if isinstance(attributes, dict):
+        if "company_defined_attributes" in attributes:
+            return attributes
+        attributes = [{"name": k, "value": v} for k, v in attributes.items()]
+    return {"company_defined_attributes": list(attributes)}
+
+
 async def update_employee_company_defined_attributes(
-    ctx: Ctx, employee_id: str, data: dict
+    ctx: Ctx,
+    employee_id: str,
+    attributes: list[CompanyDefinedAttributeUpdate] | dict | None = None,
+    data: dict | None = None,
 ) -> dict:
     """Update company-defined attributes for an employee.
 
-    The schema is dynamic and defined per-company, so attributes are passed
-    as a free-form dict.
+    The request body is ``{"company_defined_attributes": [...]}``; this tool
+    builds it from ``attributes``. Each item names an attribute (``name``,
+    from get_employee_company_defined_attributes) and its ``value``, plus an
+    optional ``effective_start`` (YYYY-MM-DD, required when the attribute's
+    ``effective_start_required`` is true). Values are strings, as the API
+    returns them: ``"true"``/``"false"`` for boolean attributes, digits only
+    for SOC codes, and so on per each attribute's ``description``.
+
+    A flat ``{name: value}`` dict is NOT accepted by the API: it returns 200
+    and persists nothing. One passed here is converted to the list form.
+
+    Example::
+
+        [
+            {"name": "in_job_title", "value": "Bartender"},
+            {"name": "in_soc_code", "value": "353011", "effective_start": "2026-01-01"}
+        ]
 
     Args:
         employee_id: The Check employee ID.
-        data: Attributes to update (schema varies by company configuration).
+        attributes: List of attribute updates, each with ``name`` and ``value``.
+        data: Deprecated alias for ``attributes``.
     """
+    if attributes is None:
+        attributes = data
+    if attributes is None:
+        raise ValueError("attributes is required.")
     return await check_api_patch(
         ctx,
         api_path("employees", employee_id, "company_defined_attributes"),
-        data=data,
+        data=_company_defined_attributes_body(attributes),
     )
 
 
