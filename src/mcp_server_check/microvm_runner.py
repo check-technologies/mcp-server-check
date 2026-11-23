@@ -27,8 +27,57 @@ PORT = 8080
 MAX_MESSAGE_BYTES = 16 * 1024 * 1024
 
 # Exception types the host may name in an error reply; anything else is raised
-# as RuntimeError so a program's `except RuntimeError` keeps working.
+# as RuntimeError so a program's `except RuntimeError` keeps working. A reply
+# of kind "APIError" carries the failed call's payload and is rebuilt as
+# APIError below.
 _HOST_ERRORS = {"RuntimeError", "ValueError", "TypeError"}
+
+
+def api_error_type(payload: dict) -> str | None:
+    """The Check API's error type in a failed call's payload, when it named one.
+
+    The API answers a failed request with ``{"error": {"type": "not_found",
+    "message": ...}}``, which the tool keeps under ``detail``.
+    """
+    detail = payload.get("detail")
+    error = detail.get("error") if isinstance(detail, dict) else None
+    kind = error.get("type") if isinstance(error, dict) else None
+    return kind if isinstance(kind, str) else None
+
+
+class APIError(RuntimeError):
+    """A failed Check API call, raised inside a program as ``check.APIError``.
+
+    ``str(e)`` is the JSON error payload, as it was when a failed call raised
+    a bare RuntimeError, so code that parses the message still works; the
+    attributes save parsing it. One uncaught failure ends the whole program
+    and throws away every other call's result, so a program catches this
+    around the one call that may fail, or gathers with ``return_exceptions``.
+    """
+
+    # The class lives on the `check` module inside a program, so a traceback
+    # reads "check.APIError: ..." rather than naming this file.
+    __module__ = "check"
+
+    def __init__(self, payload: dict) -> None:
+        super().__init__(json.dumps(payload))
+        self.payload = payload
+        self.status_code = payload.get("status_code")
+        self.type = api_error_type(payload)
+        self.detail = payload.get("detail")
+
+
+def host_error(reply: dict) -> BaseException:
+    """The exception an error reply from the host stands for.
+
+    An "APIError" reply without its payload, from a host older than this
+    runner, falls back to today's RuntimeError with the JSON message.
+    """
+    kind = reply.get("error_type")
+    if kind == "APIError" and isinstance(reply.get("payload"), dict):
+        return APIError(reply["payload"])
+    error = getattr(builtins, kind if kind in _HOST_ERRORS else "RuntimeError")
+    return error(reply["message"])
 
 
 def compile_program(code: str) -> types.CodeType:
@@ -84,6 +133,7 @@ async def run_program(ws, code: str, tools: list[str]) -> dict:
     module = types.ModuleType("check")
     for name in tools:
         setattr(module, name, tool(name))
+    module.APIError = APIError
     sys.modules["check"] = module
 
     async def read_replies() -> None:
@@ -95,11 +145,7 @@ async def run_program(ws, code: str, tools: list[str]) -> dict:
             if reply["type"] == "result":
                 future.set_result(reply["value"])
             else:
-                kind = reply.get("error_type")
-                error = getattr(
-                    builtins, kind if kind in _HOST_ERRORS else "RuntimeError"
-                )
-                future.set_exception(error(reply["message"]))
+                future.set_exception(host_error(reply))
 
     reader = asyncio.create_task(read_replies())
     out = io.StringIO()

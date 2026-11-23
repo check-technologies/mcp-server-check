@@ -747,6 +747,26 @@ async def test_get_stubs_header_says_to_read_fields_defensively(code_server):
 
 
 @pytest.mark.anyio
+async def test_get_stubs_header_says_how_to_catch_a_failed_call(code_server):
+    """Seven of 26 failed production programs in one week were one 404, 403,
+    or 400 inside an asyncio.gather ending the whole program, and only 13 of
+    347 programs used return_exceptions=True. The header names check.APIError,
+    its attributes, and both ways to keep a batch going."""
+    async with Client(code_server) as client:
+        stubs = (
+            (await client.call_tool("get_stubs", {"toolset": "platform"}))
+            .content[0]
+            .text
+        )
+    assert "check.APIError (a RuntimeError)" in stubs
+    assert "`.status_code`" in stubs
+    assert '`.type` (the API\'s error type: "not_found"' in stubs
+    assert "try/except check.APIError" in stubs
+    assert "return_exceptions=True) and check isinstance(r, Exception)" in stubs
+    assert "try/except RuntimeError" not in stubs
+
+
+@pytest.mark.anyio
 async def test_get_stubs_header_says_each_program_starts_empty(code_server):
     """Six of the fourteen failed programs in the Nov 13 evening eval runs were
     a NameError on a variable an earlier program had defined: the model assumed
@@ -1429,6 +1449,8 @@ async def test_run_code_last_expression_needs_no_json(mock_api, code_server):
 
 @pytest.mark.anyio
 async def test_run_code_api_error_is_catchable(mock_api, code_server):
+    """`except RuntimeError` and json.loads(str(e)) keep working: that is what
+    every program written before check.APIError existed does."""
     mock_api.get("/companies/com_missing").mock(
         return_value=httpx.Response(404, json={"error": "Not found"})
     )
@@ -1447,6 +1469,98 @@ outcome
     assert payload["result"] == 404
     assert payload["calls"][0]["status"] == "error"
     assert payload["calls"][0]["error"]["status_code"] == 404
+
+
+NOT_FOUND = httpx.Response(
+    404, json={"error": {"type": "not_found", "message": "No such company."}}
+)
+
+
+@pytest.mark.anyio
+async def test_run_code_api_error_carries_status_code_and_type(mock_api, code_server):
+    """A program branches on a 404 by attribute instead of parsing str(e),
+    which stays the JSON text for programs that still do."""
+    mock_api.get("/companies/com_missing").mock(return_value=NOT_FOUND)
+    code = """
+try:
+    await check.get_company(company_id="com_missing")
+except check.APIError as e:
+    outcome = {
+        "status_code": e.status_code,
+        "type": e.type,
+        "message": e.detail["error"]["message"],
+        "payload_status": e.payload["status_code"],
+        "text_status": json.loads(str(e))["status_code"],
+        "is_runtime_error": isinstance(e, RuntimeError),
+    }
+outcome
+"""
+    is_error, payload = await _run(code_server, code)
+    assert not is_error, payload
+    assert payload["result"] == {
+        "status_code": 404,
+        "type": "not_found",
+        "message": "No such company.",
+        "payload_status": 404,
+        "text_status": 404,
+        "is_runtime_error": True,
+    }
+    assert payload["calls"][0]["error"]["status_code"] == 404
+
+
+@pytest.mark.anyio
+async def test_run_code_gather_with_return_exceptions_keeps_the_batch(
+    mock_api, code_server
+):
+    """One 404 in a gather used to end the program and discard every other
+    call's result. With return_exceptions=True the failure arrives as a
+    check.APIError the program can tell apart from the records it fetched."""
+    for cid in ("com_1", "com_2"):
+        mock_api.get(f"/companies/{cid}").mock(
+            return_value=httpx.Response(200, json={"id": cid})
+        )
+    mock_api.get("/companies/com_missing").mock(return_value=NOT_FOUND)
+    code = """
+results = await asyncio.gather(
+    check.get_company(company_id="com_1"),
+    check.get_company(company_id="com_missing"),
+    check.get_company(company_id="com_2"),
+    return_exceptions=True,
+)
+[
+    {"status_code": r.status_code, "type": r.type, "api": isinstance(r, check.APIError)}
+    if isinstance(r, Exception)
+    else r["id"]
+    for r in results
+]
+"""
+    is_error, payload = await _run(code_server, code)
+    assert not is_error, payload
+    assert payload["result"] == [
+        "com_1",
+        {"status_code": 404, "type": "not_found", "api": True},
+        "com_2",
+    ]
+    assert {c["arguments"]["company_id"]: c["status"] for c in payload["calls"]} == {
+        "com_1": "ok",
+        "com_missing": "error",
+        "com_2": "ok",
+    }
+
+
+def test_api_error_notes():
+    from mcp_server_check.code_mode import API_ERROR_NOTE, api_error_notes
+
+    died = (
+        "Traceback (most recent call last):\n"
+        '  File "<program>", line 2, in <module>\n'
+        'check.APIError: {"error": true, "status_code": 404}\n'
+    )
+    assert api_error_notes([died]) == [API_ERROR_NOTE]
+    assert "return_exceptions=True" in API_ERROR_NOTE
+    assert api_error_notes(["KeyError: 'x'"]) == []
+    # A program that caught the call's error and died of something else.
+    assert api_error_notes(['RuntimeError: {"status_code": 404}']) == []
 
 
 THROTTLED = httpx.Response(
@@ -1608,18 +1722,21 @@ async def test_run_code_gives_up_after_max_retries(mock_api, monkeypatch):
 
 @pytest.mark.anyio
 async def test_run_code_uncaught_error_reports_trace(mock_api, code_server):
-    mock_api.get("/companies/com_missing").mock(
-        return_value=httpx.Response(404, json={"error": "Not found"})
-    )
+    """An uncaught failed call is a runtime_error whose traceback names
+    check.APIError, followed by how to keep the next program going."""
+    mock_api.get("/companies/com_missing").mock(return_value=NOT_FOUND)
     is_error, payload = await _run(
         code_server,
         'import check\nprint("before")\nawait check.get_company(company_id="com_missing")',
     )
     assert is_error
     assert payload["kind"] == "runtime_error"
-    assert "RuntimeError" in payload["detail"]
+    assert 'check.APIError: {"error": true, "status_code": 404' in payload["detail"]
+    assert "try/except check.APIError" in payload["detail"]
+    assert "asyncio.gather(..., return_exceptions=True)" in payload["detail"]
     assert payload["logs"] == "before\n"
     assert payload["calls"][0]["tool"] == "get_company"
+    assert payload["calls"][0]["error"]["status_code"] == 404
 
 
 @pytest.mark.anyio
