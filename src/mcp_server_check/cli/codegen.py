@@ -143,6 +143,26 @@ def _unwrap_optional(annotation: Any) -> tuple[Any, bool]:
     return annotation, False
 
 
+def _is_json_type(annotation: Any) -> bool:
+    """Whether a parameter takes a dict / TypedDict, a list of them, or a
+    union mixing those shapes."""
+    if isinstance(annotation, types.UnionType) or (
+        typing.get_origin(annotation) is typing.Union
+    ):
+        return any(
+            _is_json_type(a) for a in typing.get_args(annotation) if a is not type(None)
+        )
+    if isinstance(annotation, type) and issubclass(annotation, dict):
+        return True
+    args = typing.get_args(annotation)
+    return (
+        typing.get_origin(annotation) is list
+        and bool(args)
+        and isinstance(args[0], type)
+        and issubclass(args[0], dict)
+    )
+
+
 def _is_id_param(name: str) -> bool:
     """Return True if a parameter name looks like a resource ID."""
     return name.endswith("_id")
@@ -214,14 +234,8 @@ def _build_params(func: Callable) -> list[click.Parameter]:
         if not is_required:
             opt_kwargs["default"] = None
 
-        # Dict / TypedDict or list[dict] → JSON param
-        _is_dict = isinstance(base_type, type) and issubclass(base_type, dict)
-        if _is_dict or (
-            typing.get_origin(base_type) is list
-            and typing.get_args(base_type)
-            and isinstance(typing.get_args(base_type)[0], type)
-            and issubclass(typing.get_args(base_type)[0], dict)
-        ):
+        # Dict / TypedDict, list[dict], or a union of those → JSON param
+        if _is_json_type(base_type):
             params.append(
                 click.Option([f"--{cli_name}"], type=JSONParam(), **opt_kwargs)
             )
