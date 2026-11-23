@@ -14,7 +14,11 @@ from fastmcp.tools import ToolResult
 from fastmcp.tools.base import default_serializer
 from mcp.types import CallToolRequestParams, CallToolResult, TextContent
 
-from mcp_server_check.errors import CheckToolError, ResponseTooLargeError
+from mcp_server_check.errors import (
+    CheckToolError,
+    ResponseTooLargeError,
+    result_shape,
+)
 from mcp_server_check.recovery import Recovery, recovery
 
 logger = logging.getLogger(__name__)
@@ -188,13 +192,12 @@ class ResultBudgetMiddleware(Middleware):
         trimmed = self._trim_list(result)
         if trimmed is not None:
             return trimmed
-        largest = (
-            _largest_program_parts(result, self.max_chars // 5)
-            if tool == "run_code"
-            else None
-        )
+        largest = shape = None
+        if tool == "run_code":
+            largest = _largest_program_parts(result, self.max_chars // 5)
+            shape = _program_shape(result)
         raise ResponseTooLargeError(
-            tool, size, self.max_chars, unit="character", largest=largest
+            tool, size, self.max_chars, unit="character", largest=largest, shape=shape
         )
 
     def _trim_list(self, result: ToolResult) -> ToolResult | None:
@@ -312,6 +315,25 @@ def _largest_program_parts(result: ToolResult, floor: int) -> list[str] | None:
         for where, size, items in parts[:3]
     ]
     return described or None
+
+
+def _program_shape(result: ToolResult) -> dict[str, Any] | None:
+    """Describe what a run_code program returned, so a rerun can target it.
+
+    The shape is of the program's result value when the measured text is the
+    run_code envelope; of the whole measured text otherwise, so it holds
+    whichever JSON the budget was applied to.
+    """
+    block = result.content[0] if result.content else None
+    if not isinstance(block, TextContent):
+        return None
+    try:
+        measured = json.loads(block.text)
+    except json.JSONDecodeError:
+        return None
+    if isinstance(measured, dict) and "result" in measured:
+        measured = measured["result"]
+    return result_shape(measured)
 
 
 def _page_of(data: dict[str, Any], kept: int) -> dict[str, Any]:
