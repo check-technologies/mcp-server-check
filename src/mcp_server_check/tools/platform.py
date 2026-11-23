@@ -5,6 +5,8 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
+from mcp_server_check.recovery import recoverable
+from mcp_server_check.reports import AppliedForIdsReportRequest
 from mcp_server_check.types import EmailDetails
 from mcp_server_check.helpers import (
     Ctx,
@@ -648,9 +650,23 @@ async def get_requirement(ctx: Ctx, requirement_id: str) -> dict:
 # --- Reports ---
 
 
-async def get_applied_for_ids_report(ctx: Ctx) -> dict:
-    """Get the applied-for IDs report across all companies."""
-    return await check_api_get(ctx, api_path("reports", "applied_for_ids"))
+@recoverable(AppliedForIdsReportRequest.recover)
+async def get_applied_for_ids_report(ctx: Ctx, response_format: str = "json") -> dict:
+    """Get the applied-for IDs report (by individual tax ID) for every company of the provider.
+
+    Only Console sessions can read the provider-wide report. When it fails as
+    endpoint_unavailable, use get_company_report with report_type
+    "applied_for_ids_detailed" for each company instead.
+
+    Args:
+        response_format: "json" (default) returns rows as objects; "csv" returns
+            the smaller CSV rendering as a string under the csv key.
+    """
+    try:
+        request = AppliedForIdsReportRequest.parse(response_format=response_format)
+    except ValueError as e:
+        return {"error": True, "detail": str(e)}
+    return await request.response_format.fetch(ctx, request.path)
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:

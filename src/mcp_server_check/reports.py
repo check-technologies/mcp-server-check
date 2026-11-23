@@ -238,3 +238,50 @@ class ReportRequest:
                 "parameters": parameters,
             },
         )
+
+
+@dataclass(frozen=True)
+class AppliedForIdsReportRequest:
+    TOOL: ClassVar[str] = "get_applied_for_ids_report"
+
+    response_format: ReportFormat = ReportFormat.JSON
+
+    @classmethod
+    def parse(
+        cls, *, response_format: str = ReportFormat.JSON.value
+    ) -> AppliedForIdsReportRequest:
+        """Build a request from get_applied_for_ids_report arguments; raises ValueError."""
+        return cls(
+            response_format=ReportFormat.parse("response_format", response_format)
+        )
+
+    @property
+    def path(self) -> str:
+        return api_path("reports", ReportType.APPLIED_FOR_IDS_DETAILED.value)
+
+    @classmethod
+    def recover(cls, arguments: dict[str, Any], failure: Failure) -> list[Remedy]:
+        """Remedy provider for get_applied_for_ids_report."""
+        try:
+            request = cls.parse(**arguments)
+        except (TypeError, ValueError):
+            return []
+        return request.remedies(failure)
+
+    def remedies(self, failure: Failure) -> list[Remedy]:
+        """Return what can succeed where this request failed.
+
+        Only Console sessions can read the provider-wide report; the
+        per-company one answers any credential.
+        """
+        per_company = Hint(
+            tool=ReportRequest.TOOL,
+            description=(
+                "Request the report per company with report_type "
+                f'"{ReportType.APPLIED_FOR_IDS_DETAILED.value}".'
+            ),
+            arguments=("company_id",),
+        )
+        if failure is Failure.TOO_LARGE and self.response_format is ReportFormat.JSON:
+            return [_csv_alternative(self.TOOL), per_company]
+        return [per_company]

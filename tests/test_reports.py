@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from mcp_server_check.recovery import Alternative, Failure, Hint
 from mcp_server_check.reports import (
+    AppliedForIdsReportRequest,
     ReportFormat,
     ReportRequest,
     ReportType,
@@ -209,3 +210,66 @@ class TestReportRequestRemedies:
     )
     def test_recover_ignores_invalid_arguments(self, arguments):
         assert ReportRequest.recover(arguments, Failure.TIMED_OUT) == []
+
+
+class TestAppliedForIdsReportRequest:
+    PER_COMPANY = Hint(
+        tool="get_company_report",
+        description=(
+            'Request the report per company with report_type "applied_for_ids_detailed".'
+        ),
+        arguments=("company_id",),
+    )
+    CSV = Alternative(
+        tool="get_applied_for_ids_report",
+        description="Return the smaller CSV rendering of the report.",
+        arguments={"response_format": "csv"},
+    )
+
+    def test_path_is_the_provider_wide_detailed_report(self):
+        assert AppliedForIdsReportRequest().path == "/reports/applied_for_ids_detailed"
+
+    def test_parse_rejects_unknown_format(self):
+        with pytest.raises(ValueError, match="Unknown response_format"):
+            AppliedForIdsReportRequest.parse(response_format="xml")
+
+    @pytest.mark.parametrize(
+        ("response_format", "failure", "expected"),
+        [
+            pytest.param(
+                ReportFormat.JSON,
+                Failure.UNAVAILABLE,
+                [PER_COMPANY],
+                id="unavailable",
+            ),
+            pytest.param(
+                ReportFormat.JSON, Failure.TIMED_OUT, [PER_COMPANY], id="timed out"
+            ),
+            pytest.param(
+                ReportFormat.JSON,
+                Failure.TOO_LARGE,
+                [CSV, PER_COMPANY],
+                id="too large",
+            ),
+            pytest.param(
+                ReportFormat.CSV,
+                Failure.TOO_LARGE,
+                [PER_COMPANY],
+                id="csv too large",
+            ),
+        ],
+    )
+    def test_remedies_follow_format_and_failure(
+        self, response_format, failure, expected
+    ):
+        request = AppliedForIdsReportRequest(response_format=response_format)
+
+        assert request.remedies(failure) == expected
+
+    def test_recover_ignores_invalid_arguments(self):
+        assert (
+            AppliedForIdsReportRequest.recover(
+                {"response_format": "xml"}, Failure.UNAVAILABLE
+            )
+            == []
+        )
