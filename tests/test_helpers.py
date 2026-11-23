@@ -17,6 +17,7 @@ from mcp_server_check.helpers import (
     check_api_put,
     merge_metadata_filter_params,
     shape_payroll,
+    with_next_cursor,
 )
 
 
@@ -188,6 +189,33 @@ async def test_check_api_list(mock_api, ctx):
     assert result["results"] == [{"id": "i_1"}]
     assert result["next_cursor"] == "c2"
     assert result["previous_cursor"] is None
+
+
+def test_with_next_cursor_extracts_cursor_and_keeps_next():
+    """The cursor query value of the full ``next`` URL becomes ``next_cursor``;
+    the raw shape (``next``, ``previous``, ``results``) stays in place."""
+    page = {
+        "next": "https://api.checkhq.com/company_tax_params/com_1?cursor=cD0lNUIl",
+        "previous": None,
+        "results": [{"id": "spa_1"}],
+    }
+    result = with_next_cursor(page)
+    assert result["next_cursor"] == "cD0lNUIl"
+    assert result["next"] == page["next"]
+    assert result["previous"] is None
+    assert result["results"] == [{"id": "spa_1"}]
+    assert "next_cursor" not in page
+
+
+def test_with_next_cursor_is_none_on_last_page():
+    result = with_next_cursor({"next": None, "previous": None, "results": []})
+    assert result["next_cursor"] is None
+
+
+def test_with_next_cursor_passes_errors_through():
+    error = {"error": True, "status_code": 404, "detail": "Not found."}
+    assert with_next_cursor(error) == error
+    assert "next_cursor" not in with_next_cursor(error)
 
 
 @pytest.mark.anyio

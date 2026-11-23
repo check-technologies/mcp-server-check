@@ -16,19 +16,42 @@ from mcp_server_check.helpers import (
     check_api_list,
     check_api_patch,
     check_api_post,
+    with_next_cursor,
 )
 
 
 # --- Company Tax Params ---
 
 
-async def get_company_tax_params(ctx: Ctx, company_id: str) -> dict:
+async def get_company_tax_params(
+    ctx: Ctx,
+    company_id: str,
+    limit: int | None = None,
+    cursor: str | None = None,
+) -> dict:
     """Get tax parameters for a company.
+
+    The response is one page: ``results`` is the list of params, each with
+    ``id`` (``spa_...``), ``name``, ``value``, ``tax``, and ``jurisdiction``.
+    An employer with many local taxes (Pennsylvania, Ohio) spans several
+    pages. ``next_cursor`` holds the cursor for the next page, or ``None`` on
+    the last one; pass it back as ``cursor``. The API's own ``next`` is also
+    left in place as a full URL whose ``cursor`` query value is that same
+    cursor; from code, ``parse_qs(urlparse(page["next"]).query)["cursor"][0]``
+    (``urllib.parse``) extracts it.
 
     Args:
         company_id: The Check company ID.
+        limit: Page size.
+        cursor: The ``next_cursor`` from the previous page.
     """
-    return await check_api_get(ctx, api_path("company_tax_params", company_id))
+    return with_next_cursor(
+        await check_api_get(
+            ctx,
+            api_path("company_tax_params", company_id),
+            params=build_params(limit=limit, cursor=cursor),
+        )
+    )
 
 
 async def update_company_tax_params(
@@ -183,13 +206,35 @@ async def list_employee_tax_params(
     )
 
 
-async def get_employee_tax_params(ctx: Ctx, employee_id: str) -> dict:
+async def get_employee_tax_params(
+    ctx: Ctx,
+    employee_id: str,
+    limit: int | None = None,
+    cursor: str | None = None,
+) -> dict:
     """Get tax parameters for a specific employee.
+
+    The response is one page: ``results`` is the list of params, each with
+    ``id`` (``spa_...``), ``name``, ``value``, ``tax``, and ``jurisdiction``.
+    An employee with many local taxes spans several pages. ``next_cursor``
+    holds the cursor for the next page, or ``None`` on the last one; pass it
+    back as ``cursor``. The API's own ``next`` is also left in place as a full
+    URL whose ``cursor`` query value is that same cursor; from code,
+    ``parse_qs(urlparse(page["next"]).query)["cursor"][0]`` (``urllib.parse``)
+    extracts it.
 
     Args:
         employee_id: The Check employee ID.
+        limit: Page size.
+        cursor: The ``next_cursor`` from the previous page.
     """
-    return await check_api_get(ctx, api_path("employee_tax_params", employee_id))
+    return with_next_cursor(
+        await check_api_get(
+            ctx,
+            api_path("employee_tax_params", employee_id),
+            params=build_params(limit=limit, cursor=cursor),
+        )
+    )
 
 
 async def update_employee_tax_params(
