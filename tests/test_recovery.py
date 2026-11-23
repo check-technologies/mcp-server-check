@@ -37,6 +37,7 @@ class TestFailure:
         [
             ({"error": True, "timeout": True}, Failure.TIMED_OUT),
             ({"error": True, "response_too_large": True}, Failure.TOO_LARGE),
+            ({"error": True, "endpoint_unavailable": True}, Failure.UNAVAILABLE),
             ({"error": True, "status_code": 400}, None),
         ],
     )

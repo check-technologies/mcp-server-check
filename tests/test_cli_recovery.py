@@ -94,6 +94,34 @@ class TestCLIRecovery:
             "detail": {"error": "Bad range"},
         }
 
+    def test_redirected_applied_for_ids_report_hints_at_company_report(self):
+        with respx.mock(base_url=BASE_URL) as mock:
+            mock.get("/reports/applied_for_ids_detailed").mock(
+                return_value=httpx.Response(
+                    302, headers={"location": "https://docs.checkhq.com"}
+                )
+            )
+            result = CliRunner().invoke(
+                cli,
+                ["platform", "get-applied-for-ids-report"],
+                env={"CHECK_API_KEY": "sk_test_123"},
+            )
+
+        error = json.loads(result.stderr)
+        assert result.exit_code == 1
+        assert error["endpoint_unavailable"] is True
+        assert error["alternatives"] == []
+        assert error["hints"] == [
+            {
+                "command": "check companies get-report",
+                "description": (
+                    "Request the report per company with report_type "
+                    '"applied_for_ids_detailed".'
+                ),
+                "options": ["COMPANY_ID"],
+            }
+        ]
+
 
 class TestCommandLines:
     def test_renders_positional_first_then_options_in_command_order(

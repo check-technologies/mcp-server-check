@@ -683,7 +683,7 @@ Notifications, communications, usage, integrations, accounting, company groups, 
 | `list_requirements` | GET | List requirements |
 | `get_requirement` | GET | Get a specific requirement |
 | **Reports** | | |
-| `get_applied_for_ids_report` | GET | Get applied-for IDs report |
+| `get_applied_for_ids_report` | GET | Get the provider-wide applied-for IDs report as JSON or CSV (Console sessions only; otherwise use `get_company_report` with `applied_for_ids_detailed`) |
 
 ### Embedded Components (35 tools)
 

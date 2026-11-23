@@ -22,6 +22,7 @@ class Failure(str, Enum):
 
     TIMED_OUT = "timeout"
     TOO_LARGE = "response_too_large"
+    UNAVAILABLE = "endpoint_unavailable"
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> Failure | None:

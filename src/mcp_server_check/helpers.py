@@ -356,6 +356,8 @@ async def _check_api_request(
         response = await check_ctx.client.request(
             method, path, params=params, json=data, headers=headers or None
         )
+        if response.is_redirect:
+            return _unavailable(response)
         response.raise_for_status()
         if response.status_code == 204 or not response.content:
             return {"success": True}
@@ -383,6 +385,19 @@ async def _check_api_request(
             "transport_error": type(e).__name__,
             "detail": str(e) or type(e).__name__,
         }
+
+
+def _unavailable(response: httpx.Response) -> dict:
+    return {
+        "error": True,
+        Failure.UNAVAILABLE.value: True,
+        "status_code": response.status_code,
+        "detail": (
+            f"The Check API redirected to {response.headers.get('location')} "
+            "instead of answering: the route does not exist or this credential "
+            "cannot call it."
+        ),
+    }
 
 
 async def check_api_get(ctx: Ctx, path: ApiPath, params: dict | None = None) -> dict:

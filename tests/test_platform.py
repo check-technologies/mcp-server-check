@@ -331,11 +331,36 @@ async def test_validate_address(mock_api, ctx):
 
 @pytest.mark.anyio
 async def test_get_applied_for_ids_report(mock_api, ctx):
-    mock_api.get("/reports/applied_for_ids").mock(
-        return_value=httpx.Response(200, json={"report": "data"})
+    mock_api.get("/reports/applied_for_ids_detailed").mock(
+        return_value=httpx.Response(200, json={"results": [{"company": "com_001"}]})
     )
     result = await get_applied_for_ids_report(ctx)
-    assert result["report"] == "data"
+    assert result == {"results": [{"company": "com_001"}]}
+
+
+@pytest.mark.anyio
+async def test_get_applied_for_ids_report_as_csv(mock_api, ctx):
+    route = mock_api.get("/reports/applied_for_ids_detailed").mock(
+        return_value=httpx.Response(
+            200,
+            text="company,ssn\ncom_001,applied\n",
+            headers={"content-type": "text/csv"},
+        )
+    )
+    result = await get_applied_for_ids_report(ctx, response_format="csv")
+    assert result == {"csv": "company,ssn\ncom_001,applied\n"}
+    assert route.calls.last.request.headers["accept"] == "text/csv"
+
+
+@pytest.mark.anyio
+async def test_get_applied_for_ids_report_rejects_unknown_format(mock_api, ctx):
+    route = mock_api.get("/reports/applied_for_ids_detailed")
+    result = await get_applied_for_ids_report(ctx, response_format="xml")
+    assert result == {
+        "error": True,
+        "detail": "Unknown response_format: 'xml'. Valid values: json, csv.",
+    }
+    assert not route.called
 
 
 USER = {

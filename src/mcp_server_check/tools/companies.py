@@ -6,7 +6,7 @@ from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.recovery import recoverable
-from mcp_server_check.reports import ReportFormat, ReportRequest
+from mcp_server_check.reports import ReportRequest
 from mcp_server_check.types import Address
 from mcp_server_check.helpers import (
     Ctx,
@@ -14,7 +14,6 @@ from mcp_server_check.helpers import (
     build_body,
     build_params,
     check_api_get,
-    check_api_get_csv,
     check_api_list,
     check_api_patch,
     check_api_post,
@@ -396,12 +395,9 @@ async def get_company_report(
         )
     except ValueError as e:
         return {"error": True, "detail": str(e)}
-    fetch = (
-        check_api_get_csv
-        if request.response_format is ReportFormat.CSV
-        else check_api_get
+    return await request.response_format.fetch(
+        ctx, request.path, params=request.query_params
     )
-    return await fetch(ctx, request.path, params=request.query_params)
 
 
 # --- Federal EIN Verifications ---
