@@ -924,8 +924,29 @@ def test_await_asyncio_run():
     assert await_asyncio_run(code) == code
     code = "async def go():\n    return asyncio.run(main())\n"
     assert await_asyncio_run(code) == "async def go():\n    return (await main())\n"
-    for untouched in ("asyncio.run(main(), debug=True)", "x = 1", "asyncio.run("):
+    # Keyword arguments configure the loop asyncio.run would have made, which
+    # the program never gets, so they are dropped (newlines kept).
+    assert await_asyncio_run("asyncio.run(main(), debug=True)") == "(await main())"
+    code = "r = asyncio.run(\n    main(),\n    debug=True,\n)\nboom"
+    rewritten = await_asyncio_run(code)
+    assert rewritten.startswith("r = (await main()")
+    assert rewritten.count("\n") == code.count("\n")
+    # Other asyncio calls, and programs without asyncio.run, are untouched.
+    gather = "a, b = await asyncio.gather(main(), other())\nawait asyncio.sleep(0)\n"
+    for untouched in (gather, "x = 1", "asyncio.run("):
         assert await_asyncio_run(untouched) == untouched
+
+
+def test_asyncio_run_in_a_plain_def_still_compiles():
+    """A call the rewrite must leave alone has to reach the runner as valid
+    Python: an await inside a plain def would turn a runtime error the hint
+    explains into a syntax error it does not."""
+    from mcp_server_check.code_mode import await_asyncio_run
+    from mcp_server_check.microvm_runner import compile_program
+
+    code = "async def main():\n    return 1\n\ndef go():\n    return asyncio.run(main())\n\ngo()\n"
+    assert await_asyncio_run(code) == code
+    compile_program(code)
 
 
 @pytest.mark.anyio
@@ -947,6 +968,52 @@ company["id"]
     is_error, payload = await _run(code_server, code)
     assert not is_error, payload
     assert payload["result"] == "com_1"
+
+
+@pytest.mark.anyio
+async def test_run_code_asyncio_run_as_last_line_is_the_result(mock_api, code_server):
+    """The script shape that failed in production: the program ends with a
+    bare asyncio.run(main()), so main()'s value is the result."""
+    mock_api.get("/companies/com_1").mock(
+        return_value=httpx.Response(200, json={"id": "com_1", "legal_name": "One"})
+    )
+    code = """
+async def main():
+    company = await check.get_company(company_id="com_1")
+    return {"name": company.get("legal_name")}
+
+asyncio.run(main())
+"""
+    is_error, payload = await _run(code_server, code)
+    assert not is_error, payload
+    assert payload["result"] == {"name": "One"}
+    assert [c["tool"] for c in payload["calls"]] == ["get_company"]
+
+
+@pytest.mark.anyio
+async def test_run_code_asyncio_run_assigned_then_returned(mock_api, code_server):
+    mock_api.get("/companies/com_1").mock(
+        return_value=httpx.Response(200, json={"id": "com_1"})
+    )
+    code = """
+async def main():
+    return await check.get_company(company_id="com_1")
+
+result = asyncio.run(main(), debug=True)
+result
+"""
+    is_error, payload = await _run(code_server, code)
+    assert not is_error, payload
+    assert payload["result"] == {"id": "com_1"}
+
+
+@pytest.mark.anyio
+async def test_stub_header_says_not_to_call_asyncio_run(code_server):
+    async with Client(code_server) as client:
+        result = await client.call_tool("get_stubs", {"toolset": "platform"})
+    stubs = result.content[0].text
+    assert "do not call asyncio.run" in stubs
+    assert "rewrites asyncio.run(x) to await x" in stubs
 
 
 @pytest.mark.anyio

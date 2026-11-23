@@ -44,7 +44,9 @@ _STUB_HEADER = f'''\
 
 Every function is async: `await {MODULE_NAME}.list_companies(limit=100)`. Use
 asyncio.gather for independent calls; `asyncio` and `json` are already
-imported, like `{MODULE_NAME}`. A failed Check API call raises
+imported, like `{MODULE_NAME}`. A program already runs inside an event loop
+with top-level await, so do not call asyncio.run: await directly (the runtime
+rewrites asyncio.run(x) to await x). A failed Check API call raises
 RuntimeError whose message is a JSON object with "status_code" and "detail".
 Throttled calls, and reads whose connection dropped, are retried for you. List
 results carry "results",
@@ -509,7 +511,6 @@ def _is_asyncio_run(node: ast.AST) -> bool:
         and isinstance(node.func.value, ast.Name)
         and node.func.value.id == "asyncio"
         and len(node.args) == 1
-        and not node.keywords
     )
 
 
@@ -520,9 +521,10 @@ def await_asyncio_run(code: str) -> str:
     asyncio.run(main()), the usual last line of an async script, raises
     "asyncio.run() cannot be called from a running event loop" before a
     single call is made. Awaiting the coroutine is what the program meant.
-    A call inside a plain def, lambda, or class body, where await is a
-    SyntaxError, is left alone. Line numbers are kept, so a traceback still
-    points at the program's own lines.
+    Keyword arguments such as debug=True configure the loop asyncio.run would
+    have created, so they are dropped. A call inside a plain def, lambda, or
+    class body, where await is a SyntaxError, is left alone. Line numbers are
+    kept, so a traceback still points at the program's own lines.
     """
     if "asyncio.run" not in code:
         return code
