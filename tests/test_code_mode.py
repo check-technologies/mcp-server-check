@@ -770,15 +770,21 @@ async def test_get_stubs_without_arguments_returns_catalog(code_server):
         result = await client.call_tool("get_stubs", {})
     catalog = result.content[0].text
     assert "# ---- workplaces (4 tools) ----" in catalog
-    assert "list_workplaces, " in catalog
-    assert "create_workplace*" in catalog  # write tools are marked
-    assert "async def" not in catalog  # names only, not signatures
+    # Argument names, optional ones marked =, the common paging ones left off.
+    assert "# list_workplaces(company=, metadata=)\n" in catalog
+    assert "# get_employee(employee_id)\n" in catalog
+    assert "# get_payroll(payroll_id, include_items=)\n" in catalog
+    assert "create_workplace(" in catalog and ")*\n" in catalog  # writes marked
+    assert "async def" not in catalog  # names, not typed signatures
     # The catalog opens every code-mode session, so it carries the planning
     # guidance header-opt-in clients never get from the server instructions.
     assert "Plan one program for the whole job" in catalog
     assert "asyncio.gather" in catalog
     assert "writes in a second program" in catalog
-    assert len(catalog) < 20_000
+    # Argument names roughly doubled it (12k to 26k characters). Programs
+    # fetch the catalog rarely (50 of 1,460 get_stubs calls in production),
+    # but those that did and skipped the stubs guessed arguments.
+    assert len(catalog) < 30_000
 
 
 @pytest.mark.anyio

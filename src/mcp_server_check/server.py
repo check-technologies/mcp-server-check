@@ -125,7 +125,7 @@ calls the program made. When you report the result, tell the user which calls \
 ran (tool, key arguments, and any failures), always for writes, so they can \
 see what touched their account.
 - Look up signatures first: get_stubs() with no arguments lists every toolset \
-and its tool names; get_stubs(toolset=...) and get_stubs(query="...") return \
+with each tool's argument names; get_stubs(toolset=...) and get_stubs(query="...") return \
 each matching tool's signature with a one-line summary; get_stubs(tools=[...]) \
 returns full docstrings (pass full=True to get them for a toolset or query). \
 A client that already holds the stubs (the check://stubs resource) can skip \
@@ -425,14 +425,14 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         """Find the `check` module's tools and their typed Python signatures.
 
         With no arguments, returns the catalog: every toolset with its
-        description and tool names (write tools marked with `*`). With a
-        `toolset` or `query`, returns a stub file: one `async def` per
-        matching tool with a one-line summary, enough to pick a tool and name
-        its arguments. With `tools`, or `full=True`, each stub carries the
-        tool's full docstring: what each argument accepts and what the result
-        contains. Fetch the full stub for a tool before calling it in a way
-        its summary does not settle. Tools marked as write tools must be named
-        in run_code's writes argument.
+        description and each tool's argument names (write tools marked with
+        `*`). With a `toolset` or `query`, returns a stub file: one
+        `async def` per matching tool with a one-line summary, enough to pick
+        a tool and name its arguments. With `tools`, or `full=True`, each stub
+        carries the tool's full docstring: what each argument accepts and what
+        the result contains. Fetch the full stub for a tool before calling it
+        in a way its summary does not settle. Tools marked as write tools must
+        be named in run_code's writes argument.
 
         query: Search keywords with synonym matching (e.g. "pay employees").
         toolset: Restrict to one toolset (e.g. "employees").
