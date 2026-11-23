@@ -484,6 +484,36 @@ class TestRecoveryMiddleware:
             "detail": {"error": "Bad range"},
         }
 
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("tool_mode", ["all", "dynamic"])
+    async def test_redirected_applied_for_ids_report_points_to_company_report(
+        self, mock_api, make_server, tool_mode
+    ):
+        mock_api.get("/reports/applied_for_ids_detailed").mock(
+            return_value=httpx.Response(
+                302, headers={"location": "https://docs.checkhq.com"}
+            )
+        )
+
+        result = await call(
+            make_server(tool_mode), tool_mode, "get_applied_for_ids_report", {}
+        )
+
+        error = error_of(result)
+        assert error["endpoint_unavailable"] is True
+        assert error["status_code"] == 302
+        assert error["alternatives"] == []
+        assert error["hints"] == [
+            {
+                "tool": "get_company_report",
+                "description": (
+                    "Request the report per company with report_type "
+                    '"applied_for_ids_detailed".'
+                ),
+                "arguments": ["company_id"],
+            }
+        ]
+
 
 class TestIsToolAvailable:
     @pytest.mark.parametrize("tool_mode", ["all", "dynamic"])
