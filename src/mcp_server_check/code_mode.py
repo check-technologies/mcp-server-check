@@ -22,7 +22,8 @@ import re
 import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from types import UnionType
+from typing import Any, Union, get_args, get_origin, get_type_hints
 
 from fastmcp.exceptions import ToolError, ValidationError
 from fastmcp.tools import ToolResult
@@ -163,14 +164,41 @@ def _is_ctx(param: inspect.Parameter) -> bool:
     return param.name == "ctx" or name in _CTX_ANNOTATIONS
 
 
-_STRING_LIST_ANNOTATIONS = frozenset(
-    {"list[str]", "list[str]|None", "None|list[str]", "Optional[list[str]]"}
-)
+def _takes_string_list(hint: Any) -> bool:
+    """Whether a resolved parameter type is a list of strings, optional or not.
+
+    Covers list[str], Sequence[str] and unions of those with None. A list of
+    anything else (dicts, TypedDicts) is not one: a bare string could not
+    stand in for one of its elements.
+    """
+    origin = get_origin(hint)
+    if origin in (Union, UnionType):
+        return any(_takes_string_list(arg) for arg in get_args(hint))
+    if origin in (list, Sequence):
+        args = get_args(hint)
+        return not args or args[0] is str
+    return False
 
 
-def _takes_string_list(annotation: Any) -> bool:
-    """Whether a parameter is a list of strings and nothing else."""
-    return _annotation_text(annotation).replace(" ", "") in _STRING_LIST_ANNOTATIONS
+def coerce_string_lists(
+    arguments: Mapping[str, Any], hints: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Wrap a bare string passed for a list-of-strings parameter.
+
+    ``list_taxes(jurisdiction="nm")`` means ``["nm"]``. This is a lossless
+    coercion of the kind pydantic's lax mode performs for other types (an int
+    from ``"3"``, a list from a tuple), which it does not make for str to
+    list[str]; and a validation error ends the whole program and discards
+    every call it already made, so the one-element list is built here
+    instead. Nothing is renamed and nothing else is converted: a string for a
+    list of dicts, or for an int, is validated as given. Only code mode calls
+    this; plain MCP tool calls are validated as given.
+    """
+    string_lists = {name for name, hint in hints.items() if _takes_string_list(hint)}
+    return {
+        name: [value] if name in string_lists and isinstance(value, str) else value
+        for name, value in arguments.items()
+    }
 
 
 def tool_parameters(fn: Any) -> list[inspect.Parameter]:
@@ -882,7 +910,10 @@ class CodeRunner:
     ):
         params = tool_parameters(entry.tool.fn)
         names = [p.name for p in params]
-        string_lists = {p.name for p in params if _takes_string_list(p.annotation)}
+        try:
+            hints = get_type_hints(entry.tool.fn)
+        except Exception:  # an unresolvable annotation costs leniency, not the tool
+            hints = {}
         max_calls = self._settings.max_calls
         max_retries = self._settings.max_retries
 
@@ -892,12 +923,7 @@ class CodeRunner:
                     f"{entry.name}() takes at most {len(names)} positional "
                     f"arguments ({len(args)} given)"
                 )
-            arguments = {**dict(zip(names, args)), **kwargs}
-            # list_taxes(jurisdiction="nm") means ["nm"]; validation would
-            # otherwise end the program over it.
-            for name in string_lists & arguments.keys():
-                if isinstance(arguments[name], str):
-                    arguments[name] = [arguments[name]]
+            arguments = coerce_string_lists({**dict(zip(names, args)), **kwargs}, hints)
             if len(run.calls) >= max_calls:
                 raise RuntimeError(
                     json.dumps(
@@ -954,8 +980,7 @@ class CodeRunner:
                 record.error = str(e)
                 message = str(e)
                 if "validation error" in message:
-                    # A wrong or missing argument name ("company" where the
-                    # tool takes company_id) is fixed by reading the
+                    # A wrong or missing argument name is fixed by reading the
                     # signature, so give it rather than a get_stubs round trip.
                     message += f"\n{entry.name} takes: {render_signature(entry)}"
                 raise ValueError(message) from e

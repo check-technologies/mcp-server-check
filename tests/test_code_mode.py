@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Sequence
 import json
 import logging
 from unittest import mock
@@ -17,6 +18,7 @@ from mcp_server_check.code_mode import (
     CallRecord,
     CodeModeSettings,
     call_log,
+    coerce_string_lists,
     render_compact_stub,
     render_signature,
     render_stub,
@@ -1258,9 +1260,49 @@ async def test_run_code_wrong_argument_name_shows_the_signature(code_server):
         code_server, 'await check.get_company(company="com_1")'
     )
     assert is_error
+    assert "Unexpected keyword argument" in payload["detail"]
     assert (
         "get_company takes: async def get_company(company_id: str" in payload["detail"]
     )
+
+
+class TestCoerceStringLists:
+    """The helper on its own: what it changes and what it leaves alone."""
+
+    @staticmethod
+    def _call(fn, **arguments):
+        import typing
+
+        return coerce_string_lists(arguments, typing.get_type_hints(fn))
+
+    def test_wraps_a_string_for_every_string_list_spelling(self):
+        async def tool(
+            ctx,
+            plain: list[str],
+            optional: list[str] | None = None,
+            seq: Sequence[str] | None = None,
+        ): ...
+
+        assert self._call(tool, plain="a", optional="b", seq="c") == {
+            "plain": ["a"],
+            "optional": ["b"],
+            "seq": ["c"],
+        }
+        assert self._call(tool, plain=["a"]) == {"plain": ["a"]}
+
+    def test_does_not_coerce_other_types_or_rename(self):
+        async def tool(
+            ctx,
+            company_id: str,
+            items: list[dict] | None = None,
+            count: int | None = None,
+        ): ...
+
+        assert self._call(tool, company="c", items="x", count="3") == {
+            "company": "c",
+            "items": "x",
+            "count": "3",
+        }
 
 
 @pytest.mark.anyio
