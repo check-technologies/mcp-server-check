@@ -265,10 +265,9 @@ async def onboard_company(
         field_permissions: Optional map of lockable fields to access levels for
             the minted onboard link. Keys must be one of "company:legal_name",
             "company:trade_name", "company:address", "company:phone", or
-            "company_tax_param:federal_ein"; values are "read", "read_if_present",
-            or "read_write" ("read_write" is a no-op; "read_if_present" locks
-            only when the company already has a value for that field). Omitted
-            fields remain editable in the embedded flow.
+            "company_tax_param:federal_ein"; values are "read" or "read_write"
+            ("read_write" is a no-op). Omitted fields remain editable in the
+            embedded flow.
     """
     return await check_api_post(
         ctx,
