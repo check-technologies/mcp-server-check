@@ -13,6 +13,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
+from mcp_server_check.tools.employees import EMPLOYEE_LIST_REPRESENTATION
 from mcp_server_check.helpers import (
     Ctx,
     api_path,
@@ -74,7 +75,11 @@ async def get_company_overview(
         calls["employees"] = check_api_list(
             ctx,
             api_path("employees"),
-            params={"company": company_id, "limit": employee_limit},
+            params={
+                "company": company_id,
+                "limit": employee_limit,
+                "representation": EMPLOYEE_LIST_REPRESENTATION,
+            },
         )
     if include_payrolls:
         calls["payrolls"] = check_api_list(
@@ -339,7 +344,13 @@ async def get_onboarding_status(
                 ctx, api_path("workplaces"), params={"company": company_id}
             ),
             "employees": check_api_list(
-                ctx, api_path("employees"), params={"company": company_id, "limit": 5}
+                ctx,
+                api_path("employees"),
+                params={
+                    "company": company_id,
+                    "limit": 5,
+                    "representation": EMPLOYEE_LIST_REPRESENTATION,
+                },
             ),
             "bank_accounts": check_api_list(
                 ctx, api_path("bank_accounts"), params={"company": company_id}
