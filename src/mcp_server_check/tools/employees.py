@@ -505,12 +505,13 @@ async def update_employee_reciprocity_elections(
     """Update reciprocity elections for an employee.
 
     The request body must be a JSON array. Each item names a ``jurisdiction``
-    (``jur_*``, from get_employee_reciprocity_elections) with ``opt_in`` and
-    ``effective_start``.
+    (a lowercase jurisdiction code such as ``pa``, from
+    get_employee_reciprocity_elections) with ``opt_in`` and ``effective_start``.
+    Legacy ``jur_*`` IDs are being rejected.
 
     Example::
 
-        [{"jurisdiction": "jur_abc123", "opt_in": True, "effective_start": "2026-01-01"}]
+        [{"jurisdiction": "pa", "opt_in": True, "effective_start": "2026-01-01"}]
 
     Args:
         employee_id: The Check employee ID.

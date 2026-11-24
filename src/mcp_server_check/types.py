@@ -112,8 +112,8 @@ class ReciprocityElectionUpdate(TypedDict, total=False):
     """One reciprocity election for an employee."""
 
     jurisdiction: str
-    """The jurisdiction ID of the election (e.g. "jur_xxxxx"), from
-    get_employee_reciprocity_elections."""
+    """The lowercase jurisdiction code of the election (e.g. "pa"), from
+    get_employee_reciprocity_elections. Legacy "jur_" IDs are being rejected."""
 
     opt_in: bool
     """Whether the employee opts in to the reciprocity agreement."""
