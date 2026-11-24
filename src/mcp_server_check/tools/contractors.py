@@ -54,29 +54,34 @@ async def list_contractors(
 
 async def search_contractors(
     ctx: Ctx,
-    term: str,
+    query: str,
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
     """Search contractors by name.
 
-    Splits the search term by spaces and matches each word against first name,
+    Splits the query by spaces and matches each word against first name,
     middle name, last name, business name, or contractor ID using
-    case-insensitive matching. All terms must match (AND logic).
+    case-insensitive matching. All words must match (AND logic).
 
-    Results carry only id and name fields. Anything else about the
-    contractor (status, company, type) needs get_contractor on the returned
-    id; in code mode, chain it in the same program.
+    Results carry only id, company and name fields. Anything else about the
+    contractor (status, type) needs get_contractor on the returned id; in
+    code mode, chain it in the same program.
+
+    There is no company filter: this searches every company of the partner.
+    Each result carries its ``company``, so to find someone at one company,
+    keep the results whose company matches (or filter list_contractors(company=...)
+    by name inside a program).
 
     Args:
-        term: Search term to match against contractor name fields or ID.
+        query: Text to match against contractor name fields or ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor from a previous response.
     """
     return await check_api_list(
         ctx,
         api_path("contractors", "search"),
-        params=build_params(term=term, limit=limit, cursor=cursor),
+        params=build_params(term=query, limit=limit, cursor=cursor),
     )
 
 

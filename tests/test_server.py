@@ -813,3 +813,50 @@ async def test_docstrings_carry_the_qa_findings():
     assert "active" in tools["get_company"].description
     assert "trade name" in tools["search_companies"].description
     assert "partner" in tools["search_companies"].description
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("module", "tool", "path", "record"),
+    [
+        (
+            "companies",
+            "search_companies",
+            "/companies/search",
+            {"id": "com_1", "legal_name": "Golden Crust LLC", "trade_name": None},
+        ),
+        (
+            "employees",
+            "search_employees",
+            "/employees/search",
+            {"id": "emp_1", "company": "com_1", "first_name": "Ana", "last_name": "Li"},
+        ),
+        (
+            "contractors",
+            "search_contractors",
+            "/contractors/search",
+            {"id": "ctr_1", "company": "com_1", "first_name": "Bo", "last_name": "Ng"},
+        ),
+    ],
+)
+async def test_search_tools_take_query_and_send_term(
+    mock_api, ctx, module, tool, path, record
+):
+    """The search tools take query, like get_stubs, because programs guessed
+    query= for search_companies; the API's parameter is still term."""
+    import importlib
+
+    fn = getattr(importlib.import_module(f"mcp_server_check.tools.{module}"), tool)
+    mock_api.get(path).mock(
+        return_value=httpx.Response(
+            200, json={"next": None, "previous": None, "results": [record]}
+        )
+    )
+    result = await fn(ctx, query="Golden Crust")
+    req = mock_api.get(path).calls.last.request
+    assert req.url.params["term"] == "Golden Crust"
+    assert "query" not in req.url.params
+    # A search hit keeps its company, so a caller can narrow to one company
+    # (the API has no company filter outside Console).
+    if "company" in record:
+        assert result["results"][0]["company"] == "com_1"

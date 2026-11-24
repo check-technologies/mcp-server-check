@@ -100,7 +100,7 @@ a composite result instead of printing its keys in a program of its own.
 Do the whole read chain in one program. When a lookup decides the next call,
 branch on its result inside the program instead of returning to look:
 
-    hits = (await {MODULE_NAME}.search_companies(term="Golden Crust"))["results"]
+    hits = (await {MODULE_NAME}.search_companies(query="Golden Crust"))["results"]
     if len(hits) == 1:
         company = await {MODULE_NAME}.get_company(company_id=hits[0]["id"])
     else:
