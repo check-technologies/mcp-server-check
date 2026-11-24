@@ -414,7 +414,7 @@ async def get_payroll_journal(
     """
     return await check_api_get(
         ctx,
-        f"/payrolls/{payroll_id}/journal",
+        api_path("payrolls", payroll_id, "journal"),
         params=build_params(
             taxable_wages=taxable_wages,
             gross_taxable_wages=gross_taxable_wages,
@@ -456,7 +456,7 @@ async def create_payroll_journal(
     """
     return await check_api_post(
         ctx,
-        f"/payrolls/{payroll_id}/journal",
+        api_path("payrolls", payroll_id, "journal"),
         data=build_body(
             {},
             taxable_wages=taxable_wages,
