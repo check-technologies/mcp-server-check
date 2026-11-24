@@ -11,7 +11,9 @@ from mcp_server_check.tools.payrolls import (
     approve_payroll,
     create_payroll,
     delete_payroll,
+    create_payroll_journal,
     get_payroll,
+    get_payroll_journal,
     list_payrolls,
     preview_payroll,
     reopen_payroll,
@@ -128,6 +130,60 @@ async def test_preview_payroll(mock_api, ctx):
     )
     result = await preview_payroll(ctx, payroll_id="pay_001")
     assert "totals" in result
+
+
+@pytest.mark.anyio
+async def test_get_payroll_journal(mock_api, ctx):
+    mock_api.get("/payrolls/pay_001/journal").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "status": "completed",
+                "download_url": "https://files.example.test/journal.csv",
+                "content_type": "text/csv",
+            },
+        )
+    )
+    result = await get_payroll_journal(
+        ctx,
+        payroll_id="pay_001",
+        taxable_wages=True,
+        contractors=True,
+        additional_columns=["employee.id"],
+        group_by="workplace",
+    )
+    assert result["status"] == "completed"
+    req = mock_api.get("/payrolls/pay_001/journal").calls.last.request
+    assert req.url.params["taxable_wages"] == "true"
+    assert req.url.params["contractors"] == "true"
+    assert req.url.params.get_list("additional_columns") == ["employee.id"]
+    assert req.url.params["group_by"] == "workplace"
+
+
+@pytest.mark.anyio
+async def test_create_payroll_journal(mock_api, ctx):
+    route = mock_api.post("/payrolls/pay_001/journal").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "status": "generating",
+                "download_url": None,
+                "content_type": "text/csv",
+            },
+        )
+    )
+    result = await create_payroll_journal(
+        ctx,
+        payroll_id="pay_001",
+        gross_taxable_wages=True,
+        always_use_benefit_label=True,
+    )
+    assert result["status"] == "generating"
+    body = json.loads(route.calls.last.request.content)
+    assert body == {
+        "gross_taxable_wages": True,
+        "always_use_benefit_label": True,
+    }
 
 
 @pytest.mark.anyio
