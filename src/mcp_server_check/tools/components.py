@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
-from mcp_server_check.helpers import Ctx, check_api_post
+from mcp_server_check.helpers import Ctx, api_path, check_api_post
 
 COMPANY_COMPONENTS = [
     "previous_provider_access",
@@ -126,8 +126,9 @@ async def create_component(
             For company component links, optional field_permissions locks fields
             in the embedded UI: keys are "company:legal_name", "company:trade_name",
             "company:address", "company:phone", or
-            "company_tax_param:federal_ein"; values are "read" or "read_write"
-            ("read_write" is a no-op).
+            "company_tax_param:federal_ein"; values are "read", "read_if_present",
+            or "read_write" ("read_write" is a no-op; "read_if_present" locks
+            only when the company already has a value for that field).
         idempotency_key: Sent as the X-Idempotency-Key header to make retries safe.
     """
     path_prefix = _ENTITY_PATH.get(entity_type)
@@ -149,9 +150,15 @@ async def create_component(
             ),
         }
     component_path = (
-        f"/{path_prefix}/{entity_id}/components/{component_type}/{subtype}"
+        api_path(
+            path_prefix,
+            entity_id,
+            "components",
+            component_type,
+            subtype,
+        )
         if subtype
-        else f"/{path_prefix}/{entity_id}/components/{component_type}"
+        else api_path(path_prefix, entity_id, "components", component_type)
     )
     return await check_api_post(
         ctx,

@@ -9,27 +9,40 @@ instead, forcing an explicit decision.
 
 from __future__ import annotations
 
+import ast
 import inspect
 import re
+import textwrap
 
 import pytest
 from mcp_server_check.tool_filter import (
     _MONEY_MOVEMENT_EXACT,
-    is_destructive_tool,
+    ToolFilter,
     is_money_movement_tool,
 )
 from mcp_server_check.tools import collect_all_tools
 
-# Mutating Check API calls, e.g. ``check_api_post(ctx, f"/payments/{id}/retry")``.
+# Mutating Check API calls, e.g. ``check_api_post(ctx, api_path(...))``.
 _MUTATING_CALL = re.compile(r"check_api_(post|patch|delete)\(")
 _LITERAL_PATH = re.compile(r'check_api_(?:post|patch|delete)\(\s*ctx,\s*f?"(/[^"]+)"')
+_MUTATING_NAMES = {"check_api_post", "check_api_patch", "check_api_delete"}
 
-# API paths where a mutation moves funds or repoints where funds go.
-_MONEY_PATH = re.compile(r"^/(payments|bank_accounts)(/|$)")
+# API paths where a mutation moves funds or repoints where funds go. Approving
+# a correction commits it and starts the ACH settlement of its changes.
+_MONEY_PATH = re.compile(
+    r"^/(payments|bank_accounts)(/|$)|^/corrections/[^/]+/approve(/|$)"
+)
 
 # Mutating money-path tools deliberately left available on every deployment.
 # Adding a name here is a policy decision, not a formality.
-_REVIEWED_AVAILABLE: frozenset[str] = frozenset()
+_REVIEWED_AVAILABLE: frozenset[str] = frozenset(
+    {
+        # Sandbox-only state simulations; no real funds move. Still hidden by
+        # CHECK_EXCLUDE_DESTRUCTIVE through the simulate_ prefix.
+        "simulate_complete_payment",
+        "simulate_fail_payment",
+    }
+)
 
 # Mutating tools whose path is built at runtime, reviewed by hand as never
 # reaching a money path.
@@ -55,6 +68,29 @@ def _mutating_paths(fn) -> list[str]:
     if not _MUTATING_CALL.search(source):
         return []
     paths = _LITERAL_PATH.findall(source)
+    tree = ast.parse(textwrap.dedent(source))
+    for node in ast.walk(tree):
+        if (
+            not isinstance(node, ast.Call)
+            or not isinstance(node.func, ast.Name)
+            or node.func.id not in _MUTATING_NAMES
+            or len(node.args) < 2
+        ):
+            continue
+        path_node = node.args[1]
+        if (
+            not isinstance(path_node, ast.Call)
+            or not isinstance(path_node.func, ast.Name)
+            or path_node.func.id != "api_path"
+        ):
+            continue
+        segments: list[str] = []
+        for segment in path_node.args:
+            if isinstance(segment, ast.Constant) and isinstance(segment.value, str):
+                segments.append(segment.value)
+            else:
+                segments.append("{segment}")
+        paths.append("/" + "/".join(segments))
     if not paths and fn.__closure__:
         paths = [
             cell.cell_contents
@@ -70,18 +106,22 @@ def _all_tool_functions() -> list:
 
 
 def test_money_path_mutations_are_classified():
-    """Every tool that mutates a payments/bank-account endpoint is classified."""
+    """Every tool that mutates a money endpoint is hidden by the money flag alone.
+
+    Being destructive is not enough: a deployment may set
+    CHECK_EXCLUDE_MONEY_MOVEMENT without CHECK_EXCLUDE_DESTRUCTIVE, and
+    approve_correction reached such deployments that way (IP-4475).
+    """
     unclassified = [
         fn.__name__
         for fn in _all_tool_functions()
         if any(_MONEY_PATH.match(p) for p in _mutating_paths(fn))
         and not is_money_movement_tool(fn.__name__)
-        and not is_destructive_tool(fn.__name__)
         and fn.__name__ not in _REVIEWED_AVAILABLE
     ]
     assert not unclassified, (
-        "These tools mutate a money-related endpoint but are excluded by neither "
-        f"CHECK_EXCLUDE_MONEY_MOVEMENT nor CHECK_EXCLUDE_DESTRUCTIVE: {unclassified}. "
+        "These tools mutate a money-related endpoint but are not excluded by "
+        f"CHECK_EXCLUDE_MONEY_MOVEMENT: {unclassified}. "
         "Add them to _MONEY_MOVEMENT_EXACT, or to _REVIEWED_AVAILABLE with a rationale."
     )
 
@@ -101,6 +141,7 @@ def test_path_detection_finds_known_money_tools():
         "create_bank_account",
         "update_bank_account",
         "delete_bank_account",
+        "approve_correction",
     } <= detected
 
 
@@ -136,3 +177,9 @@ def test_approve_payroll_is_covered_despite_non_money_path():
     the rename test above) is the real protection.
     """
     assert is_money_movement_tool("approve_payroll")
+
+
+def test_money_flag_alone_hides_approve_correction():
+    """IP-4475: the money flag must hide approve_correction without the destructive flag."""
+    tool_filter = ToolFilter(exclude_money_movement=True)
+    assert not tool_filter.is_tool_allowed("approve_correction", "corrections")

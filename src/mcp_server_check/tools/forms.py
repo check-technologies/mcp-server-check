@@ -8,6 +8,7 @@ from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.types import FormParameter
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     build_params,
     check_api_get,
     check_api_list,
@@ -38,7 +39,7 @@ async def list_forms(
     """
     return await check_api_list(
         ctx,
-        "/forms",
+        api_path("forms"),
         params=build_params(
             company=company,
             limit=limit,
@@ -57,7 +58,7 @@ async def get_form(ctx: Ctx, form_id: str) -> dict:
     Args:
         form_id: The Check form ID.
     """
-    return await check_api_get(ctx, f"/forms/{form_id}")
+    return await check_api_get(ctx, api_path("forms", form_id))
 
 
 async def render_form(ctx: Ctx, form_id: str) -> dict:
@@ -66,7 +67,7 @@ async def render_form(ctx: Ctx, form_id: str) -> dict:
     Args:
         form_id: The Check form ID.
     """
-    return await check_api_get(ctx, f"/forms/{form_id}/render")
+    return await check_api_get(ctx, api_path("forms", form_id, "render"))
 
 
 async def validate_form(
@@ -82,7 +83,9 @@ async def validate_form(
             Example: [{"name": "field_name", "value": "field_value"}].
     """
     return await check_api_post(
-        ctx, f"/forms/{form_id}/validate", data={"parameters": parameters}
+        ctx,
+        api_path("forms", form_id, "validate"),
+        data={"parameters": parameters},
     )
 
 

@@ -6,22 +6,90 @@ import httpx
 import pytest
 
 from mcp_server_check.helpers import (
+    _SUMMARY_FIELDS,
+    ApiPath,
+    api_path,
     check_api_delete,
     check_api_get,
     check_api_list,
     check_api_patch,
     check_api_post,
-    _SUMMARY_FIELDS,
     check_api_put,
+    code_mode_full_records,
     merge_metadata_filter_params,
     shape_payroll,
+    shape_payroll_page,
+    with_next_cursor,
 )
+
+
+def test_api_path_builds_absolute_path_from_explicit_segments():
+    path = api_path("employees", "emp_123", "paystubs", "pay-456")
+    assert isinstance(path, ApiPath)
+    assert path == "/employees/emp_123/paystubs/pay-456"
+
+
+def test_api_path_cannot_be_constructed_directly():
+    with pytest.raises(TypeError, match=r"created with api_path\(\)"):
+        ApiPath("/employees")
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "",
+        ".",
+        "..",
+        "../companies",
+        "id/companies",
+        r"id\companies",
+        "id?company=com_1",
+        "id#fragment",
+        "id\ncompanies",
+        "id\x7fcompanies",
+        "%2e%2e",
+        "%252e%252e",
+        "id%2fcompanies",
+        "id%252fcompanies",
+        "id%5ccompanies",
+        "id%255ccompanies",
+        "id%3fcompany=com_1",
+        "id%253fcompany=com_1",
+        "id%23fragment",
+        "id%2523fragment",
+        "id%0acompanies",
+        "id%250acompanies",
+    ],
+)
+def test_api_path_rejects_values_that_are_not_exactly_one_segment(value):
+    with pytest.raises(ValueError, match="exactly one URL segment"):
+        api_path("employees", value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["com_123", "01JABCDEF0123456789", "abc-def_ghi", "id%20with%20spaces"],
+)
+def test_api_path_accepts_valid_single_segment_ids(value):
+    assert api_path("companies", value) == f"/companies/{value}"
+
+
+def test_api_path_validates_static_and_dynamic_segments_identically():
+    with pytest.raises(ValueError, match="path segment 1"):
+        api_path("companies%252femployees", "com_123")
+
+
+@pytest.mark.anyio
+async def test_api_path_rejection_happens_before_http_request(mock_api, ctx):
+    with pytest.raises(ValueError, match="exactly one URL segment"):
+        await check_api_get(ctx, api_path("companies", "../employees"))
+    assert not mock_api.calls
 
 
 @pytest.mark.anyio
 async def test_check_api_get(mock_api, ctx):
     mock_api.get("/test").mock(return_value=httpx.Response(200, json={"id": "t_1"}))
-    result = await check_api_get(ctx, "/test")
+    result = await check_api_get(ctx, api_path("test"))
     assert result == {"id": "t_1"}
 
 
@@ -30,14 +98,32 @@ async def test_check_api_get_with_params(mock_api, ctx):
     route = mock_api.get("/test").mock(
         return_value=httpx.Response(200, json={"id": "t_1"})
     )
-    await check_api_get(ctx, "/test", params={"limit": 5})
+    await check_api_get(ctx, api_path("test"), params={"limit": 5})
     assert "limit=5" in str(route.calls[0].request.url)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/workplaces/../companies",
+        "/workplaces/%2e%2e/companies",
+        "/workplaces/%252e%252e/companies",
+        "/workplaces/..%2fcompanies",
+        "//attacker.example/companies",
+        "/workplaces/id?ignored=/companies",
+    ],
+)
+async def test_check_api_rejects_plain_string_paths_before_http(mock_api, ctx, path):
+    with pytest.raises(TypeError, match=r"created with api_path\(\)"):
+        await check_api_get(ctx, path)
+    assert not mock_api.calls
 
 
 @pytest.mark.anyio
 async def test_check_api_post(mock_api, ctx):
     mock_api.post("/test").mock(return_value=httpx.Response(201, json={"id": "t_new"}))
-    result = await check_api_post(ctx, "/test", data={"name": "foo"})
+    result = await check_api_post(ctx, api_path("test"), data={"name": "foo"})
     assert result == {"id": "t_new"}
 
 
@@ -46,7 +132,9 @@ async def test_check_api_patch(mock_api, ctx):
     mock_api.patch("/test/t_1").mock(
         return_value=httpx.Response(200, json={"id": "t_1", "name": "updated"})
     )
-    result = await check_api_patch(ctx, "/test/t_1", data={"name": "updated"})
+    result = await check_api_patch(
+        ctx, api_path("test", "t_1"), data={"name": "updated"}
+    )
     assert result["name"] == "updated"
 
 
@@ -55,14 +143,16 @@ async def test_check_api_put(mock_api, ctx):
     mock_api.put("/test/t_1").mock(
         return_value=httpx.Response(200, json={"id": "t_1", "name": "replaced"})
     )
-    result = await check_api_put(ctx, "/test/t_1", data={"name": "replaced"})
+    result = await check_api_put(
+        ctx, api_path("test", "t_1"), data={"name": "replaced"}
+    )
     assert result["name"] == "replaced"
 
 
 @pytest.mark.anyio
 async def test_check_api_delete(mock_api, ctx):
     mock_api.delete("/test/t_1").mock(return_value=httpx.Response(204))
-    result = await check_api_delete(ctx, "/test/t_1")
+    result = await check_api_delete(ctx, api_path("test", "t_1"))
     assert result == {"success": True}
 
 
@@ -72,7 +162,7 @@ async def test_check_api_post_empty_200_body_is_success(mock_api, ctx):
     mock_api.post("/test/t_1/simulate/thing").mock(
         return_value=httpx.Response(200, content=b"")
     )
-    result = await check_api_post(ctx, "/test/t_1/simulate/thing")
+    result = await check_api_post(ctx, api_path("test", "t_1", "simulate", "thing"))
     assert result == {"success": True}
 
 
@@ -81,7 +171,7 @@ async def test_check_api_delete_with_body(mock_api, ctx):
     mock_api.delete("/test/t_1").mock(
         return_value=httpx.Response(200, json={"deleted": True})
     )
-    result = await check_api_delete(ctx, "/test/t_1")
+    result = await check_api_delete(ctx, api_path("test", "t_1"))
     assert result == {"deleted": True}
 
 
@@ -97,10 +187,37 @@ async def test_check_api_list(mock_api, ctx):
             },
         )
     )
-    result = await check_api_list(ctx, "/items")
+    result = await check_api_list(ctx, api_path("items"))
     assert result["results"] == [{"id": "i_1"}]
     assert result["next_cursor"] == "c2"
     assert result["previous_cursor"] is None
+
+
+def test_with_next_cursor_extracts_cursor_and_keeps_next():
+    """The cursor query value of the full ``next`` URL becomes ``next_cursor``;
+    the raw shape (``next``, ``previous``, ``results``) stays in place."""
+    page = {
+        "next": "https://api.checkhq.com/company_tax_params/com_1?cursor=cD0lNUIl",
+        "previous": None,
+        "results": [{"id": "spa_1"}],
+    }
+    result = with_next_cursor(page)
+    assert result["next_cursor"] == "cD0lNUIl"
+    assert result["next"] == page["next"]
+    assert result["previous"] is None
+    assert result["results"] == [{"id": "spa_1"}]
+    assert "next_cursor" not in page
+
+
+def test_with_next_cursor_is_none_on_last_page():
+    result = with_next_cursor({"next": None, "previous": None, "results": []})
+    assert result["next_cursor"] is None
+
+
+def test_with_next_cursor_passes_errors_through():
+    error = {"error": True, "status_code": 404, "detail": "Not found."}
+    assert with_next_cursor(error) == error
+    assert "next_cursor" not in with_next_cursor(error)
 
 
 @pytest.mark.anyio
@@ -108,7 +225,7 @@ async def test_http_error_returns_error_dict(mock_api, ctx):
     mock_api.get("/bad").mock(
         return_value=httpx.Response(422, json={"detail": "Validation error"})
     )
-    result = await check_api_get(ctx, "/bad")
+    result = await check_api_get(ctx, api_path("bad"))
     assert result["error"] is True
     assert result["status_code"] == 422
     assert result["detail"] == {"detail": "Validation error"}
@@ -119,9 +236,28 @@ async def test_http_error_with_text_body(mock_api, ctx):
     mock_api.get("/bad").mock(
         return_value=httpx.Response(500, text="Internal Server Error")
     )
-    result = await check_api_get(ctx, "/bad")
+    result = await check_api_get(ctx, api_path("bad"))
     assert result["error"] is True
     assert result["status_code"] == 500
+
+
+@pytest.mark.anyio
+async def test_redirect_is_reported_as_unavailable(mock_api, ctx):
+    mock_api.get("/reports/gone").mock(
+        return_value=httpx.Response(
+            302, headers={"location": "https://docs.checkhq.com"}
+        )
+    )
+    result = await check_api_get(ctx, api_path("reports", "gone"))
+    assert result == {
+        "error": True,
+        "endpoint_unavailable": True,
+        "status_code": 302,
+        "detail": (
+            "The Check API redirected to https://docs.checkhq.com instead of "
+            "answering: the route does not exist or this credential cannot call it."
+        ),
+    }
 
 
 def test_merge_metadata_filter_params() -> None:
@@ -220,11 +356,70 @@ async def test_check_api_list_summarizes_payroll_entities(
             },
         )
     )
-    result = await check_api_list(ctx, "/things")
+    result = await check_api_list(ctx, api_path("things"))
     row = result["results"][0]
     assert row["id"] == record_id
     assert row["status"] == "paid"
     assert bulky_field not in row
+
+
+@pytest.mark.anyio
+async def test_check_api_list_returns_full_records_for_code_mode(mock_api, ctx):
+    """While the code-mode runner serves a program's call, a list page keeps
+    every field; the summary table applies again once the call is over."""
+    mock_api.get("/employees").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "next": None,
+                "previous": None,
+                "results": [
+                    {
+                        "id": "emp_001",
+                        "first_name": "Jane",
+                        "residence": {"state": "CA"},
+                    }
+                ],
+            },
+        )
+    )
+    token = code_mode_full_records.set(True)
+    try:
+        full = await check_api_list(ctx, api_path("employees"))
+    finally:
+        code_mode_full_records.reset(token)
+    summary = await check_api_list(ctx, api_path("employees"))
+    assert full["results"][0]["residence"] == {"state": "CA"}
+    assert full["result_count"] == 1
+    assert "residence" not in summary["results"][0]
+
+
+def test_shape_payroll_page_counts_inlined_lists_on_every_record():
+    page = {
+        "results": [
+            {"id": "pay_1", "items": [{"id": "itm_1"}], "contractor_payments": []},
+            {"id": "pay_2"},
+        ],
+        "result_count": 2,
+        "next_cursor": None,
+    }
+    shaped = shape_payroll_page(page)
+    assert shaped["results"] == [
+        {"id": "pay_1", "items_count": 1, "contractor_payments_count": 0},
+        {"id": "pay_2"},
+    ]
+    assert shaped["result_count"] == 2
+    assert page["results"][0]["items"] == [{"id": "itm_1"}]  # input untouched
+
+
+def test_shape_payroll_page_keeps_lists_when_items_are_wanted():
+    page = {"results": [{"id": "pay_1", "items": [{"id": "itm_1"}]}]}
+    assert shape_payroll_page(page, include_items=True) == page
+
+
+def test_shape_payroll_page_passes_errors_through():
+    error = {"error": True, "status_code": 404, "detail": "Not found."}
+    assert shape_payroll_page(error) is error
 
 
 def test_summary_prefixes_are_real_check_prefixes() -> None:

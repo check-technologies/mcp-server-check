@@ -6,14 +6,14 @@ from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.recovery import recoverable
-from mcp_server_check.reports import ReportFormat, ReportRequest
+from mcp_server_check.reports import ReportRequest
 from mcp_server_check.types import Address
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     build_body,
     build_params,
     check_api_get,
-    check_api_get_csv,
     check_api_list,
     check_api_patch,
     check_api_post,
@@ -50,7 +50,7 @@ async def list_companies(
     """
     return await check_api_list(
         ctx,
-        "/companies",
+        api_path("companies"),
         params=merge_metadata_filter_params(
             build_params(
                 limit=limit,
@@ -93,7 +93,7 @@ async def search_companies(
     """
     return await check_api_list(
         ctx,
-        "/companies/search",
+        api_path("companies", "search"),
         params=build_params(term=term, limit=limit, cursor=cursor),
     )
 
@@ -113,7 +113,7 @@ async def get_company(ctx: Ctx, company_id: str) -> dict:
     Args:
         company_id: The Check company ID (e.g. "com_xxxxx").
     """
-    return await check_api_get(ctx, f"/companies/{company_id}")
+    return await check_api_get(ctx, api_path("companies", company_id))
 
 
 async def create_company(
@@ -154,7 +154,7 @@ async def create_company(
     """
     return await check_api_post(
         ctx,
-        "/companies",
+        api_path("companies"),
         data=build_body(
             {"legal_name": legal_name},
             trade_name=trade_name,
@@ -216,7 +216,7 @@ async def update_company(
     """
     return await check_api_patch(
         ctx,
-        f"/companies/{company_id}",
+        api_path("companies", company_id),
         data=build_body(
             {},
             legal_name=legal_name,
@@ -241,23 +241,46 @@ async def update_company(
 async def onboard_company(
     ctx: Ctx,
     company_id: str,
+    signatory: str | None = None,
+    signer_name: str | None = None,
+    signer_title: str | None = None,
+    email: str | None = None,
     field_permissions: dict[str, str] | None = None,
 ) -> dict:
-    """Onboard a company and return an onboarding link for it.
+    """Mint an onboarding link for a company.
+
+    The API requires a signer for the link: pass either `signatory` (an
+    existing signatory ID from list_signatories) or all three of
+    `signer_name`, `signer_title`, and `email`, never both. Existing
+    signatories on the company are not picked up automatically.
 
     Args:
         company_id: The Check company ID.
+        signatory: ID of an existing signatory (sig_xxxxx) who will sign in
+            the onboarding flow. Find one with list_signatories.
+        signer_name: Full name of the signer, when not passing `signatory`.
+        signer_title: Signer's title with the company (e.g. "Officer"), when
+            not passing `signatory`.
+        email: Signer's email address, when not passing `signatory`.
         field_permissions: Optional map of lockable fields to access levels for
             the minted onboard link. Keys must be one of "company:legal_name",
             "company:trade_name", "company:address", "company:phone", or
-            "company_tax_param:federal_ein"; values are "read" or "read_write"
-            ("read_write" is a no-op). Omitted fields remain editable in the
-            embedded flow.
+            "company_tax_param:federal_ein"; values are "read", "read_if_present",
+            or "read_write" ("read_write" is a no-op; "read_if_present" locks
+            only when the company already has a value for that field). Omitted
+            fields remain editable in the embedded flow.
     """
     return await check_api_post(
         ctx,
-        f"/companies/{company_id}/onboard",
-        data=build_body({}, field_permissions=field_permissions),
+        api_path("companies", company_id, "onboard"),
+        data=build_body(
+            {},
+            signatory=signatory,
+            signer_name=signer_name,
+            signer_title=signer_title,
+            email=email,
+            field_permissions=field_permissions,
+        ),
     )
 
 
@@ -279,27 +302,27 @@ async def get_company_paydays(
     """
     return await check_api_get(
         ctx,
-        f"/companies/{company_id}/paydays",
+        api_path("companies", company_id, "paydays"),
         params=build_params(start=start_date, pay_schedule=pay_schedule),
     )
 
 
 async def list_company_tax_deposits(
     ctx: Ctx,
-    company_id: str,
+    company: str,
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
     """List tax deposits for a company.
 
     Args:
-        company_id: The Check company ID.
+        company: The Check company ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     return await check_api_list(
         ctx,
-        f"/companies/{company_id}/tax_deposits",
+        api_path("companies", company, "tax_deposits"),
         params=build_params(limit=limit, cursor=cursor),
     )
 
@@ -319,7 +342,7 @@ async def get_company_benefit_aggregations(
     """
     return await check_api_get(
         ctx,
-        f"/companies/{company_id}/benefit_aggregations",
+        api_path("companies", company_id, "benefit_aggregations"),
         params=build_params(start=start_date, end=end_date),
     )
 
@@ -373,30 +396,27 @@ async def get_company_report(
         )
     except ValueError as e:
         return {"error": True, "detail": str(e)}
-    fetch = (
-        check_api_get_csv
-        if request.response_format is ReportFormat.CSV
-        else check_api_get
+    return await request.response_format.fetch(
+        ctx, request.path, params=request.query_params
     )
-    return await fetch(ctx, request.path, params=request.query_params)
 
 
 # --- Federal EIN Verifications ---
 
 
 async def list_federal_ein_verifications(
-    ctx: Ctx, company_id: str, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx, company: str, limit: int | None = None, cursor: str | None = None
 ) -> dict:
     """List federal EIN verifications for a company.
 
     Args:
-        company_id: The Check company ID.
+        company: The Check company ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     return await check_api_list(
         ctx,
-        f"/companies/{company_id}/federal_ein_verifications",
+        api_path("companies", company, "federal_ein_verifications"),
         params=build_params(limit=limit, cursor=cursor),
     )
 
@@ -411,7 +431,13 @@ async def get_federal_ein_verification(
         verification_id: The verification ID.
     """
     return await check_api_get(
-        ctx, f"/companies/{company_id}/federal_ein_verifications/{verification_id}"
+        ctx,
+        api_path(
+            "companies",
+            company_id,
+            "federal_ein_verifications",
+            verification_id,
+        ),
     )
 
 
@@ -419,18 +445,18 @@ async def get_federal_ein_verification(
 
 
 async def list_signatories(
-    ctx: Ctx, company_id: str, limit: int | None = None, cursor: str | None = None
+    ctx: Ctx, company: str, limit: int | None = None, cursor: str | None = None
 ) -> dict:
     """List signatories for a company.
 
     Args:
-        company_id: The Check company ID.
+        company: The Check company ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     return await check_api_list(
         ctx,
-        f"/companies/{company_id}/signatories",
+        api_path("companies", company, "signatories"),
         params=build_params(limit=limit, cursor=cursor),
     )
 
@@ -459,7 +485,7 @@ async def create_signatory(
     """
     return await check_api_post(
         ctx,
-        f"/companies/{company_id}/signatories",
+        api_path("companies", company_id, "signatories"),
         data=build_body(
             {
                 "first_name": first_name,
@@ -482,7 +508,9 @@ async def get_enrollment_profile(ctx: Ctx, company_id: str) -> dict:
     Args:
         company_id: The Check company ID.
     """
-    return await check_api_get(ctx, f"/companies/{company_id}/enrollment_profile")
+    return await check_api_get(
+        ctx, api_path("companies", company_id, "enrollment_profile")
+    )
 
 
 async def create_enrollment_profile(
@@ -544,7 +572,7 @@ async def create_enrollment_profile(
     """
     return await check_api_put(
         ctx,
-        f"/companies/{company_id}/enrollment_profile",
+        api_path("companies", company_id, "enrollment_profile"),
         data=build_body(
             {},
             employee_count=employee_count,
@@ -632,7 +660,7 @@ async def update_enrollment_profile(
     """
     return await check_api_patch(
         ctx,
-        f"/companies/{company_id}/enrollment_profile",
+        api_path("companies", company_id, "enrollment_profile"),
         data=build_body(
             {},
             employee_count=employee_count,
@@ -671,7 +699,9 @@ async def start_implementation(ctx: Ctx, company_id: str) -> dict:
     Args:
         company_id: The Check company ID.
     """
-    return await check_api_post(ctx, f"/companies/{company_id}/start_implementation")
+    return await check_api_post(
+        ctx, api_path("companies", company_id, "start_implementation")
+    )
 
 
 async def cancel_implementation(ctx: Ctx, company_id: str) -> dict:
@@ -680,7 +710,9 @@ async def cancel_implementation(ctx: Ctx, company_id: str) -> dict:
     Args:
         company_id: The Check company ID.
     """
-    return await check_api_post(ctx, f"/companies/{company_id}/cancel_implementation")
+    return await check_api_post(
+        ctx, api_path("companies", company_id, "cancel_implementation")
+    )
 
 
 async def request_embedded_setup(ctx: Ctx, company_id: str) -> dict:
@@ -689,7 +721,9 @@ async def request_embedded_setup(ctx: Ctx, company_id: str) -> dict:
     Args:
         company_id: The Check company ID.
     """
-    return await check_api_post(ctx, f"/companies/{company_id}/request_embedded_setup")
+    return await check_api_post(
+        ctx, api_path("companies", company_id, "request_embedded_setup")
+    )
 
 
 # --- Sandbox simulation: tax statements ---
@@ -711,7 +745,13 @@ async def simulate_publish_employee_tax_statements(ctx: Ctx, company_id: str) ->
         company_id: The Check company ID (e.g. "com_xxxxx").
     """
     return await check_api_post(
-        ctx, f"/companies/{company_id}/simulate/publish_employee_tax_statements"
+        ctx,
+        api_path(
+            "companies",
+            company_id,
+            "simulate",
+            "publish_employee_tax_statements",
+        ),
     )
 
 
@@ -727,7 +767,13 @@ async def simulate_unpublish_employee_tax_statements(ctx: Ctx, company_id: str) 
         company_id: The Check company ID (e.g. "com_xxxxx").
     """
     return await check_api_post(
-        ctx, f"/companies/{company_id}/simulate/unpublish_employee_tax_statements"
+        ctx,
+        api_path(
+            "companies",
+            company_id,
+            "simulate",
+            "unpublish_employee_tax_statements",
+        ),
     )
 
 
@@ -746,7 +792,13 @@ async def simulate_publish_contractor_tax_statements(ctx: Ctx, company_id: str) 
         company_id: The Check company ID (e.g. "com_xxxxx").
     """
     return await check_api_post(
-        ctx, f"/companies/{company_id}/simulate/publish_contractor_tax_statements"
+        ctx,
+        api_path(
+            "companies",
+            company_id,
+            "simulate",
+            "publish_contractor_tax_statements",
+        ),
     )
 
 
@@ -764,7 +816,13 @@ async def simulate_unpublish_contractor_tax_statements(
         company_id: The Check company ID (e.g. "com_xxxxx").
     """
     return await check_api_post(
-        ctx, f"/companies/{company_id}/simulate/unpublish_contractor_tax_statements"
+        ctx,
+        api_path(
+            "companies",
+            company_id,
+            "simulate",
+            "unpublish_contractor_tax_statements",
+        ),
     )
 
 

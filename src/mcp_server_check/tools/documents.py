@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     build_body,
     build_params,
     check_api_download,
@@ -42,7 +43,7 @@ async def list_company_tax_documents(
     """
     return await check_api_list(
         ctx,
-        "/documents/company_tax_documents",
+        api_path("documents", "company_tax_documents"),
         params=build_params(
             limit=limit, cursor=cursor, company=company, year=year, quarter=quarter
         ),
@@ -55,7 +56,9 @@ async def get_company_tax_document(ctx: Ctx, document_id: str) -> dict:
     Args:
         document_id: The document ID.
     """
-    return await check_api_get(ctx, f"/documents/company_tax_documents/{document_id}")
+    return await check_api_get(
+        ctx, api_path("documents", "company_tax_documents", document_id)
+    )
 
 
 async def download_company_tax_document(ctx: Ctx, document_id: str) -> dict:
@@ -69,7 +72,8 @@ async def download_company_tax_document(ctx: Ctx, document_id: str) -> dict:
         document_id: The document ID.
     """
     return await check_api_download(
-        ctx, f"/documents/company_tax_documents/{document_id}/download"
+        ctx,
+        api_path("documents", "company_tax_documents", document_id, "download"),
     )
 
 
@@ -93,7 +97,7 @@ async def list_company_authorization_documents(
     """
     return await check_api_list(
         ctx,
-        "/documents/company_authorization_documents",
+        api_path("documents", "company_authorization_documents"),
         params=build_params(limit=limit, cursor=cursor, company=company, year=year),
     )
 
@@ -105,7 +109,8 @@ async def get_company_authorization_document(ctx: Ctx, document_id: str) -> dict
         document_id: The document ID.
     """
     return await check_api_get(
-        ctx, f"/documents/company_authorization_documents/{document_id}"
+        ctx,
+        api_path("documents", "company_authorization_documents", document_id),
     )
 
 
@@ -120,7 +125,13 @@ async def download_company_authorization_document(ctx: Ctx, document_id: str) ->
         document_id: The document ID.
     """
     return await check_api_download(
-        ctx, f"/documents/company_authorization_documents/{document_id}/download"
+        ctx,
+        api_path(
+            "documents",
+            "company_authorization_documents",
+            document_id,
+            "download",
+        ),
     )
 
 
@@ -146,7 +157,7 @@ async def list_employee_tax_documents(
     """
     return await check_api_list(
         ctx,
-        "/documents/employee_tax_documents",
+        api_path("documents", "employee_tax_documents"),
         params=build_params(
             limit=limit, cursor=cursor, employee=employee, company=company, year=year
         ),
@@ -159,7 +170,9 @@ async def get_employee_tax_document(ctx: Ctx, document_id: str) -> dict:
     Args:
         document_id: The document ID.
     """
-    return await check_api_get(ctx, f"/documents/employee_tax_documents/{document_id}")
+    return await check_api_get(
+        ctx, api_path("documents", "employee_tax_documents", document_id)
+    )
 
 
 async def download_employee_tax_document(ctx: Ctx, document_id: str) -> dict:
@@ -173,7 +186,8 @@ async def download_employee_tax_document(ctx: Ctx, document_id: str) -> dict:
         document_id: The document ID.
     """
     return await check_api_download(
-        ctx, f"/documents/employee_tax_documents/{document_id}/download"
+        ctx,
+        api_path("documents", "employee_tax_documents", document_id, "download"),
     )
 
 
@@ -199,7 +213,7 @@ async def list_contractor_tax_documents(
     """
     return await check_api_list(
         ctx,
-        "/documents/contractor_tax_documents",
+        api_path("documents", "contractor_tax_documents"),
         params=build_params(
             limit=limit,
             cursor=cursor,
@@ -217,7 +231,8 @@ async def get_contractor_tax_document(ctx: Ctx, document_id: str) -> dict:
         document_id: The document ID.
     """
     return await check_api_get(
-        ctx, f"/documents/contractor_tax_documents/{document_id}"
+        ctx,
+        api_path("documents", "contractor_tax_documents", document_id),
     )
 
 
@@ -232,7 +247,8 @@ async def download_contractor_tax_document(ctx: Ctx, document_id: str) -> dict:
         document_id: The document ID.
     """
     return await check_api_download(
-        ctx, f"/documents/contractor_tax_documents/{document_id}/download"
+        ctx,
+        api_path("documents", "contractor_tax_documents", document_id, "download"),
     )
 
 
@@ -254,7 +270,7 @@ async def list_setup_documents(
     """
     return await check_api_list(
         ctx,
-        "/documents/setup_documents",
+        api_path("documents", "setup_documents"),
         params=build_params(limit=limit, cursor=cursor, company=company),
     )
 
@@ -265,7 +281,9 @@ async def get_setup_document(ctx: Ctx, document_id: str) -> dict:
     Args:
         document_id: The document ID.
     """
-    return await check_api_get(ctx, f"/documents/setup_documents/{document_id}")
+    return await check_api_get(
+        ctx, api_path("documents", "setup_documents", document_id)
+    )
 
 
 async def download_setup_document(ctx: Ctx, document_id: str) -> dict:
@@ -283,7 +301,9 @@ async def download_setup_document(ctx: Ctx, document_id: str) -> dict:
     Args:
         document_id: The document ID.
     """
-    document = await check_api_get(ctx, f"/documents/setup_documents/{document_id}")
+    document = await check_api_get(
+        ctx, api_path("documents", "setup_documents", document_id)
+    )
     if document.get("error"):
         return document
     document_type = document.get("document_type") or ""
@@ -298,7 +318,8 @@ async def download_setup_document(ctx: Ctx, document_id: str) -> dict:
             ),
         }
     return await check_api_download(
-        ctx, f"/documents/setup_documents/{document_id}/download"
+        ctx,
+        api_path("documents", "setup_documents", document_id, "download"),
     )
 
 
@@ -320,7 +341,7 @@ async def list_company_provided_documents(
     """
     return await check_api_list(
         ctx,
-        "/company_provided_documents",
+        api_path("company_provided_documents"),
         params=build_params(limit=limit, cursor=cursor, company=company),
     )
 
@@ -331,7 +352,7 @@ async def get_company_provided_document(ctx: Ctx, document_id: str) -> dict:
     Args:
         document_id: The document ID.
     """
-    return await check_api_get(ctx, f"/company_provided_documents/{document_id}")
+    return await check_api_get(ctx, api_path("company_provided_documents", document_id))
 
 
 async def create_company_provided_document(
@@ -353,7 +374,7 @@ async def create_company_provided_document(
     """
     return await check_api_post(
         ctx,
-        "/company_provided_documents",
+        api_path("company_provided_documents"),
         data=build_body({"company": company}, document_type=document_type),
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
@@ -369,7 +390,9 @@ async def upload_company_provided_document_file(
         data: Upload metadata.
     """
     return await check_api_post(
-        ctx, f"/company_provided_documents/{document_id}/upload", data=data
+        ctx,
+        api_path("company_provided_documents", document_id, "upload"),
+        data=data,
     )
 
 

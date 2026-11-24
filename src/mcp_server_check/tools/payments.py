@@ -9,6 +9,7 @@ from fastmcp import FastMCP
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     build_body,
     build_params,
     check_api_get,
@@ -43,6 +44,12 @@ async def list_payments(
     list_payment_attempts for each payment (or get_payment, which includes
     the attempts) rather than filtering this list on status.
 
+    Filtering by company alone is slow for a company with a long payment
+    history: several seconds for a small page, and a page of 100 can outrun
+    a run_code program's time limit. Filter by payroll or parent_id when you
+    know them, keep the limit small, and do not fan out over many companies
+    in one program.
+
     Args:
         company: Filter to payments belonging to this Check company ID (e.g. "com_xxxxx").
         payroll: Filter by payroll ID (e.g. "pay_xxxxx").
@@ -63,7 +70,7 @@ async def list_payments(
     """
     return await check_api_list(
         ctx,
-        "/payments",
+        api_path("payments"),
         params=build_params(
             company=company,
             payroll=payroll,
@@ -94,12 +101,12 @@ async def get_payment(ctx: Ctx, payment_id: str) -> dict:
     Args:
         payment_id: The Check payment ID.
     """
-    return await check_api_get(ctx, f"/payments/{payment_id}")
+    return await check_api_get(ctx, api_path("payments", payment_id))
 
 
 async def list_payment_attempts(
     ctx: Ctx,
-    payment_id: str,
+    payment: str,
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
@@ -111,14 +118,14 @@ async def list_payment_attempts(
     with only a failed attempt is still unfunded.
 
     Args:
-        payment_id: The Check payment ID.
+        payment: The Check payment ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     return await check_api_list(
         ctx,
-        "/payment_attempts",
-        params=build_params(payment=payment_id, limit=limit, cursor=cursor),
+        api_path("payment_attempts"),
+        params=build_params(payment=payment, limit=limit, cursor=cursor),
     )
 
 
@@ -145,7 +152,7 @@ async def retry_payment(
     """
     return await check_api_post(
         ctx,
-        f"/payments/{payment_id}/retry",
+        api_path("payments", payment_id, "retry"),
         data=build_body({}, bank_account=bank_account, payment_type=payment_type)
         or None,
     )
@@ -157,7 +164,7 @@ async def refund_payment(ctx: Ctx, payment_id: str) -> dict:
     Args:
         payment_id: The Check payment ID.
     """
-    return await check_api_post(ctx, f"/payments/{payment_id}/refund")
+    return await check_api_post(ctx, api_path("payments", payment_id, "refund"))
 
 
 # --- Sandbox simulation ---
@@ -176,7 +183,9 @@ async def simulate_complete_payment(ctx: Ctx, payment_id: str) -> dict:
             credit with list_payments: the one whose parent is their payroll
             item or contractor payment.
     """
-    return await check_api_post(ctx, f"/payments/{payment_id}/simulate/complete")
+    return await check_api_post(
+        ctx, api_path("payments", payment_id, "simulate", "complete")
+    )
 
 
 async def simulate_fail_payment(ctx: Ctx, payment_id: str) -> dict:
@@ -192,7 +201,9 @@ async def simulate_fail_payment(ctx: Ctx, payment_id: str) -> dict:
     Args:
         payment_id: The Check payment ID (e.g. "pyt_xxxxx").
     """
-    return await check_api_post(ctx, f"/payments/{payment_id}/simulate/fail")
+    return await check_api_post(
+        ctx, api_path("payments", payment_id, "simulate", "fail")
+    )
 
 
 async def cancel_payment(ctx: Ctx, payment_id: str) -> dict:
@@ -201,7 +212,7 @@ async def cancel_payment(ctx: Ctx, payment_id: str) -> dict:
     Args:
         payment_id: The Check payment ID.
     """
-    return await check_api_post(ctx, f"/payments/{payment_id}/cancel")
+    return await check_api_post(ctx, api_path("payments", payment_id, "cancel"))
 
 
 async def reverse_payment(
@@ -225,7 +236,7 @@ async def reverse_payment(
     """
     return await check_api_post(
         ctx,
-        f"/payments/{payment_id}/reverse",
+        api_path("payments", payment_id, "reverse"),
         data={"reason": reason},
         headers={"X-Idempotency-Key": idempotency_key or str(uuid.uuid4())},
     )

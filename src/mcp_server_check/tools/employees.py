@@ -5,9 +5,15 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
-from mcp_server_check.types import Address, FormParameter
+from mcp_server_check.types import (
+    Address,
+    CompanyDefinedAttributeUpdate,
+    FormParameter,
+    ReciprocityElectionUpdate,
+)
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     apply_clear_fields,
     build_body,
     build_params,
@@ -47,7 +53,7 @@ async def list_employees(
     """
     return await check_api_list(
         ctx,
-        "/employees",
+        api_path("employees"),
         params=merge_metadata_filter_params(
             build_params(
                 company=company,
@@ -85,7 +91,7 @@ async def search_employees(
     """
     return await check_api_list(
         ctx,
-        "/employees/search",
+        api_path("employees", "search"),
         params=build_params(term=term, limit=limit, cursor=cursor),
     )
 
@@ -96,7 +102,7 @@ async def get_employee(ctx: Ctx, employee_id: str) -> dict:
     Args:
         employee_id: The Check employee ID (e.g. "emp_xxxxx").
     """
-    return await check_api_get(ctx, f"/employees/{employee_id}")
+    return await check_api_get(ctx, api_path("employees", employee_id))
 
 
 async def create_employee(
@@ -149,7 +155,7 @@ async def create_employee(
     """
     return await check_api_post(
         ctx,
-        "/employees",
+        api_path("employees"),
         data=build_body(
             {"company": company, "first_name": first_name, "last_name": last_name},
             middle_name=middle_name,
@@ -252,7 +258,7 @@ async def update_employee(
     if clear_mailing_address and "mailing_address" not in merged_clear_fields:
         merged_clear_fields.append("mailing_address")
     apply_clear_fields(body, merged_clear_fields, CLEARABLE_EMPLOYEE_FIELDS)
-    return await check_api_patch(ctx, f"/employees/{employee_id}", data=body)
+    return await check_api_patch(ctx, api_path("employees", employee_id), data=body)
 
 
 async def onboard_employee(ctx: Ctx, employee_id: str) -> dict:
@@ -261,7 +267,7 @@ async def onboard_employee(ctx: Ctx, employee_id: str) -> dict:
     Args:
         employee_id: The Check employee ID.
     """
-    return await check_api_post(ctx, f"/employees/{employee_id}/onboard")
+    return await check_api_post(ctx, api_path("employees", employee_id, "onboard"))
 
 
 # --- Paystubs ---
@@ -269,7 +275,7 @@ async def onboard_employee(ctx: Ctx, employee_id: str) -> dict:
 
 async def list_employee_paystubs(
     ctx: Ctx,
-    employee_id: str,
+    employee: str,
     limit: int | None = None,
     cursor: str | None = None,
     payroll: str | None = None,
@@ -281,7 +287,7 @@ async def list_employee_paystubs(
     """List paystubs for an employee.
 
     Args:
-        employee_id: The Check employee ID.
+        employee: The Check employee ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
         payroll: Filter by payroll ID.
@@ -292,7 +298,7 @@ async def list_employee_paystubs(
     """
     return await check_api_list(
         ctx,
-        f"/employees/{employee_id}/paystubs",
+        api_path("employees", employee, "paystubs"),
         params=build_params(
             limit=limit,
             cursor=cursor,
@@ -312,7 +318,10 @@ async def get_employee_paystub(ctx: Ctx, employee_id: str, payroll_id: str) -> d
         employee_id: The Check employee ID.
         payroll_id: The Check payroll ID.
     """
-    return await check_api_get(ctx, f"/employees/{employee_id}/paystubs/{payroll_id}")
+    return await check_api_get(
+        ctx,
+        api_path("employees", employee_id, "paystubs", payroll_id),
+    )
 
 
 # --- Forms ---
@@ -320,20 +329,20 @@ async def get_employee_paystub(ctx: Ctx, employee_id: str, payroll_id: str) -> d
 
 async def list_employee_forms(
     ctx: Ctx,
-    employee_id: str,
+    employee: str,
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
     """List forms for an employee.
 
     Args:
-        employee_id: The Check employee ID.
+        employee: The Check employee ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
     """
     return await check_api_list(
         ctx,
-        f"/employees/{employee_id}/forms",
+        api_path("employees", employee, "forms"),
         params=build_params(limit=limit, cursor=cursor),
     )
 
@@ -345,7 +354,9 @@ async def get_employee_form(ctx: Ctx, employee_id: str, form_id: str) -> dict:
         employee_id: The Check employee ID.
         form_id: The form ID.
     """
-    return await check_api_get(ctx, f"/employees/{employee_id}/forms/{form_id}")
+    return await check_api_get(
+        ctx, api_path("employees", employee_id, "forms", form_id)
+    )
 
 
 async def submit_employee_form(
@@ -366,7 +377,9 @@ async def submit_employee_form(
     if parameters is not None:
         body = {"parameters": parameters}
     return await check_api_post(
-        ctx, f"/employees/{employee_id}/forms/{form_id}/submit", data=body
+        ctx,
+        api_path("employees", employee_id, "forms", form_id, "submit"),
+        data=body,
     )
 
 
@@ -388,7 +401,15 @@ async def sign_and_submit_employee_form(
     if parameters is not None:
         body = {"parameters": parameters}
     return await check_api_post(
-        ctx, f"/employees/{employee_id}/forms/{form_id}/sign_and_submit", data=body
+        ctx,
+        api_path(
+            "employees",
+            employee_id,
+            "forms",
+            form_id,
+            "sign_and_submit",
+        ),
+        data=body,
     )
 
 
@@ -402,24 +423,65 @@ async def get_employee_company_defined_attributes(ctx: Ctx, employee_id: str) ->
         employee_id: The Check employee ID.
     """
     return await check_api_get(
-        ctx, f"/employees/{employee_id}/company_defined_attributes"
+        ctx, api_path("employees", employee_id, "company_defined_attributes")
     )
 
 
+def _company_defined_attributes_body(
+    attributes: list[CompanyDefinedAttributeUpdate] | dict,
+) -> dict:
+    """Wrap attribute updates in the body the API expects.
+
+    A dict already carrying ``company_defined_attributes`` passes through. A
+    flat ``{name: value}`` dict is converted to the list form, since the API
+    answers the flat shape with a 200 and persists nothing.
+    """
+    if isinstance(attributes, dict):
+        if "company_defined_attributes" in attributes:
+            return attributes
+        attributes = [{"name": k, "value": v} for k, v in attributes.items()]
+    return {"company_defined_attributes": list(attributes)}
+
+
 async def update_employee_company_defined_attributes(
-    ctx: Ctx, employee_id: str, data: dict
+    ctx: Ctx,
+    employee_id: str,
+    attributes: list[CompanyDefinedAttributeUpdate] | dict | None = None,
+    data: dict | None = None,
 ) -> dict:
     """Update company-defined attributes for an employee.
 
-    The schema is dynamic and defined per-company, so attributes are passed
-    as a free-form dict.
+    The request body is ``{"company_defined_attributes": [...]}``; this tool
+    builds it from ``attributes``. Each item names an attribute (``name``,
+    from get_employee_company_defined_attributes) and its ``value``, plus an
+    optional ``effective_start`` (YYYY-MM-DD, required when the attribute's
+    ``effective_start_required`` is true). Values are strings, as the API
+    returns them: ``"true"``/``"false"`` for boolean attributes, digits only
+    for SOC codes, and so on per each attribute's ``description``.
+
+    A flat ``{name: value}`` dict is NOT accepted by the API: it returns 200
+    and persists nothing. One passed here is converted to the list form.
+
+    Example::
+
+        [
+            {"name": "in_job_title", "value": "Bartender"},
+            {"name": "in_soc_code", "value": "353011", "effective_start": "2026-01-01"}
+        ]
 
     Args:
         employee_id: The Check employee ID.
-        data: Attributes to update (schema varies by company configuration).
+        attributes: List of attribute updates, each with ``name`` and ``value``.
+        data: Deprecated alias for ``attributes``.
     """
+    if attributes is None:
+        attributes = data
+    if attributes is None:
+        raise ValueError("attributes is required.")
     return await check_api_patch(
-        ctx, f"/employees/{employee_id}/company_defined_attributes", data=data
+        ctx,
+        api_path("employees", employee_id, "company_defined_attributes"),
+        data=_company_defined_attributes_body(attributes),
     )
 
 
@@ -432,20 +494,32 @@ async def get_employee_reciprocity_elections(ctx: Ctx, employee_id: str) -> dict
     Args:
         employee_id: The Check employee ID.
     """
-    return await check_api_get(ctx, f"/employees/{employee_id}/reciprocity_elections")
+    return await check_api_get(
+        ctx, api_path("employees", employee_id, "reciprocity_elections")
+    )
 
 
 async def update_employee_reciprocity_elections(
-    ctx: Ctx, employee_id: str, data: dict
+    ctx: Ctx, employee_id: str, data: list[ReciprocityElectionUpdate]
 ) -> dict:
     """Update reciprocity elections for an employee.
 
+    The request body must be a JSON array. Each item names a ``jurisdiction``
+    (``jur_*``, from get_employee_reciprocity_elections) with ``opt_in`` and
+    ``effective_start``.
+
+    Example::
+
+        [{"jurisdiction": "jur_abc123", "opt_in": True, "effective_start": "2026-01-01"}]
+
     Args:
         employee_id: The Check employee ID.
-        data: Reciprocity election data (complex nested structure).
+        data: List of reciprocity elections to set.
     """
     return await check_api_patch(
-        ctx, f"/employees/{employee_id}/reciprocity_elections", data=data
+        ctx,
+        api_path("employees", employee_id, "reciprocity_elections"),
+        data=data,
     )
 
 
@@ -462,7 +536,9 @@ async def authorize_employee_partner(
         data: Partner authorization details.
     """
     return await check_api_post(
-        ctx, f"/employees/{employee_id}/authorize_partner", data=data
+        ctx,
+        api_path("employees", employee_id, "authorize_partner"),
+        data=data,
     )
 
 

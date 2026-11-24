@@ -9,6 +9,7 @@ from fastmcp import FastMCP
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     build_body,
     build_params,
     check_api_delete,
@@ -34,7 +35,7 @@ async def list_webhook_configs(
     """
     return await check_api_list(
         ctx,
-        "/webhook_configs",
+        api_path("webhook_configs"),
         params=build_params(company=company, limit=limit, cursor=cursor),
     )
 
@@ -45,7 +46,7 @@ async def get_webhook_config(ctx: Ctx, webhook_config_id: str) -> dict:
     Args:
         webhook_config_id: The Check webhook config ID.
     """
-    return await check_api_get(ctx, f"/webhook_configs/{webhook_config_id}")
+    return await check_api_get(ctx, api_path("webhook_configs", webhook_config_id))
 
 
 async def create_webhook_config(
@@ -70,7 +71,7 @@ async def create_webhook_config(
     """
     return await check_api_post(
         ctx,
-        "/webhook_configs",
+        api_path("webhook_configs"),
         data=build_body(
             {"url": url},
             api_version=api_version,
@@ -105,7 +106,7 @@ async def update_webhook_config(
     """
     return await check_api_patch(
         ctx,
-        f"/webhook_configs/{webhook_config_id}",
+        api_path("webhook_configs", webhook_config_id),
         data=build_body(
             {},
             url=url,
@@ -122,7 +123,7 @@ async def delete_webhook_config(ctx: Ctx, webhook_config_id: str) -> dict:
     Args:
         webhook_config_id: The Check webhook config ID.
     """
-    return await check_api_delete(ctx, f"/webhook_configs/{webhook_config_id}")
+    return await check_api_delete(ctx, api_path("webhook_configs", webhook_config_id))
 
 
 async def ping_webhook_config(ctx: Ctx, webhook_config_id: str) -> dict:
@@ -131,7 +132,9 @@ async def ping_webhook_config(ctx: Ctx, webhook_config_id: str) -> dict:
     Args:
         webhook_config_id: The Check webhook config ID.
     """
-    return await check_api_post(ctx, f"/webhook_configs/{webhook_config_id}/ping")
+    return await check_api_post(
+        ctx, api_path("webhook_configs", webhook_config_id, "ping")
+    )
 
 
 async def list_event_types(
@@ -151,7 +154,7 @@ async def list_event_types(
     """
     return await check_api_get(
         ctx,
-        "/event_types",
+        api_path("event_types"),
         params=build_params(webhook_config=webhook_config, api_version=api_version),
     )
 
@@ -183,7 +186,7 @@ async def list_webhook_deliveries(
     """
     return await check_api_list(
         ctx,
-        "/webhook_deliveries",
+        api_path("webhook_deliveries"),
         params=build_params(
             webhook_config=webhook_config,
             company=company,
@@ -205,7 +208,7 @@ async def get_webhook_delivery(ctx: Ctx, webhook_delivery_id: str) -> dict:
     Args:
         webhook_delivery_id: The Check webhook delivery ID (e.g. "whe_xxxxx").
     """
-    return await check_api_get(ctx, f"/webhook_deliveries/{webhook_delivery_id}")
+    return await check_api_get(ctx, api_path("webhook_deliveries", webhook_delivery_id))
 
 
 async def retry_webhook_delivery(ctx: Ctx, webhook_delivery_id: str) -> dict:
@@ -217,7 +220,7 @@ async def retry_webhook_delivery(ctx: Ctx, webhook_delivery_id: str) -> dict:
     """
     return await check_api_post(
         ctx,
-        f"/webhook_deliveries/{webhook_delivery_id}/retry",
+        api_path("webhook_deliveries", webhook_delivery_id, "retry"),
         headers={"X-Idempotency-Key": str(uuid.uuid4())},
     )
 

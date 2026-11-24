@@ -8,14 +8,17 @@ import logging
 import httpx
 import pytest
 from fastmcp import Client
+from fastmcp.server.middleware import MiddlewareContext
 from fastmcp.tools import ToolResult
-from mcp.types import CallToolRequestParams, CallToolResult
-from mcp_server_check.errors import CheckToolError
+from mcp.types import CallToolRequestParams, CallToolResult, TextContent
+from mcp_server_check.code_mode import CallRecord, render_trace
+from mcp_server_check.errors import CheckToolError, ResponseTooLargeError
 from mcp_server_check.middleware import (
     ResponseSize,
     ResponseSizeLimitMiddleware,
     ResultBudgetMiddleware,
     ToolCall,
+    largest_parts,
 )
 from mcp_server_check.server import CheckMCP, lifespan, setup_tools
 from mcp_server_check.tool_filter import ToolFilter
@@ -89,6 +92,35 @@ async def call(server: CheckMCP, tool_mode: str, name: str, arguments: dict):
 def error_of(result) -> dict:
     assert result.is_error is True, "error_of: Expected a tool error"
     return json.loads(result.content[0].text)
+
+
+def run_code_result(value, calls: list[CallRecord]) -> ToolResult:
+    """A run_code result as the server builds it, with every call's arguments."""
+    outcome = {
+        "result": value,
+        "logs": "",
+        "calls": [c.to_dict() for c in calls],
+        "duration_ms": 1234,
+    }
+    return ToolResult(
+        content=[
+            TextContent(type="text", text=json.dumps(outcome, indent=2, default=str)),
+            TextContent(type="text", text=render_trace(calls, 1234)),
+        ]
+    )
+
+
+async def budget_run_code(result: ToolResult) -> ToolResult:
+    """Pass a run_code result through ResultBudgetMiddleware at its default budget."""
+    context = MiddlewareContext(
+        message=CallToolRequestParams(name="run_code", arguments={"code": "..."}),
+        method="tools/call",
+    )
+
+    async def call_next(_context):
+        return result
+
+    return await ResultBudgetMiddleware().on_call_tool(context, call_next)
 
 
 class TestToolCall:
@@ -368,6 +400,50 @@ class TestResultBudgetMiddleware:
         assert result.is_error is False
         assert len(result.content[0].text) > 200
 
+    @pytest.mark.anyio
+    async def test_run_code_call_log_is_not_budgeted(self):
+        """A 10k result with the call log of a 20-employee write program: the
+        whole text is over the default budget, the program's output is not."""
+        calls = [
+            CallRecord(
+                tool="create_employee" if i % 7 else "list_employees",
+                arguments={
+                    "company_id": "com_00000000000000000001",
+                    "first_name": "Jane",
+                    "last_name": f"Doe {i}",
+                    "email": f"jane.doe{i}@example.com",
+                },
+                status="ok",
+                duration_ms=120 + i,
+            )
+            for i in range(150)
+        ]
+        result = run_code_result("x" * 10_000, calls)
+        assert sum(len(b.text) for b in result.content) > 50_000
+
+        assert await budget_run_code(result) is result
+
+    @pytest.mark.anyio
+    async def test_run_code_result_over_budget_is_measured_without_the_log(self):
+        value = "x" * 50_001
+        calls = [
+            CallRecord(tool="get_company", arguments={"company_id": "com_1"})
+            for _ in range(10)
+        ]
+        result = run_code_result(value, calls)
+
+        with pytest.raises(CheckToolError) as info:
+            await budget_run_code(result)
+
+        error = info.value.payload
+        assert error["response_too_large"] is True
+        assert error["limit"] == 50_000
+        assert error["size"] == len(json.dumps({"result": value, "logs": ""}, indent=2))
+        assert error["size"] < sum(len(b.text) for b in result.content)
+        assert error["detail"].startswith(
+            f"The run_code result is {error['size']} characters, over the 50000-"
+        )
+
     def test_default_budget(self, make_server):
         budgets = [
             middleware.max_chars
@@ -391,6 +467,117 @@ class TestResultBudgetMiddleware:
     def test_rejects_non_positive_budget(self):
         with pytest.raises(ValueError, match="max_chars must be positive"):
             ResultBudgetMiddleware(max_chars=0)
+
+
+class TestTooLargeShape:
+    """A too-large run_code result describes itself, so the next program can
+    pick its part instead of probing the keys and lengths first."""
+
+    BUDGET = 500
+
+    async def too_large(self, name: str, text: str) -> dict:
+        middleware = ResultBudgetMiddleware(max_chars=self.BUDGET)
+        context = MiddlewareContext(
+            message=CallToolRequestParams(name=name, arguments={}),
+            method="tools/call",
+        )
+
+        async def call_next(_context):
+            return ToolResult(content=text)
+
+        with pytest.raises(ResponseTooLargeError) as info:
+            await middleware.on_call_tool(context, call_next)
+        return info.value.payload
+
+    @pytest.mark.anyio
+    async def test_run_code_result_carries_the_shape_of_its_result(self):
+        value = {
+            "employees": [{"id": "emp_1", "first_name": "Jane"}] * 20,
+            "count": 20,
+        }
+        envelope = {"result": value, "logs": "", "calls": [], "duration_ms": 3}
+
+        payload = await self.too_large("run_code", json.dumps(envelope))
+
+        assert payload["response_too_large"] is True
+        assert payload["size"] == len(
+            json.dumps({"result": value, "logs": ""}, indent=2)
+        )
+        assert payload["limit"] == self.BUDGET
+        assert payload["shape"]["type"] == "dict"
+        assert payload["shape"]["keys"]["employees"] == {
+            "type": "list",
+            "size": len(json.dumps(value["employees"], separators=(",", ":"))),
+            "length": 20,
+            "item_keys": ["id", "first_name"],
+        }
+        assert payload["shape"]["keys"]["count"] == {"type": "int", "size": 2}
+        assert '"shape" below describes the result' in payload["detail"]
+
+    @pytest.mark.anyio
+    async def test_run_code_text_without_an_envelope_is_shaped_whole(self):
+        """Whatever JSON the budget measured is what gets described."""
+        value = [{"id": f"log_{i}", "response_body": "x" * 300} for i in range(3)]
+
+        payload = await self.too_large("run_code", json.dumps(value))
+
+        assert payload["shape"] == {
+            "type": "list",
+            "size": len(json.dumps(value, separators=(",", ":"))),
+            "length": 3,
+            "item_keys": ["id", "response_body"],
+        }
+
+    @pytest.mark.anyio
+    async def test_run_code_text_that_is_not_json_has_no_shape(self):
+        payload = await self.too_large("run_code", "x" * 600)
+
+        assert "shape" not in payload
+        assert payload["response_too_large"] is True
+
+    @pytest.mark.anyio
+    async def test_other_tool_error_is_unchanged(self):
+        value = {"id": "com_001", "notes": "x" * 600}
+
+        payload = await self.too_large("get_company", json.dumps(value))
+
+        assert payload == {
+            "error": True,
+            "response_too_large": True,
+            "detail": (
+                f"The get_company result is {len(json.dumps(value))} characters, "
+                f"over the {self.BUDGET}-character response limit. Narrow the "
+                "request with filters, a lower limit, or specific IDs."
+            ),
+            "size": len(json.dumps(value)),
+            "limit": self.BUDGET,
+        }
+
+
+class TestLargestParts:
+    def test_names_the_field_not_the_record(self):
+        """Three API logs with big bodies: the bodies are what to cut."""
+        logs = [{"id": f"log_{i}", "response_body": "x" * 5000} for i in range(3)]
+
+        parts = largest_parts(logs, 1000, path="result")
+
+        assert [where for where, _, _ in parts] == [
+            "result[0]['response_body']",
+            "result[1]['response_body']",
+            "result[2]['response_body']",
+        ]
+
+    def test_a_page_of_small_records_is_named_as_the_page(self):
+        page = {"results": [{"id": i, "note": "y" * 50} for i in range(100)]}
+
+        [(where, size, items)] = largest_parts(page, 1000, path="result")
+
+        assert where == "result['results']"
+        assert items == 100
+        assert size > 5000
+
+    def test_nothing_over_the_floor(self):
+        assert largest_parts({"a": "small"}, 1000) == []
 
 
 class TestRecoveryMiddleware:
@@ -456,6 +643,36 @@ class TestRecoveryMiddleware:
             "status_code": 400,
             "detail": {"error": "Bad range"},
         }
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("tool_mode", ["all", "dynamic"])
+    async def test_redirected_applied_for_ids_report_points_to_company_report(
+        self, mock_api, make_server, tool_mode
+    ):
+        mock_api.get("/reports/applied_for_ids_detailed").mock(
+            return_value=httpx.Response(
+                302, headers={"location": "https://docs.checkhq.com"}
+            )
+        )
+
+        result = await call(
+            make_server(tool_mode), tool_mode, "get_applied_for_ids_report", {}
+        )
+
+        error = error_of(result)
+        assert error["endpoint_unavailable"] is True
+        assert error["status_code"] == 302
+        assert error["alternatives"] == []
+        assert error["hints"] == [
+            {
+                "tool": "get_company_report",
+                "description": (
+                    "Request the report per company with report_type "
+                    '"applied_for_ids_detailed".'
+                ),
+                "arguments": ["company_id"],
+            }
+        ]
 
 
 class TestIsToolAvailable:

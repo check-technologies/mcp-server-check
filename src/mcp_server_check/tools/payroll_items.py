@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     check_api_delete,
     check_api_get,
     check_api_list,
@@ -46,7 +47,7 @@ async def list_payroll_items(
         params["ids"] = ",".join(ids)
     if cursor:
         params["cursor"] = cursor
-    return await check_api_list(ctx, "/payroll_items", params=params or None)
+    return await check_api_list(ctx, api_path("payroll_items"), params=params or None)
 
 
 async def get_payroll_item(ctx: Ctx, payroll_item_id: str) -> dict:
@@ -58,7 +59,7 @@ async def get_payroll_item(ctx: Ctx, payroll_item_id: str) -> dict:
     Args:
         payroll_item_id: The Check payroll item ID.
     """
-    return await check_api_get(ctx, f"/payroll_items/{payroll_item_id}")
+    return await check_api_get(ctx, api_path("payroll_items", payroll_item_id))
 
 
 async def create_payroll_item(
@@ -92,7 +93,7 @@ async def create_payroll_item(
         body["reimbursements"] = reimbursements
     return await check_api_post(
         ctx,
-        "/payroll_items",
+        api_path("payroll_items"),
         data=body,
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
@@ -150,7 +151,9 @@ async def update_payroll_item(
         body["paper_check_number"] = paper_check_number
     if metadata is not None:
         body["metadata"] = metadata
-    return await check_api_patch(ctx, f"/payroll_items/{payroll_item_id}", data=body)
+    return await check_api_patch(
+        ctx, api_path("payroll_items", payroll_item_id), data=body
+    )
 
 
 async def bulk_update_payroll_items(ctx: Ctx, data: dict) -> dict:
@@ -161,7 +164,7 @@ async def bulk_update_payroll_items(ctx: Ctx, data: dict) -> dict:
     Args:
         data: Bulk update payload with items array.
     """
-    return await check_api_patch(ctx, "/payroll_items", data=data)
+    return await check_api_patch(ctx, api_path("payroll_items"), data=data)
 
 
 async def delete_payroll_item(ctx: Ctx, payroll_item_id: str) -> dict:
@@ -170,7 +173,7 @@ async def delete_payroll_item(ctx: Ctx, payroll_item_id: str) -> dict:
     Args:
         payroll_item_id: The Check payroll item ID.
     """
-    return await check_api_delete(ctx, f"/payroll_items/{payroll_item_id}")
+    return await check_api_delete(ctx, api_path("payroll_items", payroll_item_id))
 
 
 async def bulk_delete_payroll_items(ctx: Ctx, ids: list[str]) -> dict:
@@ -180,7 +183,7 @@ async def bulk_delete_payroll_items(ctx: Ctx, ids: list[str]) -> dict:
         ids: List of payroll item IDs to delete.
     """
     params = {"ids": ",".join(ids)}
-    return await check_api_delete(ctx, "/payroll_items", params=params)
+    return await check_api_delete(ctx, api_path("payroll_items"), params=params)
 
 
 async def get_payroll_item_paper_check(ctx: Ctx, payroll_item_id: str) -> dict:
@@ -189,7 +192,9 @@ async def get_payroll_item_paper_check(ctx: Ctx, payroll_item_id: str) -> dict:
     Args:
         payroll_item_id: The Check payroll item ID.
     """
-    return await check_api_get(ctx, f"/payroll_items/{payroll_item_id}/paper_check")
+    return await check_api_get(
+        ctx, api_path("payroll_items", payroll_item_id, "paper_check")
+    )
 
 
 async def gross_up_payroll_item(
@@ -216,7 +221,7 @@ async def gross_up_payroll_item(
     body = {"earnings": earnings}
     return await check_api_post(
         ctx,
-        f"/payroll_items/{payroll_item_id}/gross_up",
+        api_path("payroll_items", payroll_item_id, "gross_up"),
         data=body,
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )

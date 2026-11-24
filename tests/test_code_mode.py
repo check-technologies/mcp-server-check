@@ -13,8 +13,10 @@ import pytest
 from fastmcp import Client, Context
 from mcp.server.lowlevel.server import Server
 from mcp_server_check.code_mode import (
+    MAX_CALLS_WITH_ARGUMENTS,
     CallRecord,
     CodeModeSettings,
+    call_log,
     render_signature,
     render_stub,
     render_stubs,
@@ -359,6 +361,149 @@ async def test_hybrid_server_lists_and_runs_both_routes(mock_api, hybrid_server)
         assert "async def list_companies(" in stubs.content[0].text
 
 
+# --- list pages in programs ---
+
+
+@pytest.mark.anyio
+async def test_run_code_list_pages_carry_full_records(mock_api, code_server):
+    """A program filters list pages inside the sandbox and returns only its
+    final value, so list tools give it full records. Summaries there forced
+    an N+1: list, then get_* per record for the fields the summary dropped
+    (one week of production traffic: 317 get_employee calls after
+    list_employees in five programs)."""
+    mock_api.get("/companies").mock(return_value=httpx.Response(200, json=COMPANIES))
+    is_error, payload = await _run(
+        code_server,
+        "page = await check.list_companies()\n"
+        '[c.get("secret_field") for c in page["results"]]',
+    )
+    assert not is_error, payload
+    assert payload["result"] == ["x", "y"]
+    assert [c["tool"] for c in payload["calls"]] == ["list_companies"]
+
+
+@pytest.mark.anyio
+async def test_run_tool_list_pages_stay_summaries_beside_run_code(
+    mock_api, hybrid_server
+):
+    """Full records are a code-mode affordance: the same list tool through
+    run_tool, whose result reaches the model whole, still summarizes, before
+    and after a program on the same server."""
+    mock_api.get("/companies").mock(return_value=httpx.Response(200, json=COMPANIES))
+    program = 'page = await check.list_companies()\nsorted(page["results"][0])'
+
+    async def run_tool_fields(client) -> list[str]:
+        direct = await client.call_tool(
+            "run_tool", {"tool_name": "list_companies", "arguments": {}}
+        )
+        return sorted(json.loads(direct.content[0].text)["results"][0])
+
+    async with Client(hybrid_server) as client:
+        assert await run_tool_fields(client) == ["id", "legal_name"]
+        result = await client.call_tool("run_code", {"code": program})
+        assert json.loads(result.content[0].text)["result"] == [
+            "id",
+            "legal_name",
+            "secret_field",
+        ]
+        assert await run_tool_fields(client) == ["id", "legal_name"]
+
+
+@pytest.mark.anyio
+async def test_run_code_composite_tools_carry_full_list_records(mock_api, code_server):
+    """Composite tools build their list pieces with check_api_list, so a
+    program gets full records from them too, with a payroll's inlined items
+    replaced by a count the way get_payroll does."""
+    mock_api.get("/companies/com_1").mock(
+        return_value=httpx.Response(200, json={"id": "com_1", "legal_name": "Acme"})
+    )
+    mock_api.get("/employees").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "results": [
+                    {"id": "emp_1", "first_name": "Jane", "residence": {"state": "CA"}}
+                ],
+                "next": None,
+                "previous": None,
+            },
+        )
+    )
+    mock_api.get("/payrolls").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "results": [
+                    {
+                        "id": "pay_1",
+                        "status": "paid",
+                        "items": [{"id": "itm_1"}, {"id": "itm_2"}],
+                    }
+                ],
+                "next": None,
+                "previous": None,
+            },
+        )
+    )
+    mock_api.get("/bank_accounts").mock(
+        return_value=httpx.Response(
+            200, json={"results": [], "next": None, "previous": None}
+        )
+    )
+    is_error, payload = await _run(
+        code_server,
+        'overview = await check.get_company_overview(company_id="com_1")\n'
+        'employee = overview["employees"]["results"][0]\n'
+        'payroll = overview["payrolls"]["results"][0]\n'
+        '{"residence": employee.get("residence"), "payroll": payroll}',
+    )
+    assert not is_error, payload
+    assert payload["result"] == {
+        "residence": {"state": "CA"},
+        "payroll": {"id": "pay_1", "status": "paid", "items_count": 2},
+    }
+
+
+@pytest.mark.anyio
+async def test_run_code_list_payrolls_keeps_item_counts_unless_asked(
+    mock_api, code_server
+):
+    """A key pinned before API version 2025-01-01 inlines every item of every
+    payroll on a list page. Summaries used to hide that; full records keep
+    the count instead, and the lists themselves only when the program asks."""
+    mock_api.get("/payrolls").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "results": [
+                    {
+                        "id": "pay_1",
+                        "status": "paid",
+                        "items": [{"id": "itm_1"}, {"id": "itm_2"}],
+                        "contractor_payments": [],
+                    }
+                ],
+                "next": None,
+                "previous": None,
+            },
+        )
+    )
+    is_error, payload = await _run(
+        code_server,
+        'plain = await check.list_payrolls(company="com_1")\n'
+        'full = await check.list_payrolls(company="com_1", include_items=True)\n'
+        '{"plain": plain["results"][0], "full": full["results"][0]}',
+    )
+    assert not is_error, payload
+    assert payload["result"]["plain"] == {
+        "id": "pay_1",
+        "status": "paid",
+        "items_count": 2,
+        "contractor_payments_count": 0,
+    }
+    assert payload["result"]["full"]["items"] == [{"id": "itm_1"}, {"id": "itm_2"}]
+
+
 @pytest.mark.anyio
 async def test_hybrid_header_enables_both_sets_per_request(
     mock_api, monkeypatch, dynamic_server
@@ -417,6 +562,7 @@ def test_hybrid_instructions_replace_the_code_mode_block(monkeypatch):
     assert "run_tool" in created.instructions
     assert "run_code" in created.instructions
     assert "get_stubs is the one discovery tool" in created.instructions
+    assert "List pages carry full records inside a program" in created.instructions
 
 
 @pytest.mark.anyio
@@ -580,6 +726,11 @@ async def test_get_stubs_header_shows_search_then_get_in_one_program(code_server
         assert 'hits = (await check.search_companies(term="Golden Crust"))' in stubs
         assert 'company = await check.get_company(company_id=hits[0]["id"])' in stubs
         assert '{"matches": hits, "company": company}' in stubs
+        # Programs get full list records, so the header no longer tells the
+        # model to call get_* per record or carries the summary field table.
+        assert "List pages carry full records in programs" in stubs
+        assert "List results are summaries" not in stubs
+        assert "com_* ->" not in stubs
         assert "{summary_fields}" not in stubs
     assert "Results carry only id, legal_name, and trade_name" in by_query
 
@@ -732,6 +883,47 @@ def test_call_summary_and_trace():
     long_args = CallRecord(tool="t", arguments={"ids": list(range(100))}).summary()
     assert len(long_args) < 160 and long_args.endswith("…) pending")
     assert CallRecord.from_dict(failed.to_dict()) == failed
+
+
+def test_call_log_drops_arguments_past_the_threshold():
+    calls = [
+        CallRecord(
+            tool="get_company",
+            arguments={"company_id": f"com_{i}"},
+            status="ok",
+            duration_ms=5,
+        )
+        for i in range(MAX_CALLS_WITH_ARGUMENTS)
+    ]
+    failed = CallRecord(
+        tool="get_employee",
+        arguments={"employee_id": "emp_9"},
+        status="error",
+        duration_ms=95,
+        retries=1,
+        error={"error": True, "status_code": 404, "detail": "Not found."},
+    )
+
+    at_threshold = call_log(calls)
+    assert set(at_threshold) == {"calls"}
+    assert at_threshold["calls"][0]["arguments"] == {"company_id": "com_0"}
+
+    over = call_log([*calls, failed])
+    assert all("arguments" not in c for c in over["calls"])
+    assert over["calls"][0] == {"tool": "get_company", "status": "ok", "duration_ms": 5}
+    assert over["calls"][-1] == {
+        "tool": "get_employee",
+        "status": "error",
+        "duration_ms": 95,
+        "retries": 1,
+        "error": {"error": True, "status_code": 404, "detail": "Not found."},
+    }
+    assert f"{MAX_CALLS_WITH_ARGUMENTS + 1} calls" in over["calls_note"]
+    assert f"more than the {MAX_CALLS_WITH_ARGUMENTS}" in over["calls_note"]
+    # The trace rendered from the log shows that the arguments were left out.
+    record = CallRecord.from_dict(over["calls"][0])
+    assert record.arguments is None
+    assert record.summary() == "get_company(…) ok 5ms"
 
 
 @pytest.mark.anyio
@@ -897,6 +1089,303 @@ def test_sandbox_hint():
         "The program did not finish within 25 seconds. Make fewer or more "
         "parallel calls."
     )
+    assert "await main()" in sandbox_hint(
+        "RuntimeError: asyncio.run() cannot be called from a running event loop"
+    )
+
+
+def test_await_asyncio_run():
+    from mcp_server_check.code_mode import await_asyncio_run
+
+    assert await_asyncio_run("x = asyncio.run(main())") == "x = (await main())"
+    # Subscripting the result keeps working: await binds looser than [].
+    assert await_asyncio_run("asyncio.run(main())['a']") == "(await main())['a']"
+    # Newlines the call spanned stay, so later line numbers do not move.
+    code = "r = asyncio.run(\n    main()\n)\nboom"
+    rewritten = await_asyncio_run(code)
+    assert rewritten.count("\n") == code.count("\n")
+    assert rewritten.startswith("r = (await main()")
+    # Columns are UTF-8 bytes; a non-ASCII string before the call must not
+    # shift the rewrite.
+    assert (
+        await_asyncio_run("print('é'); asyncio.run(main())")
+        == "print('é'); (await main())"
+    )
+    # Inside a plain def, await would be a SyntaxError, so it is left alone.
+    code = "def go():\n    return asyncio.run(main())\n"
+    assert await_asyncio_run(code) == code
+    code = "async def go():\n    return asyncio.run(main())\n"
+    assert await_asyncio_run(code) == "async def go():\n    return (await main())\n"
+    # Keyword arguments configure the loop asyncio.run would have made, which
+    # the program never gets, so they are dropped (newlines kept).
+    assert await_asyncio_run("asyncio.run(main(), debug=True)") == "(await main())"
+    code = "r = asyncio.run(\n    main(),\n    debug=True,\n)\nboom"
+    rewritten = await_asyncio_run(code)
+    assert rewritten.startswith("r = (await main()")
+    assert rewritten.count("\n") == code.count("\n")
+    # Other asyncio calls, and programs without asyncio.run, are untouched.
+    gather = "a, b = await asyncio.gather(main(), other())\nawait asyncio.sleep(0)\n"
+    for untouched in (gather, "x = 1", "asyncio.run("):
+        assert await_asyncio_run(untouched) == untouched
+
+
+def test_asyncio_run_in_a_plain_def_still_compiles():
+    """A call the rewrite must leave alone has to reach the runner as valid
+    Python: an await inside a plain def would turn a runtime error the hint
+    explains into a syntax error it does not."""
+    from mcp_server_check.code_mode import await_asyncio_run
+    from mcp_server_check.microvm_runner import compile_program
+
+    code = "async def main():\n    return 1\n\ndef go():\n    return asyncio.run(main())\n\ngo()\n"
+    assert await_asyncio_run(code) == code
+    compile_program(code)
+
+
+@pytest.mark.anyio
+async def test_run_code_runs_a_program_that_calls_asyncio_run(mock_api, code_server):
+    """asyncio.run(main()), the usual end of an async script, used to fail
+    with "cannot be called from a running event loop" before any call."""
+    mock_api.get("/companies/com_1").mock(
+        return_value=httpx.Response(200, json={"id": "com_1"})
+    )
+    code = """
+import asyncio
+
+async def main():
+    return await check.get_company(company_id="com_1")
+
+company = asyncio.run(main())
+company["id"]
+"""
+    is_error, payload = await _run(code_server, code)
+    assert not is_error, payload
+    assert payload["result"] == "com_1"
+
+
+@pytest.mark.anyio
+async def test_run_code_asyncio_run_as_last_line_is_the_result(mock_api, code_server):
+    """The script shape that failed in production: the program ends with a
+    bare asyncio.run(main()), so main()'s value is the result."""
+    mock_api.get("/companies/com_1").mock(
+        return_value=httpx.Response(200, json={"id": "com_1", "legal_name": "One"})
+    )
+    code = """
+async def main():
+    company = await check.get_company(company_id="com_1")
+    return {"name": company.get("legal_name")}
+
+asyncio.run(main())
+"""
+    is_error, payload = await _run(code_server, code)
+    assert not is_error, payload
+    assert payload["result"] == {"name": "One"}
+    assert [c["tool"] for c in payload["calls"]] == ["get_company"]
+
+
+@pytest.mark.anyio
+async def test_run_code_asyncio_run_assigned_then_returned(mock_api, code_server):
+    mock_api.get("/companies/com_1").mock(
+        return_value=httpx.Response(200, json={"id": "com_1"})
+    )
+    code = """
+async def main():
+    return await check.get_company(company_id="com_1")
+
+result = asyncio.run(main(), debug=True)
+result
+"""
+    is_error, payload = await _run(code_server, code)
+    assert not is_error, payload
+    assert payload["result"] == {"id": "com_1"}
+
+
+@pytest.mark.anyio
+async def test_stub_header_says_not_to_call_asyncio_run(code_server):
+    async with Client(code_server) as client:
+        result = await client.call_tool("get_stubs", {"toolset": "platform"})
+    stubs = result.content[0].text
+    assert "do not call asyncio.run" in stubs
+    assert "rewrites asyncio.run(x) to await x" in stubs
+
+
+@pytest.mark.anyio
+async def test_stub_header_states_the_parameter_naming_rule(code_server):
+    async with Client(code_server) as client:
+        result = await client.call_tool("get_stubs", {"toolset": "platform"})
+    stubs = result.content[0].text
+    assert "list_* tools take the entity itself" in stubs
+    assert "single-record tools (get_*, update_*, delete_*) take" in stubs
+    assert "`<entity>_id=`" in stubs
+
+
+@pytest.mark.anyio
+async def test_run_code_says_get_stubs_is_not_callable_in_a_program(code_server):
+    is_error, payload = await _run(code_server, "await get_stubs()")
+    assert is_error
+    assert "NameError" in payload["detail"]
+    assert "get_stubs: a tool of this server" in payload["detail"]
+
+
+@pytest.mark.anyio
+async def test_run_code_says_tools_need_the_check_prefix(code_server):
+    is_error, payload = await _run(code_server, 'await get_company(company_id="com_1")')
+    assert is_error
+    assert "await check.get_company(...)" in payload["detail"]
+
+
+@pytest.mark.anyio
+async def test_run_code_gives_no_note_for_an_ordinary_undefined_name(code_server):
+    is_error, payload = await _run(code_server, "payroll_rows")
+    assert is_error
+    assert "name 'payroll_rows' is not defined" in payload["detail"]
+    assert "a tool of this server" not in payload["detail"]
+    assert "live on the `check` module" not in payload["detail"]
+
+
+@pytest.mark.anyio
+async def test_run_code_wraps_a_string_passed_for_a_list(mock_api, code_server):
+    """list_taxes(jurisdiction="nm") failed validation; it means ["nm"]."""
+    route = mock_api.get("/taxes").mock(
+        return_value=httpx.Response(200, json={"results": [], "next": None})
+    )
+    is_error, payload = await _run(
+        code_server, 'await check.list_taxes(jurisdiction="nm")'
+    )
+    assert not is_error, payload
+    assert route.calls.last.request.url.params.get_list("jurisdiction") == ["nm"]
+    assert payload["calls"][0]["arguments"] == {"jurisdiction": ["nm"]}
+
+
+@pytest.mark.anyio
+async def test_run_code_wrong_argument_name_shows_the_signature(code_server):
+    """get_company takes company_id where list tools take company."""
+    is_error, payload = await _run(
+        code_server, 'await check.get_company(company="com_1")'
+    )
+    assert is_error
+    assert (
+        "get_company takes: async def get_company(company_id: str" in payload["detail"]
+    )
+
+
+@pytest.mark.anyio
+async def test_run_code_list_tools_take_the_entity_name(mock_api, code_server):
+    """A path-based list takes company=, like every other list tool."""
+    route = mock_api.get("/companies/com_1/tax_deposits").mock(
+        return_value=httpx.Response(200, json={"results": [], "next": None})
+    )
+    is_error, payload = await _run(
+        code_server, 'await check.list_company_tax_deposits(company="com_1")'
+    )
+    assert not is_error, payload
+    assert route.called
+
+
+@pytest.mark.anyio
+async def test_run_code_too_large_names_the_largest_parts(mock_api, monkeypatch):
+    monkeypatch.setenv("CHECK_API_KEY", "test-key")
+    monkeypatch.delenv("CHECK_API_BASE_URL", raising=False)
+    monkeypatch.setenv("CHECK_CODE_MODE", "1")
+    monkeypatch.setenv("CHECK_MAX_RESULT_CHARS", "5000")
+    server = CheckMCP("Test Code", lifespan=lifespan)
+    setup_tools(server)
+    is_error, payload = await _run(
+        server, '[{"id": "log_1", "response_body": "x" * 20000}]'
+    )
+    assert is_error
+    assert payload["response_too_large"] is True
+    detail = payload["detail"]
+    assert "Largest parts: result[0]['response_body'] (20,002 characters)" in detail
+    assert payload["shape"] == {
+        "type": "list",
+        "size": len(
+            json.dumps(
+                [{"id": "log_1", "response_body": "x" * 20000}], separators=(",", ":")
+            )
+        ),
+        "length": 1,
+        "item_keys": ["id", "response_body"],
+    }
+
+
+@pytest.mark.anyio
+async def test_run_code_result_alone_over_the_budget_is_too_large(code_server):
+    """The default budget still rejects a program whose own result is too big,
+    and the size it reports is the program's output, not the envelope."""
+    is_error, payload = await _run(code_server, '"x" * 60000')
+    assert is_error
+    assert payload["response_too_large"] is True
+    assert payload["limit"] == 50_000
+    assert payload["size"] == len(
+        json.dumps({"result": "x" * 60000, "logs": ""}, indent=2)
+    )
+    assert payload["detail"].startswith(
+        f"The run_code result is {payload['size']} characters"
+    )
+
+
+@pytest.mark.anyio
+async def test_run_code_call_log_does_not_count_against_the_budget(
+    mock_api, code_server, monkeypatch
+):
+    """A program with a small result and a long call log passes through: the
+    budget is on what the program returned, which is all it can shrink."""
+    monkeypatch.setenv("CHECK_MAX_RESULT_CHARS", "3000")
+    mock_api.get("/companies/com_1").mock(
+        return_value=httpx.Response(200, json={"id": "com_1"})
+    )
+    code = """
+import asyncio
+import check
+for _ in range(6):
+    await asyncio.gather(*[check.get_company(company_id="com_1") for _ in range(10)])
+"x" * 1000
+"""
+    async with Client(code_server) as client:
+        result = await client.call_tool(
+            "run_code", {"code": code}, raise_on_error=False
+        )
+
+    assert result.is_error is False, result.content[0].text
+    assert sum(len(block.text) for block in result.content) > 3000
+    payload = json.loads(result.content[0].text)
+    assert payload["result"] == "x" * 1000
+    assert len(payload["calls"]) == 60
+
+
+@pytest.mark.anyio
+async def test_run_code_over_the_call_threshold_returns_argument_less_calls(
+    mock_api, code_server
+):
+    mock_api.get("/companies/com_1").mock(
+        return_value=httpx.Response(200, json={"id": "com_1"})
+    )
+    count = MAX_CALLS_WITH_ARGUMENTS + 1
+    code = f"""
+import asyncio
+import check
+await asyncio.gather(*[check.get_company(company_id="com_1") for _ in range({count})])
+"done"
+"""
+    async with Client(code_server) as client:
+        result = await client.call_tool(
+            "run_code", {"code": code}, raise_on_error=False
+        )
+
+    assert result.is_error is False, result.content[0].text
+    payload = json.loads(result.content[0].text)
+    assert payload["result"] == "done"
+    assert len(payload["calls"]) == count
+    assert all(set(c) == {"tool", "status", "duration_ms"} for c in payload["calls"])
+    assert all(c["status"] == "ok" for c in payload["calls"])
+    assert payload["calls_note"] == (
+        f"Arguments are omitted from the call log: the program made {count} "
+        f"calls, more than the {MAX_CALLS_WITH_ARGUMENTS} at which each call's "
+        "arguments are returned."
+    )
+    trace = result.content[1].text.splitlines()
+    assert trace[0].startswith(f"Tool calls: {count} in ")
+    assert trace[1].startswith("1. get_company(…) ok ")
 
 
 def test_unawaited_coroutines():

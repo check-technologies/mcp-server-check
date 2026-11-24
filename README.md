@@ -70,7 +70,7 @@ The server supports fine-grained tool filtering, configurable via environment va
 
 #### Toolsets
 
-There are 21 toolsets, one per API module: `agencies`, `bank_accounts`, `companies`, `compensation`, `components`, `contractor_payments`, `contractors`, `documents`, `employees`, `external_payrolls`, `forms`, `logs`, `payments`, `payroll_items`, `payrolls`, `platform`, `report_runs`, `tax`, `webhooks`, `workflows`, `workplaces`.
+There are 23 toolsets, one per API module: `agencies`, `bank_accounts`, `companies`, `compensation`, `components`, `contractor_payments`, `contractors`, `corrections`, `documents`, `employees`, `external_payrolls`, `forms`, `logs`, `payments`, `payroll_items`, `payrolls`, `platform`, `report_runs`, `tax`, `time_off`, `webhooks`, `workflows`, `workplaces`.
 
 Enable only specific toolsets:
 
@@ -125,7 +125,7 @@ Opting in works the same in sandbox and production, and either the server or the
 
 Two flags remove whole categories of tools from a deployment. Unlike `CHECK_EXCLUDE_TOOLS`, they do not need updating as tools are added.
 
-`CHECK_EXCLUDE_MONEY_MOVEMENT=1` removes the tools that move funds or change where funds are drawn from and sent to: `approve_payroll`, `retry_payment`, `refund_payment`, `cancel_payment`, `reverse_payment`, and `create`/`update`/`delete_bank_account`.
+`CHECK_EXCLUDE_MONEY_MOVEMENT=1` removes the tools that move funds or change where funds are drawn from and sent to: `approve_payroll`, `approve_correction`, `retry_payment`, `refund_payment`, `cancel_payment`, `reverse_payment`, and `create`/`update`/`delete_bank_account`.
 
 `CHECK_EXCLUDE_DESTRUCTIVE=1` removes tools with irreversible effects — everything matching `delete_`, `bulk_delete_`, `approve_`, `cancel_`, `refund_`, `reverse_`, `simulate_`, plus `start_implementation`, `cancel_implementation`, `sync_accounting`, and `reopen_correction`.
 
@@ -195,7 +195,7 @@ https://<server>/mcp?hybrid_mode=1
 Code mode replaces the three dynamic-mode tools with two, so every API call goes through a program:
 
 - **`get_stubs(query?, toolset?, tools?)`** — With no arguments, the catalog: every toolset with its description and tool names, write tools marked with `*`. With a keyword `query`, a `toolset`, or a list of `tools`, typed Python signatures (with docstrings) for the `check` module, one `async def` per tool.
-- **`run_code(code, writes?)`** — Run a program. The `check` module is pre-imported and exposes every allowed tool as an async function; the program's last expression is returned along with anything it printed and a trace of every tool call it made (tool, arguments, status, duration).
+- **`run_code(code, writes?)`** — Run a program. The `check` module is pre-imported and exposes every allowed tool as an async function; the program's last expression is returned along with anything it printed and a trace of every tool call it made (tool, arguments, status, duration). The `CHECK_MAX_RESULT_CHARS` budget applies to the program's result and logs only, not to the call trace; past 40 calls the trace drops each call's arguments and says so.
 
 ```python
 import asyncio
@@ -260,7 +260,7 @@ Then set the `CHECK_API_KEY` environment variable in your shell before running C
 | `get_company` | GET | Get details for a specific company |
 | `create_company` | POST | Create a new company |
 | `update_company` | PATCH | Update an existing company |
-| `onboard_company` | POST | Onboard a company to active status |
+| `onboard_company` | POST | Mint an onboarding link (needs a signatory or signer fields) |
 | `get_company_paydays` | GET | Get upcoming paydays for a company |
 | `list_company_tax_deposits` | GET | List tax deposits for a company |
 | `get_company_benefit_aggregations` | GET | Get benefit aggregations for a company |
@@ -558,8 +558,8 @@ Tax parameters, elections (including tax exemptions), filings, statements, packa
 | `update_employee_tax_params` | PATCH | Update employee tax parameters |
 | `list_employee_tax_param_settings` | GET | List employee tax param settings |
 | `get_employee_tax_param_setting` | GET | Get a specific setting |
-| `bulk_get_employee_tax_param_settings` | POST | Bulk get tax param settings |
-| `bulk_update_employee_tax_param_settings` | POST | Bulk update tax param settings |
+| `bulk_get_employee_tax_param_settings` | GET | Tax param settings for a company's employees |
+| `bulk_update_employee_tax_param_settings` | PATCH | Bulk update tax param settings |
 | **Company Tax Elections** | | |
 | `list_company_tax_elections` | GET | List a company's tax exemptions (tax elections) for employer-paid taxes; `exemptible: false` (e.g. SUI/FUTA) means only Check Support can set it |
 | `create_company_tax_elections` | POST | Create company tax elections |
@@ -592,7 +592,7 @@ Tax parameters, elections (including tax exemptions), filings, statements, packa
 | `request_tax_package` | POST | Request a tax package |
 | `get_tax_package` | GET | Get a specific tax package |
 | **Taxes (reference data)** | | |
-| `list_taxes` | GET | List tax objects (payroll levies); filter by jurisdiction, payer, supported/remittable, effective status |
+| `list_taxes` | GET | List tax objects (payroll levies); filter by jurisdiction, political subdivision code, supported/remittable, effective status |
 | `get_tax` | GET | Get a specific tax object |
 
 ### Agencies (2 tools)
@@ -603,6 +603,29 @@ The counterparties Check files and remits to (IRS, state revenue departments). G
 |---|---|---|
 | `list_agencies` | GET | List agencies; filter by jurisdiction or label |
 | `get_agency` | GET | Get a specific agency |
+
+### Time Off (16 tools)
+
+Enabled per partner; without access every endpoint returns not found.
+
+| Tool | Method | Description |
+|---|---|---|
+| `list_time_off_policies` | GET | List time off policies |
+| `get_time_off_policy` | GET | Get a time off policy |
+| `create_time_off_policy` | POST | Create a time off policy |
+| `update_time_off_policy` | PATCH | Archive or reactivate a policy |
+| `list_time_off_balances` | GET | List time off balances |
+| `get_time_off_balance` | GET | Get a time off balance |
+| `create_time_off_balance` | POST | Open a time off balance for an employee |
+| `update_time_off_balance` | PATCH | Update a balance's metadata |
+| `list_time_off_enrollments` | GET | List time off enrollments |
+| `get_time_off_enrollment` | GET | Get a time off enrollment |
+| `create_time_off_enrollment` | POST | Enroll a balance in a policy |
+| `update_time_off_enrollment` | PATCH | End, extend, or reopen an enrollment, or update its metadata |
+| `delete_time_off_enrollment` | DELETE | Delete an enrollment no entries reference |
+| `list_time_off_entries` | GET | List time off entries |
+| `get_time_off_entry` | GET | Get a time off entry |
+| `create_time_off_entry` | POST | Record a manual time off entry |
 
 ### Webhooks (10 tools)
 
@@ -662,7 +685,7 @@ Notifications, communications, usage, integrations, accounting, company groups, 
 | `list_requirements` | GET | List requirements |
 | `get_requirement` | GET | Get a specific requirement |
 | **Reports** | | |
-| `get_applied_for_ids_report` | GET | Get applied-for IDs report |
+| `get_applied_for_ids_report` | GET | Get the provider-wide applied-for IDs report as JSON or CSV (Console sessions only; otherwise use `get_company_report` with `applied_for_ids_detailed`) |
 
 ### Embedded Components (35 tools)
 

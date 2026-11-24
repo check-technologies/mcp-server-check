@@ -15,9 +15,11 @@ from fastmcp import FastMCP
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     check_api_get,
     check_api_list,
     shape_payroll,
+    shape_payroll_page,
 )
 
 
@@ -59,34 +61,38 @@ async def get_company_overview(
         A dict with one key per piece, not a company record: "company" (the
         full company, with start_date and pay_frequency), "employees",
         "payrolls" and "bank_accounts". The last three are list pages,
-        {"results": [...], "result_count", "next_cursor"}, holding list
-        summaries (an employee summary has id, first_name, last_name, email,
-        status, start_date). Read overview["employees"]["results"]; iterating
-        overview["employees"] itself yields its key names.
+        {"results": [...], "result_count", "next_cursor"}: full records in a
+        run_code program, list summaries elsewhere (an employee summary has
+        id, first_name, last_name, email, status, start_date).
+        Read overview["employees"]["results"]; iterating overview["employees"]
+        itself yields its key names.
     """
     calls: dict[str, Coroutine[Any, Any, Any]] = {
-        "company": check_api_get(ctx, f"/companies/{company_id}"),
+        "company": check_api_get(ctx, api_path("companies", company_id)),
     }
     if include_employees:
         calls["employees"] = check_api_list(
             ctx,
-            "/employees",
+            api_path("employees"),
             params={"company": company_id, "limit": employee_limit},
         )
     if include_payrolls:
         calls["payrolls"] = check_api_list(
             ctx,
-            "/payrolls",
+            api_path("payrolls"),
             params={"company": company_id, "limit": payroll_limit},
         )
     if include_bank_accounts:
         calls["bank_accounts"] = check_api_list(
             ctx,
-            "/bank_accounts",
+            api_path("bank_accounts"),
             params={"company": company_id},
         )
 
-    return await _gather_named(calls)
+    overview = await _gather_named(calls)
+    if "payrolls" in overview:
+        overview["payrolls"] = shape_payroll_page(overview["payrolls"])
+    return overview
 
 
 async def get_employee_snapshot(
@@ -115,14 +121,16 @@ async def get_employee_snapshot(
         employee's fields are under snapshot["employee"], not at the top.
     """
     calls: dict[str, Coroutine[Any, Any, Any]] = {
-        "employee": check_api_get(ctx, f"/employees/{employee_id}"),
+        "employee": check_api_get(ctx, api_path("employees", employee_id)),
     }
     if include_tax_params:
-        calls["tax_params"] = check_api_get(ctx, f"/employee_tax_params/{employee_id}")
+        calls["tax_params"] = check_api_get(
+            ctx, api_path("employee_tax_params", employee_id)
+        )
     if include_paystubs:
         calls["paystubs"] = check_api_list(
             ctx,
-            f"/employees/{employee_id}/paystubs",
+            api_path("employees", employee_id, "paystubs"),
             params={"limit": paystub_limit},
         )
 
@@ -149,9 +157,9 @@ async def diagnose_payment(
     """
     fetched = await _gather_named(
         {
-            "payment": check_api_get(ctx, f"/payments/{payment_id}"),
+            "payment": check_api_get(ctx, api_path("payments", payment_id)),
             "payment_attempts": check_api_list(
-                ctx, "/payment_attempts", params={"payment": payment_id}
+                ctx, api_path("payment_attempts"), params={"payment": payment_id}
             ),
         }
     )
@@ -167,7 +175,7 @@ async def diagnose_payment(
         payroll_item_id = payment.get("payroll_item")
     if payroll_item_id:
         result["payroll_item"] = await check_api_get(
-            ctx, f"/payroll_items/{payroll_item_id}"
+            ctx, api_path("payroll_items", payroll_item_id)
         )
 
     return result
@@ -201,18 +209,18 @@ async def get_payroll_details(
         "contractor_payments" (a list page).
     """
     calls: dict[str, Coroutine[Any, Any, Any]] = {
-        "payroll": check_api_get(ctx, f"/payrolls/{payroll_id}"),
+        "payroll": check_api_get(ctx, api_path("payrolls", payroll_id)),
     }
     if include_items:
         calls["payroll_items"] = check_api_list(
             ctx,
-            "/payroll_items",
+            api_path("payroll_items"),
             params={"payroll": payroll_id, "limit": item_limit},
         )
     if include_contractor_payments:
         calls["contractor_payments"] = check_api_list(
             ctx,
-            "/contractor_payments",
+            api_path("contractor_payments"),
             params={"payroll": payroll_id},
         )
 
@@ -244,18 +252,18 @@ async def get_contractor_snapshot(
         page, {"results": [...]}) and "forms" (a list page).
     """
     calls: dict[str, Coroutine[Any, Any, Any]] = {
-        "contractor": check_api_get(ctx, f"/contractors/{contractor_id}"),
+        "contractor": check_api_get(ctx, api_path("contractors", contractor_id)),
     }
     if include_payments:
         calls["payments"] = check_api_list(
             ctx,
-            f"/contractors/{contractor_id}/payments",
+            api_path("contractors", contractor_id, "payments"),
             params={"limit": payment_limit},
         )
     if include_forms:
         calls["forms"] = check_api_list(
             ctx,
-            f"/contractors/{contractor_id}/forms",
+            api_path("contractors", contractor_id, "forms"),
         )
 
     return await _gather_named(calls)
@@ -285,18 +293,18 @@ async def get_company_tax_overview(
         list page).
     """
     calls: dict[str, Coroutine[Any, Any, Any]] = {
-        "tax_params": check_api_get(ctx, f"/company_tax_params/{company_id}"),
+        "tax_params": check_api_get(ctx, api_path("company_tax_params", company_id)),
     }
     if include_elections:
         calls["tax_elections"] = check_api_list(
             ctx,
-            "/company_tax_elections",
+            api_path("company_tax_elections"),
             params={"company": company_id},
         )
     if include_filings:
         calls["filings"] = check_api_list(
             ctx,
-            "/filings",
+            api_path("filings"),
             params={"company": company_id, "limit": filing_limit},
         )
 
@@ -326,18 +334,18 @@ async def get_onboarding_status(
     """
     fetched = await _gather_named(
         {
-            "company": check_api_get(ctx, f"/companies/{company_id}"),
+            "company": check_api_get(ctx, api_path("companies", company_id)),
             "workplaces": check_api_list(
-                ctx, "/workplaces", params={"company": company_id}
+                ctx, api_path("workplaces"), params={"company": company_id}
             ),
             "employees": check_api_list(
-                ctx, "/employees", params={"company": company_id, "limit": 5}
+                ctx, api_path("employees"), params={"company": company_id, "limit": 5}
             ),
             "bank_accounts": check_api_list(
-                ctx, "/bank_accounts", params={"company": company_id}
+                ctx, api_path("bank_accounts"), params={"company": company_id}
             ),
             "requirements": check_api_list(
-                ctx, "/requirements", params={"company": company_id}
+                ctx, api_path("requirements"), params={"company": company_id}
             ),
         }
     )

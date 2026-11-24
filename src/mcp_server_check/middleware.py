@@ -14,7 +14,11 @@ from fastmcp.tools import ToolResult
 from fastmcp.tools.base import default_serializer
 from mcp.types import CallToolRequestParams, CallToolResult, TextContent
 
-from mcp_server_check.errors import CheckToolError, ResponseTooLargeError
+from mcp_server_check.errors import (
+    CheckToolError,
+    ResponseTooLargeError,
+    result_shape,
+)
 from mcp_server_check.recovery import Recovery, recovery
 
 logger = logging.getLogger(__name__)
@@ -177,14 +181,24 @@ class ResultBudgetMiddleware(Middleware):
             or context.message.name in self.EXEMPT_TOOLS
         ):
             return result
-        size = _text_length(result)
+        tool = ToolCall.from_request(context.message).name
+        size = (
+            _program_output_length(result)
+            if tool == "run_code"
+            else _text_length(result)
+        )
         if size <= self.max_chars:
             return result
         trimmed = self._trim_list(result)
         if trimmed is not None:
             return trimmed
-        tool = ToolCall.from_request(context.message).name
-        raise ResponseTooLargeError(tool, size, self.max_chars, unit="character")
+        largest = shape = None
+        if tool == "run_code":
+            largest = _largest_program_parts(result, self.max_chars // 5)
+            shape = _program_shape(result)
+        raise ResponseTooLargeError(
+            tool, size, self.max_chars, unit="character", largest=largest, shape=shape
+        )
 
     def _trim_list(self, result: ToolResult) -> ToolResult | None:
         """Keep the leading records of a list result that fit the budget."""
@@ -218,6 +232,108 @@ class ResultBudgetMiddleware(Middleware):
 
 def _text_length(result: ToolResult) -> int:
     return sum(len(b.text) for b in result.content if isinstance(b, TextContent))
+
+
+# The parts of a run_code outcome the program itself produced.
+_PROGRAM_OUTPUT_KEYS = ("result", "logs")
+
+
+def _program_outcome(result: ToolResult) -> dict[str, Any] | None:
+    """The JSON outcome of a run_code result, its first content block."""
+    block = result.content[0] if result.content else None
+    if not isinstance(block, TextContent):
+        return None
+    try:
+        outcome = json.loads(block.text)
+    except json.JSONDecodeError:
+        return None
+    return outcome if isinstance(outcome, dict) else None
+
+
+def _program_output_length(result: ToolResult) -> int:
+    """The characters of a run_code result that its program produced.
+
+    The budget is on the program's result and logs, which the program can
+    shrink by returning less. The rest of the envelope, mostly the call log
+    and its readable trace, grows with the calls the program made, and a
+    20-employee write program's log alone ran to 15k-19k characters; it is
+    capped on its own in code_mode. Measured as the envelope serializes it.
+    """
+    outcome = _program_outcome(result)
+    if outcome is None:
+        return _text_length(result)
+    output = {key: outcome.get(key) for key in _PROGRAM_OUTPUT_KEYS}
+    return len(json.dumps(output, indent=2, default=str))
+
+
+def largest_parts(
+    value: Any, floor: int, path: str = "", count: int = 3
+) -> list[tuple[str, int, int | None]]:
+    """The biggest pieces of a JSON value: (path, characters, items if a list).
+
+    A piece is reported at the deepest level where it alone is at least
+    floor characters, so a log's response_body is named rather than the
+    log, and a page of many small records is named as the page.
+    """
+    found: list[tuple[str, int, int | None]] = []
+
+    def walk(node: Any, where: str, depth: int) -> bool:
+        size = len(json.dumps(node, default=str))
+        if size < floor:
+            return False
+        if isinstance(node, dict):
+            children: Any = ((f"{where}[{k!r}]", v) for k, v in node.items())
+        elif isinstance(node, list):
+            children = ((f"{where}[{i}]", v) for i, v in enumerate(node))
+        else:
+            children = ()
+        deeper = False
+        if depth < 6:
+            for child_path, child in children:
+                deeper = walk(child, child_path, depth + 1) or deeper
+        if not deeper:
+            found.append((where, size, len(node) if isinstance(node, list) else None))
+        return True
+
+    walk(value, path, 0)
+    return sorted(found, key=lambda part: part[1], reverse=True)[:count]
+
+
+def _largest_program_parts(result: ToolResult, floor: int) -> list[str] | None:
+    """Where a run_code result's characters are, as readable paths."""
+    outcome = _program_outcome(result)
+    if outcome is None:
+        return None
+    parts = [
+        part
+        for key in _PROGRAM_OUTPUT_KEYS
+        for part in largest_parts(outcome.get(key), floor, path=key)
+    ]
+    parts.sort(key=lambda part: part[1], reverse=True)
+    described = [
+        f"{where} ({size:,} characters" + (f", {items} items)" if items else ")")
+        for where, size, items in parts[:3]
+    ]
+    return described or None
+
+
+def _program_shape(result: ToolResult) -> dict[str, Any] | None:
+    """Describe what a run_code program returned, so a rerun can target it.
+
+    The shape is of the program's result value when the measured text is the
+    run_code envelope; of the whole measured text otherwise, so it holds
+    whichever JSON the budget was applied to.
+    """
+    block = result.content[0] if result.content else None
+    if not isinstance(block, TextContent):
+        return None
+    try:
+        measured = json.loads(block.text)
+    except json.JSONDecodeError:
+        return None
+    if isinstance(measured, dict) and "result" in measured:
+        measured = measured["result"]
+    return result_shape(measured)
 
 
 def _page_of(data: dict[str, Any], kept: int) -> dict[str, Any]:

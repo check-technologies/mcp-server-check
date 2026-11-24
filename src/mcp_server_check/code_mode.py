@@ -30,6 +30,7 @@ from typing_extensions import is_typeddict
 
 from mcp_server_check import types as check_types
 from mcp_server_check.errors import CheckToolError
+from mcp_server_check.helpers import code_mode_full_records
 from mcp_server_check.tool_filter import PREVIEW_TOOLSETS, ToolFilter
 from mcp_server_check.tool_index import ToolEntry, ToolIndex
 
@@ -44,13 +45,20 @@ _STUB_HEADER = f'''\
 
 Every function is async: `await {MODULE_NAME}.list_companies(limit=100)`. Use
 asyncio.gather for independent calls; `asyncio` and `json` are already
-imported, like `{MODULE_NAME}`. A failed Check API call raises
+imported, like `{MODULE_NAME}`. A program already runs inside an event loop
+with top-level await, so do not call asyncio.run: await directly (the runtime
+rewrites asyncio.run(x) to await x). A failed Check API call raises
 RuntimeError whose message is a JSON object with "status_code" and "detail".
 Throttled calls, and reads whose connection dropped, are retried for you. List
 results carry "results",
 "result_count" and "next_cursor"; pass the cursor back to page. Write tools
 are marked below and must be named in run_code's `writes` argument before a
 program can call them.
+
+Parameter names follow one rule: list_* tools take the entity itself
+(`company=`, `employee=`, `contractor=`, `payment=`), whether it filters or
+names the path; single-record tools (get_*, update_*, delete_*) take
+`<entity>_id=`.
 
 Make the answer the program's last expression; the server serializes it.
 Programs run in CPython 3.13 with the standard library and no third-party
@@ -73,11 +81,11 @@ the IDs and values you still need into the new program as literals, or
 fetch them again, and when a task needs several steps prefer one program
 that does them all.
 
-List results are summaries: each record keeps only the fields below, by ID
-prefix. Call the matching get_* tool for a full record. search_* results are
-thinner still: the API returns only id and name fields, so anything else
-(pay_frequency, status, onboarding, email) needs the get_* tool.
-{{summary_fields}}
+List pages carry full records in programs: a record on a list_* page has
+the fields its get_* tool returns, so filter and read them in the program
+instead of calling get_* once per record. search_* results are thin: the
+API returns only id and name fields, so anything else (pay_frequency,
+status, onboarding, email) needs the get_* tool or a list_* page.
 
 Composite get_* tools (get_company_overview, get_employee_snapshot,
 get_payroll_details, diagnose_payment, get_contractor_snapshot,
@@ -103,15 +111,6 @@ branch on its result inside the program instead of returning to look:
 from typing import Any
 from typing_extensions import TypedDict
 '''
-
-
-def _summary_field_lines() -> str:
-    from mcp_server_check.helpers import _SUMMARY_FIELDS
-
-    return "\n".join(
-        f"  {prefix}* -> {', '.join(fields)}"
-        for prefix, fields in sorted(_SUMMARY_FIELDS.items())
-    )
 
 
 _WRITE_NOTE = "# write tool: name it in run_code(writes=[...]) to call it"
@@ -150,6 +149,16 @@ def _is_ctx(param: inspect.Parameter) -> bool:
         else getattr(annotation, "__name__", "")
     )
     return param.name == "ctx" or name in _CTX_ANNOTATIONS
+
+
+_STRING_LIST_ANNOTATIONS = frozenset(
+    {"list[str]", "list[str]|None", "None|list[str]", "Optional[list[str]]"}
+)
+
+
+def _takes_string_list(annotation: Any) -> bool:
+    """Whether a parameter is a list of strings and nothing else."""
+    return _annotation_text(annotation).replace(" ", "") in _STRING_LIST_ANNOTATIONS
 
 
 def tool_parameters(fn: Any) -> list[inspect.Parameter]:
@@ -255,8 +264,7 @@ def render_stubs(entries: Iterable[ToolEntry], *, mark_writes: bool = False) -> 
     by_toolset: dict[str, list[ToolEntry]] = {}
     for entry in entries:
         by_toolset.setdefault(entry.toolset, []).append(entry)
-    header = _STUB_HEADER.replace("{summary_fields}", _summary_field_lines())
-    parts = [header, _render_typed_dicts()]
+    parts = [_STUB_HEADER, _render_typed_dicts()]
     for toolset, toolset_entries in by_toolset.items():
         parts.append(f"# ---- {toolset} ----\n")
         parts.extend(render_stub(e, mark_writes=mark_writes) for e in toolset_entries)
@@ -293,12 +301,19 @@ class CodeModeSettings:
         )
 
 
+# Past this many calls, the call log returned with a result drops each call's
+# arguments. At about 124 characters a call, a 20-employee write program's log
+# alone ran to 15k-19k characters, most of it arguments the model wrote itself.
+MAX_CALLS_WITH_ARGUMENTS = 40
+
+
 @dataclass
 class CallRecord:
     """One tool call a program made, for the trace returned with the result."""
 
     tool: str
-    arguments: dict[str, Any]
+    # None in a record read back from a call log that omitted its arguments.
+    arguments: dict[str, Any] | None
     # "pending" until the tool returns, so a timeout trace shows calls that
     # had not finished (and, for writes, may still land).
     status: str = "pending"
@@ -306,13 +321,12 @@ class CallRecord:
     retries: int = 0
     error: Any = None
 
-    def to_dict(self) -> dict[str, Any]:
-        record: dict[str, Any] = {
-            "tool": self.tool,
-            "arguments": self.arguments,
-            "status": self.status,
-            "duration_ms": self.duration_ms,
-        }
+    def to_dict(self, arguments: bool = True) -> dict[str, Any]:
+        record: dict[str, Any] = {"tool": self.tool}
+        if arguments:
+            record["arguments"] = self.arguments
+        record["status"] = self.status
+        record["duration_ms"] = self.duration_ms
         if self.retries:
             record["retries"] = self.retries
         if self.error is not None:
@@ -321,12 +335,17 @@ class CallRecord:
 
     @classmethod
     def from_dict(cls, record: dict[str, Any]) -> CallRecord:
-        """The inverse of to_dict."""
-        return cls(**{k: v for k, v in record.items() if k in cls.__dataclass_fields__})
+        """The inverse of to_dict; a record without arguments reads as None."""
+        fields = {k: v for k, v in record.items() if k in cls.__dataclass_fields__}
+        fields.setdefault("arguments", None)
+        return cls(**fields)
 
     def summary(self, max_args_chars: int = 120) -> str:
         """One line for a progress message or trace: the call and its outcome."""
-        args = ", ".join(f"{k}={v!r}" for k, v in self.arguments.items())
+        if self.arguments is None:
+            args = "…"
+        else:
+            args = ", ".join(f"{k}={v!r}" for k, v in self.arguments.items())
         if len(args) > max_args_chars:
             args = args[: max_args_chars - 1] + "…"
         line = f"{self.tool}({args}) {self.status}"
@@ -350,6 +369,25 @@ def _error_summary(error: Any) -> str:
     return text if len(text) <= 160 else text[:159] + "…"
 
 
+def call_log(calls: Sequence[CallRecord]) -> dict[str, Any]:
+    """The calls a program made, as the result or failure payload carries them.
+
+    Over MAX_CALLS_WITH_ARGUMENTS calls, each record keeps its tool, status,
+    duration, retries and error but not its arguments, and calls_note says
+    so, so a long program's log cannot crowd out the result it produced.
+    """
+    if len(calls) <= MAX_CALLS_WITH_ARGUMENTS:
+        return {"calls": [c.to_dict() for c in calls]}
+    return {
+        "calls": [c.to_dict(arguments=False) for c in calls],
+        "calls_note": (
+            f"Arguments are omitted from the call log: the program made "
+            f"{len(calls)} calls, more than the {MAX_CALLS_WITH_ARGUMENTS} at "
+            "which each call's arguments are returned."
+        ),
+    }
+
+
 def render_trace(calls: Sequence[CallRecord], duration_ms: int | None = None) -> str:
     """The calls a program made, as text for the client and the user.
 
@@ -370,6 +408,43 @@ CallListener = Callable[[CallRecord, int], Awaitable[None]]
 
 _THROTTLE_HINT = re.compile(r"available in (\d+(?:\.\d+)?) second")
 _MISSING_MEMBER = re.compile(r"module '" + MODULE_NAME + r"' has no attribute '(\w+)'")
+_UNDEFINED_NAME = re.compile(r"NameError: name '(\w+)' is not defined")
+
+# The server's own tools. A model that has just called get_stubs as a tool
+# sometimes calls it again from inside a program, where it does not exist.
+_META_TOOLS = frozenset(
+    {"get_stubs", "run_code", "run_tool", "search_tools", "list_toolsets"}
+)
+
+
+def undefined_name_notes(
+    errors: Iterable[str], entries: Mapping[str, ToolEntry]
+) -> list[str]:
+    """What a NameError on a tool's name means inside a program.
+
+    A NameError usually names a variable from an earlier program, which the
+    stub header already covers. Two other causes have a fix worth stating: a
+    server tool such as get_stubs, which a program cannot call, and a Check
+    tool called without the `check.` prefix.
+    """
+    notes: list[str] = []
+    for line in errors:
+        match = _UNDEFINED_NAME.search(line)
+        if not match:
+            continue
+        name = match.group(1)
+        if name in _META_TOOLS:
+            notes.append(
+                f"{name}: a tool of this server, not a function a program can "
+                f"call. Call {name} as its own tool, then put what you need from "
+                "it into the program."
+            )
+        elif name in entries:
+            notes.append(
+                f"{name}: Check tools live on the `{MODULE_NAME}` module; call "
+                f"await {MODULE_NAME}.{name}(...)."
+            )
+    return notes
 
 
 def missing_member_notes(
@@ -384,8 +459,9 @@ def missing_member_notes(
     that does not exist, one hidden by the server's configuration, and a
     write the program did not declare, and the fix is different for each.
     """
+    errors = list(errors)
     declared = set(writes)
-    notes: list[str] = []
+    notes: list[str] = undefined_name_notes(errors, entries)
     seen: set[str] = set()
     for line in errors:
         match = _MISSING_MEMBER.search(line)
@@ -438,7 +514,88 @@ _HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
         "instead of scanning pages, and gather independent calls with "
         "asyncio.gather.",
     ),
+    (
+        # What is left after await_asyncio_run: a call inside a plain def,
+        # or a loop method such as run_until_complete.
+        re.compile(
+            r"cannot be called from a running event loop|"
+            r"This event loop is already running"
+        ),
+        "A program already runs inside an event loop, with top-level await. "
+        "Write await main() at the top level instead of asyncio.run(main()) "
+        "or loop.run_until_complete(main()), and make any function that "
+        "awaits an async def.",
+    ),
 )
+
+
+def _is_asyncio_run(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "run"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "asyncio"
+        and len(node.args) == 1
+    )
+
+
+def await_asyncio_run(code: str) -> str:
+    """Rewrite asyncio.run(x) as (await x) wherever the program may await.
+
+    A program runs inside an event loop with top-level await, so
+    asyncio.run(main()), the usual last line of an async script, raises
+    "asyncio.run() cannot be called from a running event loop" before a
+    single call is made. Awaiting the coroutine is what the program meant.
+    Keyword arguments such as debug=True configure the loop asyncio.run would
+    have created, so they are dropped. A call inside a plain def, lambda, or
+    class body, where await is a SyntaxError, is left alone. Line numbers are
+    kept, so a traceback still points at the program's own lines.
+    """
+    if "asyncio.run" not in code:
+        return code
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return code
+    calls: list[ast.Call] = []
+
+    def visit(node: ast.AST, can_await: bool) -> None:
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.FunctionDef, ast.Lambda, ast.ClassDef)):
+                visit(child, False)
+            elif isinstance(child, ast.AsyncFunctionDef):
+                visit(child, True)
+            elif can_await and isinstance(child, ast.Call) and _is_asyncio_run(child):
+                calls.append(child)
+            else:
+                visit(child, can_await)
+
+    visit(tree, True)
+    if not calls:
+        return code
+    # ast offsets are UTF-8 byte columns.
+    source = code.encode()
+    starts = [0]
+    for line in source.splitlines(keepends=True):
+        starts.append(starts[-1] + len(line))
+
+    def span(node: ast.expr) -> tuple[int, int]:
+        end_line = node.end_lineno or node.lineno
+        end_col = node.end_col_offset or node.col_offset
+        return (
+            starts[node.lineno - 1] + node.col_offset,
+            starts[end_line - 1] + end_col,
+        )
+
+    for call in sorted(calls, key=lambda c: (c.lineno, c.col_offset), reverse=True):
+        begin, end = span(call)
+        arg_begin, arg_end = span(call.args[0])
+        inner = source[arg_begin:arg_end]
+        # Keep the newlines the call spanned, inside the parentheses.
+        padding = b"\n" * (source[begin:end].count(b"\n") - inner.count(b"\n"))
+        source = source[:begin] + b"(await " + inner + padding + b")" + source[end:]
+    return source.decode()
 
 
 def unawaited_coroutines(code: str) -> list[str]:
@@ -583,7 +740,7 @@ def _program_failure(
         "kind": kind,
         "detail": detail,
         "logs": logs,
-        "calls": [c.to_dict() for c in calls],
+        **call_log(calls),
     }
     if hint:
         payload["hint"] = hint
@@ -678,7 +835,9 @@ class CodeRunner:
         semaphore: asyncio.Semaphore,
         run: ProgramRun,
     ):
-        names = [p.name for p in tool_parameters(entry.tool.fn)]
+        params = tool_parameters(entry.tool.fn)
+        names = [p.name for p in params]
+        string_lists = {p.name for p in params if _takes_string_list(p.annotation)}
         max_calls = self._settings.max_calls
         max_retries = self._settings.max_retries
 
@@ -689,6 +848,11 @@ class CodeRunner:
                     f"arguments ({len(args)} given)"
                 )
             arguments = {**dict(zip(names, args)), **kwargs}
+            # list_taxes(jurisdiction="nm") means ["nm"]; validation would
+            # otherwise end the program over it.
+            for name in string_lists & arguments.keys():
+                if isinstance(arguments[name], str):
+                    arguments[name] = [arguments[name]]
             if len(run.calls) >= max_calls:
                 raise RuntimeError(
                     json.dumps(
@@ -704,6 +868,10 @@ class CodeRunner:
             if task is not None:
                 run.tasks.add(task)
             started = time.monotonic()
+            # The program filters the page inside the sandbox, so list tools
+            # return full records to it rather than the summaries the plain
+            # tool path gets (see check_api_list).
+            full_records = code_mode_full_records.set(True)
             try:
                 while True:
                     try:
@@ -739,10 +907,17 @@ class CodeRunner:
             except (ToolError, ValidationError, ValueError) as e:
                 record.status = "error"
                 record.error = str(e)
-                raise ValueError(str(e)) from e
+                message = str(e)
+                if "validation error" in message:
+                    # A wrong or missing argument name ("company" where the
+                    # tool takes company_id) is fixed by reading the
+                    # signature, so give it rather than a get_stubs round trip.
+                    message += f"\n{entry.name} takes: {render_signature(entry)}"
+                raise ValueError(message) from e
             else:
                 record.status = "ok"
             finally:
+                code_mode_full_records.reset(full_records)
                 if task is not None:
                     run.tasks.discard(task)
                 record.duration_ms = int((time.monotonic() - started) * 1000)
@@ -769,6 +944,7 @@ class CodeRunner:
         program slot does not count against the time budget.
         """
         entries = self.callable_entries(tool_filter, writes)
+        code = await_asyncio_run(code)
         program = ProgramRun(on_call=on_call)
         semaphore = asyncio.Semaphore(self._settings.concurrency)
         functions = {
@@ -805,7 +981,7 @@ class CodeRunner:
         outcome: dict[str, Any] = {
             "result": value,
             "logs": logs,
-            "calls": [c.to_dict() for c in program.calls],
+            **call_log(program.calls),
             "duration_ms": int((time.monotonic() - started) * 1000),
         }
         if value is None and not program.calls:

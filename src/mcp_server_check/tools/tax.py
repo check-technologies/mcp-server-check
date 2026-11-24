@@ -5,9 +5,10 @@ from __future__ import annotations
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
-from mcp_server_check.types import TaxParamUpdate
+from mcp_server_check.types import BulkEmployeeTaxParamUpdate, TaxParamUpdate
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     build_body,
     build_params,
     check_api_delete,
@@ -15,19 +16,46 @@ from mcp_server_check.helpers import (
     check_api_list,
     check_api_patch,
     check_api_post,
+    with_next_cursor,
 )
 
 
 # --- Company Tax Params ---
 
 
-async def get_company_tax_params(ctx: Ctx, company_id: str) -> dict:
-    """Get tax parameters for a company.
+async def get_company_tax_params(
+    ctx: Ctx,
+    company_id: str,
+    limit: int | None = None,
+    cursor: str | None = None,
+) -> dict:
+    """Get tax parameters for a company: each parameter's current value.
+
+    This has no history. For when a value changed, who changed it, or what it
+    was before, use list_company_tax_param_settings or
+    get_company_tax_param_setting.
+
+    The response is one page: ``results`` is the list of params, each with
+    ``id`` (``spa_...``), ``name``, ``value``, ``tax``, and ``jurisdiction``.
+    An employer with many local taxes (Pennsylvania, Ohio) spans several
+    pages. ``next_cursor`` holds the cursor for the next page, or ``None`` on
+    the last one; pass it back as ``cursor``. The API's own ``next`` is also
+    left in place as a full URL whose ``cursor`` query value is that same
+    cursor; from code, ``parse_qs(urlparse(page["next"]).query)["cursor"][0]``
+    (``urllib.parse``) extracts it.
 
     Args:
         company_id: The Check company ID.
+        limit: Page size.
+        cursor: The ``next_cursor`` from the previous page.
     """
-    return await check_api_get(ctx, f"/company_tax_params/{company_id}")
+    return with_next_cursor(
+        await check_api_get(
+            ctx,
+            api_path("company_tax_params", company_id),
+            params=build_params(limit=limit, cursor=cursor),
+        )
+    )
 
 
 async def update_company_tax_params(
@@ -50,12 +78,14 @@ async def update_company_tax_params(
         company_id: The Check company ID.
         data: List of tax parameter update objects, each with ``id`` and ``value``.
     """
-    return await check_api_patch(ctx, f"/company_tax_params/{company_id}", data=data)
+    return await check_api_patch(
+        ctx, api_path("company_tax_params", company_id), data=data
+    )
 
 
 async def list_company_tax_param_settings(
     ctx: Ctx,
-    company_id: str,
+    company: str,
     limit: int | None = None,
     cursor: str | None = None,
     as_of: str | None = None,
@@ -79,11 +109,23 @@ async def list_company_tax_param_settings(
     after it. When a recent write is not the current ``value``, look for an
     entry dated after the write's ``effective_start``; that entry is why.
 
-    Deleted values are not listed. A form submission deletes a setting's
-    earlier values, so a setting last set through a form shows one entry.
+    Each ``settings[]`` entry also says when and by whom it was written:
+    ``created_at`` is the write time, and ``actor`` is ``{"party", "user"}``.
+    ``party`` is "partner", "check", "company" (an employer user, e.g. in
+    Onboard) or "employee" (the employee themself); ``user`` is the partner
+    user's ``usr_*`` ID (see get_user) and null for the other parties.
+    ``actor`` is null when the writer was not recorded. Console sessions also
+    get ``set_by``: the writer's email, "Check", or "api".
+
+    This is the change history: answer "when did it change, who changed it,
+    what was it before" from these entries, including that a value was
+    written once. Deleted values are not listed. A form submission deletes a
+    setting's earlier values, so a setting last set through a form shows one
+    entry and its history before the form is not available here; only that
+    case, and a null ``actor``, need Check Support.
 
     Args:
-        company_id: The Check company ID.
+        company: The Check company ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
         as_of: Return as ``value`` what applies on this date (YYYY-MM-DD).
@@ -93,7 +135,7 @@ async def list_company_tax_param_settings(
     """
     return await check_api_list(
         ctx,
-        f"/company_tax_params/{company_id}/settings",
+        api_path("company_tax_params", company, "settings"),
         params=build_params(
             limit=limit,
             cursor=cursor,
@@ -124,15 +166,28 @@ async def get_company_tax_param_setting(
     after it. When a recent write is not the current ``value``, look for an
     entry dated after the write's ``effective_start``; that entry is why.
 
-    Deleted values are not listed. A form submission deletes a setting's
-    earlier values, so a setting last set through a form shows one entry.
+    Each ``settings[]`` entry also says when and by whom it was written:
+    ``created_at`` is the write time, and ``actor`` is ``{"party", "user"}``.
+    ``party`` is "partner", "check", "company" (an employer user, e.g. in
+    Onboard) or "employee" (the employee themself); ``user`` is the partner
+    user's ``usr_*`` ID (see get_user) and null for the other parties.
+    ``actor`` is null when the writer was not recorded. Console sessions also
+    get ``set_by``: the writer's email, "Check", or "api".
+
+    This is the change history: answer "when did it change, who changed it,
+    what was it before" from these entries, including that a value was
+    written once. Deleted values are not listed. A form submission deletes a
+    setting's earlier values, so a setting last set through a form shows one
+    entry and its history before the form is not available here; only that
+    case, and a null ``actor``, need Check Support.
 
     Args:
         company_id: The Check company ID.
         setting_id: The tax parameter setting ID.
     """
     return await check_api_get(
-        ctx, f"/company_tax_params/{company_id}/settings/{setting_id}"
+        ctx,
+        api_path("company_tax_params", company_id, "settings", setting_id),
     )
 
 
@@ -166,7 +221,7 @@ async def list_employee_tax_params(
     """
     return await check_api_list(
         ctx,
-        "/employee_tax_params",
+        api_path("employee_tax_params"),
         params=build_params(
             employee=employee,
             limit=limit,
@@ -179,13 +234,39 @@ async def list_employee_tax_params(
     )
 
 
-async def get_employee_tax_params(ctx: Ctx, employee_id: str) -> dict:
-    """Get tax parameters for a specific employee.
+async def get_employee_tax_params(
+    ctx: Ctx,
+    employee_id: str,
+    limit: int | None = None,
+    cursor: str | None = None,
+) -> dict:
+    """Get tax parameters for a specific employee: each parameter's current value.
+
+    This has no history. For when a value changed, who changed it, or what it
+    was before, use list_employee_tax_param_settings or
+    get_employee_tax_param_setting.
+
+    The response is one page: ``results`` is the list of params, each with
+    ``id`` (``spa_...``), ``name``, ``value``, ``tax``, and ``jurisdiction``.
+    An employee with many local taxes spans several pages. ``next_cursor``
+    holds the cursor for the next page, or ``None`` on the last one; pass it
+    back as ``cursor``. The API's own ``next`` is also left in place as a full
+    URL whose ``cursor`` query value is that same cursor; from code,
+    ``parse_qs(urlparse(page["next"]).query)["cursor"][0]`` (``urllib.parse``)
+    extracts it.
 
     Args:
         employee_id: The Check employee ID.
+        limit: Page size.
+        cursor: The ``next_cursor`` from the previous page.
     """
-    return await check_api_get(ctx, f"/employee_tax_params/{employee_id}")
+    return with_next_cursor(
+        await check_api_get(
+            ctx,
+            api_path("employee_tax_params", employee_id),
+            params=build_params(limit=limit, cursor=cursor),
+        )
+    )
 
 
 async def update_employee_tax_params(
@@ -208,12 +289,14 @@ async def update_employee_tax_params(
         employee_id: The Check employee ID.
         data: List of tax parameter update objects, each with ``id`` and ``value``.
     """
-    return await check_api_patch(ctx, f"/employee_tax_params/{employee_id}", data=data)
+    return await check_api_patch(
+        ctx, api_path("employee_tax_params", employee_id), data=data
+    )
 
 
 async def list_employee_tax_param_settings(
     ctx: Ctx,
-    employee_id: str,
+    employee: str,
     limit: int | None = None,
     cursor: str | None = None,
     as_of: str | None = None,
@@ -237,11 +320,23 @@ async def list_employee_tax_param_settings(
     after it. When a recent write is not the current ``value``, look for an
     entry dated after the write's ``effective_start``; that entry is why.
 
-    Deleted values are not listed. A form submission deletes a setting's
-    earlier values, so a setting last set through a form shows one entry.
+    Each ``settings[]`` entry also says when and by whom it was written:
+    ``created_at`` is the write time, and ``actor`` is ``{"party", "user"}``.
+    ``party`` is "partner", "check", "company" (an employer user, e.g. in
+    Onboard) or "employee" (the employee themself); ``user`` is the partner
+    user's ``usr_*`` ID (see get_user) and null for the other parties.
+    ``actor`` is null when the writer was not recorded. Console sessions also
+    get ``set_by``: the writer's email, "Check", or "api".
+
+    This is the change history: answer "when did it change, who changed it,
+    what was it before" from these entries, including that a value was
+    written once. Deleted values are not listed. A form submission deletes a
+    setting's earlier values, so a setting last set through a form shows one
+    entry and its history before the form is not available here; only that
+    case, and a null ``actor``, need Check Support.
 
     Args:
-        employee_id: The Check employee ID.
+        employee: The Check employee ID.
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
         as_of: Return as ``value`` what applies on this date (YYYY-MM-DD).
@@ -251,7 +346,7 @@ async def list_employee_tax_param_settings(
     """
     return await check_api_list(
         ctx,
-        f"/employee_tax_params/{employee_id}/settings",
+        api_path("employee_tax_params", employee, "settings"),
         params=build_params(
             limit=limit,
             cursor=cursor,
@@ -282,39 +377,100 @@ async def get_employee_tax_param_setting(
     after it. When a recent write is not the current ``value``, look for an
     entry dated after the write's ``effective_start``; that entry is why.
 
-    Deleted values are not listed. A form submission deletes a setting's
-    earlier values, so a setting last set through a form shows one entry.
+    Each ``settings[]`` entry also says when and by whom it was written:
+    ``created_at`` is the write time, and ``actor`` is ``{"party", "user"}``.
+    ``party`` is "partner", "check", "company" (an employer user, e.g. in
+    Onboard) or "employee" (the employee themself); ``user`` is the partner
+    user's ``usr_*`` ID (see get_user) and null for the other parties.
+    ``actor`` is null when the writer was not recorded. Console sessions also
+    get ``set_by``: the writer's email, "Check", or "api".
+
+    This is the change history: answer "when did it change, who changed it,
+    what was it before" from these entries, including that a value was
+    written once. Deleted values are not listed. A form submission deletes a
+    setting's earlier values, so a setting last set through a form shows one
+    entry and its history before the form is not available here; only that
+    case, and a null ``actor``, need Check Support.
 
     Args:
         employee_id: The Check employee ID.
         setting_id: The tax parameter setting ID.
     """
     return await check_api_get(
-        ctx, f"/employee_tax_params/{employee_id}/settings/{setting_id}"
+        ctx,
+        api_path("employee_tax_params", employee_id, "settings", setting_id),
     )
 
 
-async def bulk_get_employee_tax_param_settings(ctx: Ctx, data: dict) -> dict:
-    """Bulk get employee tax parameter settings.
+async def bulk_get_employee_tax_param_settings(
+    ctx: Ctx,
+    company: str,
+    employee: list[str] | None = None,
+    as_of: str | None = None,
+    jurisdiction: str | None = None,
+    submitter: str | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
+) -> dict:
+    """Get the tax parameter settings of a company's employees, one entry per employee and parameter.
 
-    The payload is a complex bulk structure — pass the full request body as a dict.
+    Each entry carries ``employee``, the setting ``id`` (``spa_*``), ``value``
+    and ``effective_start`` (what applies on ``as_of``), and ``settings[]``,
+    every write that has not been deleted, newest ``effective_start`` first,
+    each with ``created_at`` and ``actor`` as list_employee_tax_param_settings
+    describes.
+    Paging is by employee, so a page holds every parameter of the employees
+    it covers.
 
     Args:
-        data: Bulk request payload with employee IDs or filters.
+        company: The Check company ID (e.g. "com_xxxxx"). Required.
+        employee: Narrow to these Check employee IDs (up to 100).
+        as_of: Return as ``value`` what applies on this date (YYYY-MM-DD).
+            Defaults to today.
+        jurisdiction: Filter by tax jurisdiction.
+        submitter: Filter by submitter: "employee" or "company".
+        limit: Maximum number of employees per page (default 100, max 100).
+            Each employee brings every applicable parameter, so a full page
+            is large; pass employee or a small limit.
+        cursor: Pagination cursor from a previous response.
     """
-    return await check_api_post(ctx, "/employee_tax_param_settings/bulk_get", data=data)
+    return await check_api_list(
+        ctx,
+        api_path("employee_tax_params", "settings"),
+        params=build_params(
+            company=company,
+            employee=employee,
+            as_of=as_of,
+            jurisdiction=jurisdiction,
+            submitter=submitter,
+            limit=limit,
+            cursor=cursor,
+        ),
+    )
 
 
-async def bulk_update_employee_tax_param_settings(ctx: Ctx, data: dict) -> dict:
-    """Bulk update employee tax parameter settings.
+async def bulk_update_employee_tax_param_settings(
+    ctx: Ctx, data: list[BulkEmployeeTaxParamUpdate]
+) -> dict:
+    """Bulk update tax parameter settings across one or more employees.
 
-    The payload is a complex bulk structure — pass the full request body as a dict.
+    The request body must be a non-empty JSON array. Each item requires
+    ``id`` (the ``spa_*`` tax parameter ID), ``employee`` and ``company``, plus
+    either ``value`` or ``applied_for`` (not both), and optionally
+    ``effective_start``.
+
+    Example::
+
+        [
+            {"id": "spa_abc123", "employee": "emp_111", "company": "com_222",
+             "value": "0", "effective_start": "2026-01-01"}
+        ]
 
     Args:
-        data: Bulk update payload with settings to update.
+        data: List of tax parameter setting updates.
     """
-    return await check_api_post(
-        ctx, "/employee_tax_param_settings/bulk_update", data=data
+    return await check_api_patch(
+        ctx, api_path("employee_tax_params", "settings"), data=data
     )
 
 
@@ -338,6 +494,10 @@ async def list_company_tax_elections(
     the current ``exempt`` value and its effective dates (``setting_timeline``
     has the history). Use it to answer "is this company exempt from X?" and to
     find the ``txe_*`` ID to pass to update_company_tax_elections.
+
+    ``setting_timeline`` holds only ``exempt`` and effective dates: it does
+    not say who set an exemption or when it was written. For that, draft a
+    Check Support request.
 
     These are company-level settings only. A ``setting`` of null here does not
     mean an employee is not exempt: the same tax can be exempted per employee,
@@ -371,7 +531,7 @@ async def list_company_tax_elections(
     """
     return await check_api_list(
         ctx,
-        "/company_tax_elections",
+        api_path("company_tax_elections"),
         params=build_params(
             company=company,
             tax=tax,
@@ -405,7 +565,7 @@ async def create_company_tax_elections(
     """
     return await check_api_post(
         ctx,
-        "/company_tax_elections",
+        api_path("company_tax_elections"),
         data=data,
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
@@ -431,7 +591,7 @@ async def update_company_tax_elections(ctx: Ctx, data: list[dict]) -> dict:
     Args:
         data: List of tax election updates, e.g. [{"id": "txe_...", "company": "com_...", "setting": {"exempt": true, "effective_start": "2026-01-01"}}].
     """
-    return await check_api_patch(ctx, "/company_tax_elections", data=data)
+    return await check_api_patch(ctx, api_path("company_tax_elections"), data=data)
 
 
 # --- Employee Tax Elections ---
@@ -458,6 +618,10 @@ async def list_employee_tax_elections(
     employer halves of Social Security and Medicare, so a minister/clergy
     FICA exemption is handled entirely here.
 
+    ``setting_timeline`` holds only ``exempt`` and effective dates: it does
+    not say who set an exemption or when it was written. For that, draft a
+    Check Support request.
+
     ``exemptible: true`` means the partner can set the exemption directly with
     update_employee_tax_elections — no Check Support request is needed.
     ``exemptible: false`` means only Check Support can apply it.
@@ -477,7 +641,7 @@ async def list_employee_tax_elections(
     """
     return await check_api_list(
         ctx,
-        "/employee_tax_elections",
+        api_path("employee_tax_elections"),
         params=build_params(
             employee=employee,
             company=company,
@@ -513,7 +677,7 @@ async def update_employee_tax_elections(ctx: Ctx, data: list[dict]) -> dict:
     Args:
         data: List of tax election updates, e.g. [{"id": "txe_...", "employee": "emp_...", "setting": {"exempt": true, "effective_start": "2026-01-01"}}].
     """
-    return await check_api_patch(ctx, "/employee_tax_elections", data=data)
+    return await check_api_patch(ctx, api_path("employee_tax_elections"), data=data)
 
 
 # --- Filings ---
@@ -552,7 +716,7 @@ async def list_filings(
     """
     return await check_api_list(
         ctx,
-        "/filings",
+        api_path("filings"),
         params=build_params(
             company=company,
             limit=limit,
@@ -579,7 +743,7 @@ async def get_filing(ctx: Ctx, filing_id: str) -> dict:
     Args:
         filing_id: The Check filing ID (prefixed with "com_fil_").
     """
-    return await check_api_get(ctx, f"/filings/{filing_id}")
+    return await check_api_get(ctx, api_path("filings", filing_id))
 
 
 async def add_filing_blockers(ctx: Ctx, filing_id: str, data: dict) -> dict:
@@ -593,7 +757,9 @@ async def add_filing_blockers(ctx: Ctx, filing_id: str, data: dict) -> dict:
         filing_id: The Check filing ID (prefixed with "com_fil_").
         data: Request body with blocked_reasons to add (e.g. {"blocked_reasons": ["held_by_customer"]}).
     """
-    return await check_api_post(ctx, f"/filings/{filing_id}/add_blockers", data=data)
+    return await check_api_post(
+        ctx, api_path("filings", filing_id, "add_blockers"), data=data
+    )
 
 
 async def remove_filing_blockers(ctx: Ctx, filing_id: str, data: dict) -> dict:
@@ -606,7 +772,9 @@ async def remove_filing_blockers(ctx: Ctx, filing_id: str, data: dict) -> dict:
         filing_id: The Check filing ID (prefixed with "com_fil_").
         data: Request body with blocked_reasons to remove (e.g. {"blocked_reasons": ["held_by_customer"]}).
     """
-    return await check_api_post(ctx, f"/filings/{filing_id}/remove_blockers", data=data)
+    return await check_api_post(
+        ctx, api_path("filings", filing_id, "remove_blockers"), data=data
+    )
 
 
 # --- Employee Tax Statements ---
@@ -644,7 +812,7 @@ async def list_employee_tax_statements(
     """
     return await check_api_list(
         ctx,
-        "/employee_tax_statements",
+        api_path("employee_tax_statements"),
         params=build_params(
             employee=employee,
             limit=limit,
@@ -665,7 +833,7 @@ async def get_employee_tax_statement(ctx: Ctx, statement_id: str) -> dict:
     Args:
         statement_id: The tax statement ID.
     """
-    return await check_api_get(ctx, f"/employee_tax_statements/{statement_id}")
+    return await check_api_get(ctx, api_path("employee_tax_statements", statement_id))
 
 
 async def simulate_publish_employee_tax_statement(ctx: Ctx, statement_id: str) -> dict:
@@ -682,7 +850,8 @@ async def simulate_publish_employee_tax_statement(ctx: Ctx, statement_id: str) -
         statement_id: The employee tax statement ID (e.g. "ets_xxxxx").
     """
     return await check_api_post(
-        ctx, f"/employee_tax_statements/{statement_id}/simulate/publish"
+        ctx,
+        api_path("employee_tax_statements", statement_id, "simulate", "publish"),
     )
 
 
@@ -698,7 +867,8 @@ async def simulate_unpublish_employee_tax_statement(
         statement_id: The employee tax statement ID (e.g. "ets_xxxxx").
     """
     return await check_api_post(
-        ctx, f"/employee_tax_statements/{statement_id}/simulate/unpublish"
+        ctx,
+        api_path("employee_tax_statements", statement_id, "simulate", "unpublish"),
     )
 
 
@@ -738,7 +908,7 @@ async def list_contractor_tax_statements(
     """
     return await check_api_list(
         ctx,
-        "/contractor_tax_statements",
+        api_path("contractor_tax_statements"),
         params=build_params(
             contractor=contractor,
             company=company,
@@ -762,7 +932,7 @@ async def get_contractor_tax_statement(ctx: Ctx, statement_id: str) -> dict:
     Args:
         statement_id: The contractor tax statement ID (e.g. "cts_xxxxx").
     """
-    return await check_api_get(ctx, f"/contractor_tax_statements/{statement_id}")
+    return await check_api_get(ctx, api_path("contractor_tax_statements", statement_id))
 
 
 async def simulate_publish_contractor_tax_statement(
@@ -781,7 +951,8 @@ async def simulate_publish_contractor_tax_statement(
         statement_id: The contractor tax statement ID (e.g. "cts_xxxxx").
     """
     return await check_api_post(
-        ctx, f"/contractor_tax_statements/{statement_id}/simulate/publish"
+        ctx,
+        api_path("contractor_tax_statements", statement_id, "simulate", "publish"),
     )
 
 
@@ -797,7 +968,8 @@ async def simulate_unpublish_contractor_tax_statement(
         statement_id: The contractor tax statement ID (e.g. "cts_xxxxx").
     """
     return await check_api_post(
-        ctx, f"/contractor_tax_statements/{statement_id}/simulate/unpublish"
+        ctx,
+        api_path("contractor_tax_statements", statement_id, "simulate", "unpublish"),
     )
 
 
@@ -827,7 +999,7 @@ async def list_employee_tax_statement_overrides(
     """
     return await check_api_list(
         ctx,
-        "/employee_tax_statement_overrides",
+        api_path("employee_tax_statement_overrides"),
         params=build_params(
             company=company,
             employee=employee,
@@ -844,7 +1016,9 @@ async def get_employee_tax_statement_override(ctx: Ctx, override_id: str) -> dic
     Args:
         override_id: The override ID (e.g. "ets_ovr_xxxxx").
     """
-    return await check_api_get(ctx, f"/employee_tax_statement_overrides/{override_id}")
+    return await check_api_get(
+        ctx, api_path("employee_tax_statement_overrides", override_id)
+    )
 
 
 async def create_employee_tax_statement_overrides(
@@ -870,7 +1044,7 @@ async def create_employee_tax_statement_overrides(
     """
     return await check_api_post(
         ctx,
-        "/employee_tax_statement_overrides",
+        api_path("employee_tax_statement_overrides"),
         data={"company": company, "overrides": overrides},
         headers={"X-Idempotency-Key": idempotency_key} if idempotency_key else None,
     )
@@ -896,7 +1070,7 @@ async def update_employee_tax_statement_override(
     """
     return await check_api_patch(
         ctx,
-        f"/employee_tax_statement_overrides/{override_id}",
+        api_path("employee_tax_statement_overrides", override_id),
         data=build_body(
             {},
             qualified_overtime_compensation=qualified_overtime_compensation,
@@ -913,7 +1087,7 @@ async def delete_employee_tax_statement_override(ctx: Ctx, override_id: str) -> 
         override_id: The override ID (e.g. "ets_ovr_xxxxx").
     """
     return await check_api_delete(
-        ctx, f"/employee_tax_statement_overrides/{override_id}"
+        ctx, api_path("employee_tax_statement_overrides", override_id)
     )
 
 
@@ -954,7 +1128,7 @@ async def request_tax_package(
 
     return await check_api_post(
         ctx,
-        "/tax_packages",
+        api_path("tax_packages"),
         data=build_body(
             {"company": company},
             contents=contents if contents else None,
@@ -969,7 +1143,7 @@ async def get_tax_package(ctx: Ctx, tax_package_id: str) -> dict:
     Args:
         tax_package_id: The tax package ID.
     """
-    return await check_api_get(ctx, f"/tax_packages/{tax_package_id}")
+    return await check_api_get(ctx, api_path("tax_packages", tax_package_id))
 
 
 # --- Taxes (reference data) ---
@@ -983,6 +1157,7 @@ async def list_taxes(
     remittable: bool | None = None,
     effective: bool | None = None,
     label_contains: str | None = None,
+    political_subdivision_code: str | None = None,
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
@@ -1002,12 +1177,15 @@ async def list_taxes(
         effective: Filter by whether the tax obligation is currently in
             effect (defaults to true on the API side).
         label_contains: Case-insensitive substring match on the tax label.
+        political_subdivision_code: Exact match on the political subdivision
+            code (PSD) for the tax, when applicable (e.g. Pennsylvania local
+            earned income taxes).
         limit: Maximum number of results to return (default 25, max 500).
         cursor: Pagination cursor from a previous response.
     """
     return await check_api_list(
         ctx,
-        "/taxes",
+        api_path("taxes"),
         params=build_params(
             id=ids,
             jurisdiction=jurisdiction,
@@ -1015,6 +1193,7 @@ async def list_taxes(
             remittable=remittable,
             effective=effective,
             label_contains=label_contains,
+            political_subdivision_code=political_subdivision_code,
             limit=limit,
             cursor=cursor,
         ),
@@ -1027,7 +1206,7 @@ async def get_tax(ctx: Ctx, tax_id: str) -> dict:
     Args:
         tax_id: The Check tax ID (e.g. "tax_xxxxx").
     """
-    return await check_api_get(ctx, f"/taxes/{tax_id}")
+    return await check_api_get(ctx, api_path("taxes", tax_id))
 
 
 def register(mcp: FastMCP, *, read_only: bool = False) -> None:

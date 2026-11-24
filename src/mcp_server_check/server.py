@@ -127,9 +127,10 @@ see what touched their account.
 - Look up signatures first: get_stubs() with no arguments lists every toolset \
 and its tool names; get_stubs(tools=[...]), get_stubs(toolset=...), or \
 get_stubs(query="...") return signatures with docstrings.
-- Paginate with next_cursor until it is null. List results are summaries (key \
-fields only) and search_* results are only id and names; call the get_* tool \
-for a full record, in the same program as the lookup that found the id.
+- Paginate with next_cursor until it is null. List pages carry full records \
+inside a program, so filter them there instead of calling get_* per record. \
+search_* results are only id and names; call the get_* tool for a full \
+record, in the same program as the lookup that found the id.
 - A failed API call raises RuntimeError whose message is a JSON object with \
 status_code and detail; catch it to continue. Throttled calls, and reads whose \
 connection dropped, are retried for you.
@@ -171,8 +172,9 @@ and use the signature for whichever route you take; do not look it up again.
 and `json`; every tool is an async function named as get_stubs lists it. The \
 program's last expression is the result; the server serializes it. A failed \
 call raises RuntimeError whose message is a JSON object with status_code and \
-detail. List results are summaries and search_* results are only id and \
-names; call the get_* tool for a full record in the same program.
+detail. List pages carry full records inside a program (run_tool's list \
+results are summaries), and search_* results are only id and names; call \
+the get_* tool for a full record after a search in the same program.
 - Tell the user which calls ran (tool, key arguments, any failures), always \
 for writes.
 """

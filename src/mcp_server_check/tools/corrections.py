@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from mcp_server_check.annotations import add_annotated_tool
 from mcp_server_check.helpers import (
     Ctx,
+    api_path,
     build_body,
     build_params,
     check_api_delete,
@@ -41,7 +42,7 @@ async def list_corrections(
     """
     return await check_api_list(
         ctx,
-        "/corrections",
+        api_path("corrections"),
         params=build_params(
             company=company,
             year=year,
@@ -65,7 +66,7 @@ async def get_correction(ctx: Ctx, correction_id: str) -> dict:
     Args:
         correction_id: The Check correction ID (e.g. "cor_xxxxx").
     """
-    return await check_api_get(ctx, f"/corrections/{correction_id}")
+    return await check_api_get(ctx, api_path("corrections", correction_id))
 
 
 async def create_correction(
@@ -89,8 +90,10 @@ async def create_correction(
         company: The Check company ID.
         year: The tax year the correction applies to. Every payroll added to the
             correction must have a payday in this year.
-        settlement_date: Date money moves for the correction (YYYY-MM-DD). When
-            omitted, a date is chosen at approval.
+        settlement_date: Date money moves for the correction (YYYY-MM-DD), a
+            banking day. A correction that moves money cannot be approved
+            without one (settlement_date_required); set it here or with
+            update_correction. One that moves no money can leave it out.
         bank_account: ID of the company bank account to debit or credit. Defaults
             to the company's default bank account.
         description: Free-text explanation of why the correction exists.
@@ -101,7 +104,7 @@ async def create_correction(
     """
     return await check_api_post(
         ctx,
-        "/corrections",
+        api_path("corrections"),
         data=build_body(
             {"company": company, "year": year},
             settlement_date=settlement_date,
@@ -138,7 +141,7 @@ async def update_correction(
     """
     return await check_api_patch(
         ctx,
-        f"/corrections/{correction_id}",
+        api_path("corrections", correction_id),
         data=build_body(
             {},
             settlement_date=settlement_date,
@@ -156,7 +159,7 @@ async def delete_correction(ctx: Ctx, correction_id: str) -> dict:
     Args:
         correction_id: The Check correction ID.
     """
-    return await check_api_delete(ctx, f"/corrections/{correction_id}")
+    return await check_api_delete(ctx, api_path("corrections", correction_id))
 
 
 async def void_payroll(
@@ -180,7 +183,7 @@ async def void_payroll(
     """
     return await check_api_post(
         ctx,
-        f"/payrolls/{payroll_id}/void",
+        api_path("payrolls", payroll_id, "void"),
         data={"correction": correction, "subset": subset},
     )
 
@@ -239,7 +242,7 @@ async def add_payroll_to_correction(
     """
     result = await check_api_post(
         ctx,
-        "/payrolls",
+        api_path("payrolls"),
         data=build_body(
             {
                 "correction": correction,
@@ -311,7 +314,7 @@ async def add_external_payroll(
     """
     result = await check_api_post(
         ctx,
-        "/external_payrolls",
+        api_path("external_payrolls"),
         data=build_body(
             {
                 "correction": correction,
@@ -339,7 +342,7 @@ async def preview_correction(ctx: Ctx, correction_id: str) -> dict:
     Args:
         correction_id: The Check correction ID.
     """
-    return await check_api_post(ctx, f"/corrections/{correction_id}/preview")
+    return await check_api_post(ctx, api_path("corrections", correction_id, "preview"))
 
 
 async def approve_correction(ctx: Ctx, correction_id: str) -> dict:
@@ -348,12 +351,18 @@ async def approve_correction(ctx: Ctx, correction_id: str) -> dict:
     Runs in the background: poll get_correction until "approval.status" is
     "succeeded" or "failed". If the amounts changed since the last preview,
     approval fails with "fulfillment_changed" and the correction's "totals" show
-    the new amounts to review before approving again.
+    the new amounts to review before approving again. A correction that moves
+    money needs a settlement_date first (update_correction), or approval fails
+    with "settlement_date_required".
+
+    Approval can take longer than one run_code program may run, so do not
+    poll in a loop inside the program that approves: return once it starts
+    and read get_correction from a later program.
 
     Args:
         correction_id: The Check correction ID.
     """
-    return await check_api_post(ctx, f"/corrections/{correction_id}/approve")
+    return await check_api_post(ctx, api_path("corrections", correction_id, "approve"))
 
 
 async def reopen_correction(ctx: Ctx, correction_id: str) -> dict:
@@ -364,7 +373,7 @@ async def reopen_correction(ctx: Ctx, correction_id: str) -> dict:
     Args:
         correction_id: The Check correction ID.
     """
-    return await check_api_post(ctx, f"/corrections/{correction_id}/reopen")
+    return await check_api_post(ctx, api_path("corrections", correction_id, "reopen"))
 
 
 async def simulate_correction_start_processing(ctx: Ctx, correction_id: str) -> dict:
@@ -377,7 +386,8 @@ async def simulate_correction_start_processing(ctx: Ctx, correction_id: str) -> 
         correction_id: The Check correction ID.
     """
     return await check_api_post(
-        ctx, f"/corrections/{correction_id}/simulate/start_processing"
+        ctx,
+        api_path("corrections", correction_id, "simulate", "start_processing"),
     )
 
 
@@ -391,7 +401,8 @@ async def simulate_correction_complete_funding(ctx: Ctx, correction_id: str) -> 
         correction_id: The Check correction ID.
     """
     return await check_api_post(
-        ctx, f"/corrections/{correction_id}/simulate/complete_funding"
+        ctx,
+        api_path("corrections", correction_id, "simulate", "complete_funding"),
     )
 
 
@@ -405,7 +416,8 @@ async def simulate_correction_fail_funding(ctx: Ctx, correction_id: str) -> dict
         correction_id: The Check correction ID.
     """
     return await check_api_post(
-        ctx, f"/corrections/{correction_id}/simulate/fail_funding"
+        ctx,
+        api_path("corrections", correction_id, "simulate", "fail_funding"),
     )
 
 
@@ -420,7 +432,7 @@ async def get_correction_receipt(ctx: Ctx, correction_id: str) -> dict:
     Args:
         correction_id: The Check correction ID.
     """
-    return await check_api_get(ctx, f"/corrections/{correction_id}/receipt")
+    return await check_api_get(ctx, api_path("corrections", correction_id, "receipt"))
 
 
 async def get_correction_receipt_download(ctx: Ctx, correction_id: str) -> dict:
@@ -432,7 +444,9 @@ async def get_correction_receipt_download(ctx: Ctx, correction_id: str) -> dict:
     Args:
         correction_id: The Check correction ID.
     """
-    return await check_api_get(ctx, f"/corrections/{correction_id}/receipt_download")
+    return await check_api_get(
+        ctx, api_path("corrections", correction_id, "receipt_download")
+    )
 
 
 async def _create_correction_report_run(
@@ -440,12 +454,12 @@ async def _create_correction_report_run(
 ) -> dict:
     # Check API requires top-level company with a correction, and a payday range
     # would add that range's payrolls to the report rather than narrow it.
-    correction = await check_api_get(ctx, f"/corrections/{correction_id}")
+    correction = await check_api_get(ctx, api_path("corrections", correction_id))
     if correction.get("error") is True:
         return correction
     return await check_api_post(
         ctx,
-        "/report_runs",
+        api_path("report_runs"),
         data={
             "report": report,
             "company": correction["company"],

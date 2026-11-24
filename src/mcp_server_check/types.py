@@ -82,6 +82,62 @@ class TaxParamUpdate(TypedDict, total=False):
     """Effective start date (YYYY-MM-DD)."""
 
 
+class BulkEmployeeTaxParamUpdate(TypedDict, total=False):
+    """One employee tax parameter setting in a bulk update.
+
+    ``id``, ``employee`` and ``company`` are required by the API, as is one of
+    ``value`` or ``applied_for`` (not both).
+    """
+
+    id: str
+    """The tax parameter ID (e.g. "spa_xxxxx")."""
+
+    employee: str
+    """The Check employee ID (e.g. "emp_xxxxx")."""
+
+    company: str
+    """The Check company ID the employee belongs to (e.g. "com_xxxxx")."""
+
+    value: str
+    """The new value for the tax parameter."""
+
+    applied_for: bool
+    """Whether this is an applied-for value (cannot be combined with ``value``)."""
+
+    effective_start: str
+    """Effective start date (YYYY-MM-DD)."""
+
+
+class ReciprocityElectionUpdate(TypedDict, total=False):
+    """One reciprocity election for an employee."""
+
+    jurisdiction: str
+    """The jurisdiction ID of the election (e.g. "jur_xxxxx"), from
+    get_employee_reciprocity_elections."""
+
+    opt_in: bool
+    """Whether the employee opts in to the reciprocity agreement."""
+
+    effective_start: str
+    """Effective start date (YYYY-MM-DD)."""
+
+
+class CompanyDefinedAttributeUpdate(TypedDict, total=False):
+    """One company-defined attribute value for an employee."""
+
+    name: str
+    """The attribute name (e.g. "in_job_title"), from
+    get_employee_company_defined_attributes."""
+
+    value: str
+    """The new value, as a string the way the API returns it (e.g. "true" or
+    "false" for a boolean attribute)."""
+
+    effective_start: str
+    """Effective start date (YYYY-MM-DD); required when the attribute's
+    effective_start_required is true."""
+
+
 class EmailDetails(TypedDict, total=False):
     """Email details for a communication."""
 

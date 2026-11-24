@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from importlib.metadata import PackageNotFoundError, version
 from io import BytesIO
@@ -19,6 +20,63 @@ except PackageNotFoundError:
     _VERSION = "dev"
 
 _USER_AGENT = f"mcp-server-check/{_VERSION}"
+_API_PATH_TOKEN = object()
+
+
+class ApiPath(str):
+    """An absolute Check API path validated and created by :func:`api_path`."""
+
+    def __new__(cls, value: str, *, _token: object | None = None) -> ApiPath:
+        if _token is not _API_PATH_TOKEN:
+            raise TypeError("ApiPath values must be created with api_path().")
+        return super().__new__(cls, value)
+
+
+def _fully_unquote(value: str) -> str:
+    """Decode nested percent escapes so path checks cannot be bypassed."""
+    decoded = value
+    for _ in range(len(value) + 1):
+        next_value = unquote(decoded)
+        if next_value == decoded:
+            return decoded
+        decoded = next_value
+    return decoded
+
+
+def _validate_api_segment(position: int, value: str) -> None:
+    """Require a path value to remain exactly one segment after decoding."""
+    decoded = _fully_unquote(value)
+    if (
+        not value
+        or any(char in decoded for char in "/\\?#")
+        or decoded in {".", ".."}
+        or any(ord(char) < 32 or ord(char) == 127 for char in decoded)
+    ):
+        raise ValueError(
+            f"Check API path segment {position} must be exactly one URL segment."
+        )
+
+
+def api_path(*segments: str) -> ApiPath:
+    """Build an absolute Check API path from individually validated segments."""
+    for position, segment in enumerate(segments, 1):
+        _validate_api_segment(position, segment)
+    path = "/" + "/".join(segments)
+    _validate_api_path(path)
+    return ApiPath(path, _token=_API_PATH_TOKEN)
+
+
+def _validate_api_path(path: str) -> None:
+    """Reject paths that could be normalized or interpreted as another route."""
+    decoded = _fully_unquote(path)
+    if (
+        not path.startswith("/")
+        or path.startswith("//")
+        or any(char in decoded for char in "\\?#")
+        or any(segment in {".", ".."} for segment in decoded.split("/"))
+        or any(ord(char) < 32 or ord(char) == 127 for char in decoded)
+    ):
+        raise ValueError("Check API path must be an absolute, traversal-free path.")
 
 
 @dataclass
@@ -33,6 +91,16 @@ Ctx = Context
 
 # Default max results for list endpoints to avoid blowing context windows.
 DEFAULT_LIST_LIMIT = 10
+
+# True while the code-mode runner is serving a program's tool call. A list
+# page a program fetches stays inside the sandbox, where the program filters
+# it and only its final value reaches the model, so check_api_list returns
+# full records there instead of the summaries below; otherwise a program
+# lists records and then calls get_* once per record for the fields the
+# summary dropped. The plain tool path and the CLI never set it.
+code_mode_full_records: ContextVar[bool] = ContextVar(
+    "code_mode_full_records", default=False
+)
 
 # Fields to keep in summary mode per entity type (by ID prefix or path hint).
 # When a list response contains many records, only these fields are returned
@@ -160,6 +228,22 @@ def _format_list_response(data: dict, *, summarize: bool = True) -> dict:
     }
 
 
+def with_next_cursor(data: dict) -> dict:
+    """Add ``next_cursor`` to a paged response that keeps the API's raw shape.
+
+    Some detail endpoints (``/company_tax_params/{id}``,
+    ``/employee_tax_params/{id}``) page like list endpoints but are fetched
+    with :func:`check_api_get` so their full records come through. Their
+    ``next`` is a full URL whose ``cursor`` query value is what the API wants
+    back; this pulls it out into ``next_cursor`` (``None`` on the last page)
+    so callers page the same way they do with every list tool. ``next`` and
+    ``previous`` stay in place. Error payloads pass through untouched.
+    """
+    if not isinstance(data, dict) or data.get("error"):
+        return data
+    return {**data, "next_cursor": _extract_cursor(data.get("next"))}
+
+
 _INLINE_PAYROLL_LISTS = (
     ("items", "items_count"),
     ("contractor_payments", "contractor_payments_count"),
@@ -190,6 +274,23 @@ def shape_payroll(payroll: dict, *, include_items: bool = False) -> dict:
             del shaped[name]
             shaped[count_field] = len(value)
     return shaped
+
+
+def shape_payroll_page(page: dict, *, include_items: bool = False) -> dict:
+    """Apply :func:`shape_payroll` to every record of a payroll list page.
+
+    A summarized page already lacks the inlined lists, so this matters for the
+    full records code mode returns: a page of payrolls from a key pinned
+    before API version 2025-01-01 would otherwise carry every item of every
+    payroll. Error payloads pass through untouched.
+    """
+    results = page.get("results")
+    if not isinstance(results, list):
+        return page
+    return {
+        **page,
+        "results": [shape_payroll(p, include_items=include_items) for p in results],
+    }
 
 
 def build_body(required: dict, **optional: object) -> dict:
@@ -274,7 +375,7 @@ def merge_metadata_filter_params(
 async def _check_api_request(
     ctx: Ctx,
     method: str,
-    path: str,
+    path: ApiPath,
     params: dict | None = None,
     data: dict | list | None = None,
     extra_headers: dict[str, str] | None = None,
@@ -286,6 +387,9 @@ async def _check_api_request(
     a JSON body. A 204 or an empty 200 body (the sandbox simulate actions on
     companies answer that way) becomes ``{"success": True}``.
     """
+    if not isinstance(path, ApiPath):
+        raise TypeError("Check API request paths must be created with api_path().")
+    _validate_api_path(path)
     check_ctx = ctx.request_context.lifespan_context
     headers: dict[str, str] = {"User-Agent": check_ctx.user_agent}
     if extra_headers:
@@ -296,6 +400,8 @@ async def _check_api_request(
         response = await check_ctx.client.request(
             method, path, params=params, json=data, headers=headers or None
         )
+        if response.is_redirect:
+            return _unavailable(response)
         response.raise_for_status()
         if response.status_code == 204 or not response.content:
             return {"success": True}
@@ -325,12 +431,27 @@ async def _check_api_request(
         }
 
 
-async def check_api_get(ctx: Ctx, path: str, params: dict | None = None) -> dict:
+def _unavailable(response: httpx.Response) -> dict:
+    return {
+        "error": True,
+        Failure.UNAVAILABLE.value: True,
+        "status_code": response.status_code,
+        "detail": (
+            f"The Check API redirected to {response.headers.get('location')} "
+            "instead of answering: the route does not exist or this credential "
+            "cannot call it."
+        ),
+    }
+
+
+async def check_api_get(ctx: Ctx, path: ApiPath, params: dict | None = None) -> dict:
     """Make a GET request to the Check API."""
     return await _check_api_request(ctx, "GET", path, params=params)
 
 
-async def check_api_get_csv(ctx: Ctx, path: str, params: dict | None = None) -> dict:
+async def check_api_get_csv(
+    ctx: Ctx, path: ApiPath, params: dict | None = None
+) -> dict:
     """Make a GET request for a CSV rendering, returned under the csv key."""
     return await _check_api_request(
         ctx,
@@ -362,7 +483,7 @@ DOWNLOAD_TEXT_LIMIT = 40_000
 _READABLE_DOWNLOADS = "PDF, CSV, plain text, or JSON"
 
 
-async def check_api_download(ctx: Ctx, path: str) -> dict:
+async def check_api_download(ctx: Ctx, path: ApiPath) -> dict:
     """GET a document download and return it as text, by content type.
 
     The document download routes return the file itself, not JSON. A PDF comes
@@ -504,7 +625,7 @@ def _pdf_download(data: bytes, filename: str | None) -> dict:
 
 async def check_api_post(
     ctx: Ctx,
-    path: str,
+    path: ApiPath,
     data: dict | list | None = None,
     headers: dict[str, str] | None = None,
     params: dict | None = None,
@@ -515,24 +636,24 @@ async def check_api_post(
     )
 
 
-async def check_api_patch(ctx: Ctx, path: str, data: dict | list) -> dict:
+async def check_api_patch(ctx: Ctx, path: ApiPath, data: dict | list) -> dict:
     """Make a PATCH request to the Check API."""
     return await _check_api_request(ctx, "PATCH", path, data=data)
 
 
-async def check_api_put(ctx: Ctx, path: str, data: dict) -> dict:
+async def check_api_put(ctx: Ctx, path: ApiPath, data: dict) -> dict:
     """Make a PUT request to the Check API."""
     return await _check_api_request(ctx, "PUT", path, data=data)
 
 
-async def check_api_delete(ctx: Ctx, path: str, params: dict | None = None) -> dict:
+async def check_api_delete(ctx: Ctx, path: ApiPath, params: dict | None = None) -> dict:
     """Make a DELETE request to the Check API."""
     return await _check_api_request(ctx, "DELETE", path, params=params)
 
 
 async def check_api_list(
     ctx: Ctx,
-    path: str,
+    path: ApiPath,
     params: dict | None = None,
     *,
     summarize: bool = True,
@@ -543,9 +664,13 @@ async def check_api_list(
         ctx: MCP context.
         path: API path.
         params: Query parameters.
-        summarize: If True (default), return summary views of results.
+        summarize: If True (default), return summary views of results. A call
+            made for a code-mode program (``code_mode_full_records`` is set)
+            returns full records regardless.
     """
     data = await check_api_get(ctx, path, params=params)
     if "error" in data:
         return data
+    if code_mode_full_records.get():
+        summarize = False
     return _format_list_response(data, summarize=summarize)

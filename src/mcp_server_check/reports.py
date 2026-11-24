@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, ClassVar, TypeVar
 
-from mcp_server_check.helpers import build_params
+from mcp_server_check.helpers import (
+    api_path,
+    build_params,
+    check_api_get,
+    check_api_get_csv,
+)
 from mcp_server_check.recovery import Alternative, Failure, Hint, Remedy
 
 _ChoiceT = TypeVar("_ChoiceT", bound="Choice")
@@ -75,6 +81,18 @@ class ReportFormat(Choice):
     JSON = "json"
     CSV = "csv"
 
+    @property
+    def fetch(self) -> Callable[..., Awaitable[dict]]:
+        return check_api_get_csv if self is ReportFormat.CSV else check_api_get
+
+
+def _csv_alternative(tool: str) -> Alternative:
+    return Alternative(
+        tool=tool,
+        description="Return the smaller CSV rendering of the report.",
+        arguments={"response_format": ReportFormat.CSV.value},
+    )
+
 
 @dataclass(frozen=True)
 class ReportRequest:
@@ -116,7 +134,12 @@ class ReportRequest:
 
     @property
     def path(self) -> str:
-        return f"/companies/{self.company_id}/reports/{self.report_type.value}"
+        return api_path(
+            "companies",
+            self.company_id,
+            "reports",
+            self.report_type.value,
+        )
 
     @property
     def query_params(self) -> dict | None:
@@ -155,17 +178,13 @@ class ReportRequest:
         A CSV rendering is smaller but takes as long to generate, so it is only
         offered for a result that was too large.
         """
+        if failure is Failure.UNAVAILABLE:
+            return []
         remedies: list[Remedy] = []
         if self.report_type.has_report_run:
             remedies.append(self._report_run_remedy())
         if failure is Failure.TOO_LARGE and self.response_format is ReportFormat.JSON:
-            remedies.append(
-                Alternative(
-                    tool=self.TOOL,
-                    description="Return the smaller CSV rendering of the report.",
-                    arguments={"response_format": ReportFormat.CSV.value},
-                )
-            )
+            remedies.append(_csv_alternative(self.TOOL))
         if self.report_type.takes_payroll_filter and not self.payroll:
             remedies.append(
                 Hint(
@@ -219,3 +238,50 @@ class ReportRequest:
                 "parameters": parameters,
             },
         )
+
+
+@dataclass(frozen=True)
+class AppliedForIdsReportRequest:
+    TOOL: ClassVar[str] = "get_applied_for_ids_report"
+
+    response_format: ReportFormat = ReportFormat.JSON
+
+    @classmethod
+    def parse(
+        cls, *, response_format: str = ReportFormat.JSON.value
+    ) -> AppliedForIdsReportRequest:
+        """Build a request from get_applied_for_ids_report arguments; raises ValueError."""
+        return cls(
+            response_format=ReportFormat.parse("response_format", response_format)
+        )
+
+    @property
+    def path(self) -> str:
+        return api_path("reports", ReportType.APPLIED_FOR_IDS_DETAILED.value)
+
+    @classmethod
+    def recover(cls, arguments: dict[str, Any], failure: Failure) -> list[Remedy]:
+        """Remedy provider for get_applied_for_ids_report."""
+        try:
+            request = cls.parse(**arguments)
+        except (TypeError, ValueError):
+            return []
+        return request.remedies(failure)
+
+    def remedies(self, failure: Failure) -> list[Remedy]:
+        """Return what can succeed where this request failed.
+
+        Only Console sessions can read the provider-wide report; the
+        per-company one answers any credential.
+        """
+        per_company = Hint(
+            tool=ReportRequest.TOOL,
+            description=(
+                "Request the report per company with report_type "
+                f'"{ReportType.APPLIED_FOR_IDS_DETAILED.value}".'
+            ),
+            arguments=("company_id",),
+        )
+        if failure is Failure.TOO_LARGE and self.response_format is ReportFormat.JSON:
+            return [_csv_alternative(self.TOOL), per_company]
+        return [per_company]

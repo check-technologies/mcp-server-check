@@ -8,12 +8,15 @@ import httpx
 import pytest
 
 from mcp_server_check.tools.tax import (
+    bulk_get_employee_tax_param_settings,
+    bulk_update_employee_tax_param_settings,
     create_employee_tax_statement_overrides,
     delete_employee_tax_statement_override,
     get_company_tax_param_setting,
     get_company_tax_params,
     get_contractor_tax_statement,
     get_employee_tax_param_setting,
+    get_employee_tax_params,
     get_employee_tax_statement_override,
     get_filing,
     get_tax,
@@ -38,13 +41,105 @@ from mcp_server_check.tools.tax import (
 )
 
 
+_TAX_PARAM = {
+    "id": "spa_001",
+    "name": "EIN",
+    "value": "12-3456789",
+    "tax": "tax_fed",
+    "jurisdiction": "US",
+}
+
+
 @pytest.mark.anyio
 async def test_get_company_tax_params(mock_api, ctx):
-    mock_api.get("/company_tax_params/com_001").mock(
-        return_value=httpx.Response(200, json={"id": "com_001", "ein": "12-3456789"})
+    """A page with no cursor or limit, as before. ``next_cursor`` is derived
+    from the full ``next`` URL the API returns, and ``next`` stays in place."""
+    route = mock_api.get("/company_tax_params/com_001").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "next": (
+                    "https://api.checkhq.com/company_tax_params/com_001?cursor=cD0lNUIl"
+                ),
+                "previous": None,
+                "results": [_TAX_PARAM],
+            },
+        )
     )
     result = await get_company_tax_params(ctx, company_id="com_001")
-    assert result["ein"] == "12-3456789"
+    assert result["results"] == [_TAX_PARAM]
+    assert result["next_cursor"] == "cD0lNUIl"
+    assert result["next"].endswith("?cursor=cD0lNUIl")
+    assert "cursor" not in route.calls.last.request.url.params
+    assert "limit" not in route.calls.last.request.url.params
+
+
+@pytest.mark.anyio
+async def test_get_company_tax_params_forwards_cursor_and_limit(mock_api, ctx):
+    """The second page of a Pennsylvania employer's local tax params: the
+    cursor and limit are forwarded as query params, and the last page's
+    ``next_cursor`` is None."""
+    route = mock_api.get("/company_tax_params/com_001").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [_TAX_PARAM]},
+        )
+    )
+    result = await get_company_tax_params(
+        ctx, company_id="com_001", limit=50, cursor="cD0lNUIl"
+    )
+    params = route.calls.last.request.url.params
+    assert params["cursor"] == "cD0lNUIl"
+    assert params["limit"] == "50"
+    assert result["next_cursor"] is None
+    assert result["next"] is None
+
+
+@pytest.mark.anyio
+async def test_get_company_tax_params_error_has_no_cursor(mock_api, ctx):
+    mock_api.get("/company_tax_params/com_404").mock(
+        return_value=httpx.Response(404, json={"detail": "Not found."})
+    )
+    result = await get_company_tax_params(ctx, company_id="com_404")
+    assert result["error"] is True
+    assert "next_cursor" not in result
+
+
+@pytest.mark.anyio
+async def test_get_employee_tax_params_pages(mock_api, ctx):
+    route = mock_api.get("/employee_tax_params/emp_001").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "next": (
+                    "https://api.checkhq.com/employee_tax_params/emp_001"
+                    "?cursor=abc123&limit=10"
+                ),
+                "previous": None,
+                "results": [{**_TAX_PARAM, "id": "spa_010"}],
+            },
+        )
+    )
+    result = await get_employee_tax_params(
+        ctx, employee_id="emp_001", limit=10, cursor="prev"
+    )
+    params = route.calls.last.request.url.params
+    assert params["cursor"] == "prev"
+    assert params["limit"] == "10"
+    assert result["results"] == [{**_TAX_PARAM, "id": "spa_010"}]
+    assert result["next_cursor"] == "abc123"
+
+
+@pytest.mark.anyio
+async def test_get_employee_tax_params_last_page(mock_api, ctx):
+    route = mock_api.get("/employee_tax_params/emp_001").mock(
+        return_value=httpx.Response(
+            200, json={"next": None, "previous": None, "results": []}
+        )
+    )
+    result = await get_employee_tax_params(ctx, employee_id="emp_001")
+    assert result["next_cursor"] is None
+    assert "cursor" not in route.calls.last.request.url.params
 
 
 @pytest.mark.anyio
@@ -70,6 +165,53 @@ async def test_list_employee_tax_params(mock_api, ctx):
     assert result["results"] == [{"id": "etp_001"}]
     req = mock_api.get("/employee_tax_params").calls.last.request
     assert req.url.params["company"] == "com_456"
+
+
+@pytest.mark.anyio
+async def test_bulk_get_employee_tax_param_settings(mock_api, ctx):
+    """GET /employee_tax_params/settings, the route the API serves. The old
+    POST to /employee_tax_param_settings/bulk_get came back as a 302."""
+    route = mock_api.get("/employee_tax_params/settings").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "next": None,
+                "previous": None,
+                "results": [{"id": "spa_001", "employee": "emp_1", "value": "M"}],
+            },
+        )
+    )
+    result = await bulk_get_employee_tax_param_settings(
+        ctx, company="com_1", employee=["emp_1", "emp_2"], as_of="2026-01-01"
+    )
+    assert result["results"] == [{"id": "spa_001", "employee": "emp_1", "value": "M"}]
+    params = route.calls.last.request.url.params
+    assert params["company"] == "com_1"
+    assert params.get_list("employee") == ["emp_1", "emp_2"]
+    assert params["as_of"] == "2026-01-01"
+
+
+@pytest.mark.anyio
+async def test_bulk_update_employee_tax_param_settings(mock_api, ctx):
+    """PATCH /employee_tax_params/settings with a list body. The old POST to
+    /employee_tax_param_settings/bulk_update is not a route (302 to the docs
+    site), and the API rejects a non-list body with "Request body must be a
+    list"."""
+    route = mock_api.patch("/employee_tax_params/settings").mock(
+        return_value=httpx.Response(
+            200, json={"next": None, "previous": None, "results": [{"id": "spa_001"}]}
+        )
+    )
+    update = {
+        "id": "spa_001",
+        "employee": "emp_1",
+        "company": "com_1",
+        "value": "0",
+        "effective_start": "2026-01-01",
+    }
+    result = await bulk_update_employee_tax_param_settings(ctx, data=[update])
+    assert result["results"] == [{"id": "spa_001"}]
+    assert json.loads(route.calls.last.request.content) == [update]
 
 
 def test_list_employee_tax_params_requires_company():
@@ -221,7 +363,7 @@ async def test_list_company_tax_param_settings_with_filters(mock_api, ctx):
         )
     )
     result = await list_company_tax_param_settings(
-        ctx, company_id="com_001", as_of="2026-01-01", jurisdiction="CA"
+        ctx, company="com_001", as_of="2026-01-01", jurisdiction="CA"
     )
     assert result["results"] == [{"id": "sps_001"}]
     req = mock_api.get("/company_tax_params/com_001/settings").calls.last.request
@@ -238,7 +380,7 @@ async def test_list_employee_tax_param_settings_with_filters(mock_api, ctx):
         )
     )
     result = await list_employee_tax_param_settings(
-        ctx, employee_id="emp_001", jurisdiction="NY", submitter="employer"
+        ctx, employee="emp_001", jurisdiction="NY", submitter="employer"
     )
     assert result["results"] == [{"id": "sps_001"}]
     req = mock_api.get("/employee_tax_params/emp_001/settings").calls.last.request
@@ -564,6 +706,7 @@ async def test_list_taxes_with_filters(mock_api, ctx):
         remittable=False,
         effective=False,
         label_contains="unemployment",
+        political_subdivision_code="461301",
         limit=100,
     )
     params = route.calls[0].request.url.params
@@ -574,6 +717,7 @@ async def test_list_taxes_with_filters(mock_api, ctx):
     assert params["remittable"] == "false"
     assert params["effective"] == "false"
     assert params["label_contains"] == "unemployment"
+    assert params["political_subdivision_code"] == "461301"
     assert params["limit"] == "100"
 
 
