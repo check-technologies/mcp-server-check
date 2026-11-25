@@ -156,15 +156,32 @@ async def update_payroll_item(
     )
 
 
-async def bulk_update_payroll_items(ctx: Ctx, data: dict) -> dict:
-    """Bulk update payroll items.
+async def bulk_update_payroll_items(ctx: Ctx, items: list[dict]) -> dict:
+    """Update several payroll items in one request.
 
-    The payload is a complex bulk structure — pass the full request body as a dict.
+    The request body is a JSON array with one object per payroll item, not an
+    object wrapping an array: the API rejects a dict with "Expected a list of
+    items but got type dict". Each object requires "id" (the "itm_*" payroll
+    item ID) and takes the same fields as update_payroll_item: payment_method,
+    earnings, reimbursements, benefit_overrides, post_tax_deduction_overrides,
+    pto_balance_hours, sick_balance_hours, supplemental_tax_calc_method,
+    paper_check_number, metadata. Each ID may appear once, and a request holds
+    at most 500 items.
+
+    Example::
+
+        await check.bulk_update_payroll_items(items=[
+            {"id": "itm_111", "payment_method": "manual"},
+            {"id": "itm_222", "earnings": [
+                {"type": "regular", "amount": "1000.00", "workplace": "wrk_333"},
+            ]},
+        ])
 
     Args:
-        data: Bulk update payload with items array.
+        items: One update dict per payroll item, each with "id" plus the fields
+            to change.
     """
-    return await check_api_patch(ctx, api_path("payroll_items"), data=data)
+    return await check_api_patch(ctx, api_path("payroll_items"), data=items)
 
 
 async def delete_payroll_item(ctx: Ctx, payroll_item_id: str) -> dict:
