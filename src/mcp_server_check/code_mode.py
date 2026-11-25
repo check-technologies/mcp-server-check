@@ -262,20 +262,44 @@ _CATALOG_GUIDANCE = (
 )
 
 
+# Taken by most list or write tools, so the catalog says so once instead of
+# on every line.
+_CATALOG_COMMON_ARGUMENTS = ("limit", "cursor", "idempotency_key")
+
+
+def catalog_line(entry: ToolEntry) -> str:
+    """A tool's name and argument names, optional ones marked with ``=``.
+
+    Programs called tools they had picked from a names-only catalog without
+    fetching their stubs, and guessed the arguments: 9 of the 13 such
+    failures in production named a tool the catalog had listed. Names alone
+    are enough to stop the guess; types and docstrings stay in the stubs.
+    """
+    arguments = [
+        p.name + ("" if p.default is inspect.Parameter.empty else "=")
+        for p in tool_parameters(entry.tool.fn)
+        if p.name not in _CATALOG_COMMON_ARGUMENTS
+    ]
+    return f"{entry.name}({', '.join(arguments)})" + ("*" if entry.is_write else "")
+
+
 def render_catalog(
     entries: Iterable[ToolEntry], descriptions: Mapping[str, str]
 ) -> str:
-    """The toolsets of the `check` module and their tool names, for get_stubs().
+    """The toolsets of the `check` module, each tool with its argument names.
 
-    A few hundred names cost far fewer tokens than their stubs, so this is the
-    starting point: pick names, then fetch signatures for just those.
+    Far fewer tokens than the stubs, so this is the starting point: pick
+    tools, then fetch the stubs (types and docstrings) for just those.
     """
     by_toolset: dict[str, list[ToolEntry]] = {}
     for entry in entries:
         by_toolset.setdefault(entry.toolset, []).append(entry)
     lines = [
-        f'"""Toolsets of the `{MODULE_NAME}` module. `*` marks a write tool, which',
-        "run_code's writes argument must name. For signatures call",
+        f'"""Toolsets of the `{MODULE_NAME}` module: each tool with its argument',
+        "names, optional ones marked name=. `*` marks a write tool, which",
+        "run_code's writes argument must name. Most list tools also take limit=",
+        "and cursor=, and most write tools idempotency_key=; they are left off",
+        "the lines below. Pass arguments by these names. For types call",
         "get_stubs(toolset=...) or get_stubs(query=...), which give each tool's",
         "signature and a one-line summary, and get_stubs(tools=[...]) for a",
         "tool's full documentation.",
@@ -289,8 +313,7 @@ def render_catalog(
         description = descriptions.get(toolset)
         if description:
             lines.append(f"# {description}")
-        names = ", ".join(e.name + ("*" if e.is_write else "") for e in group)
-        lines.append(f"# {names}")
+        lines.extend(f"# {catalog_line(e)}" for e in group)
     return "\n".join(lines) + "\n"
 
 
