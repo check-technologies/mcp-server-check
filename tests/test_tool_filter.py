@@ -645,7 +645,6 @@ SERVER_FIELDS: dict[str, object] = {
     "exclude_destructive": True,
     "preview_toolsets": frozenset({"corrections"}),
     "code_mode": True,
-    "hybrid_mode": True,
 }
 CLIENT_FIELDS: dict[str, object] = {
     "toolsets": frozenset({"employees", "payrolls", "corrections"}),
@@ -664,7 +663,6 @@ CLIENT_FIELDS: dict[str, object] = {
     "exclude_destructive": True,
     "preview_toolsets": frozenset({"corrections"}),
     "code_mode": True,
-    "hybrid_mode": True,
 }
 MERGE_PROBES = [
     ("list_companies", "companies"),
@@ -692,7 +690,6 @@ class TestMerge:
             server.preview_toolsets | client.preview_toolsets
         )
         assert merged.code_mode == (server.code_mode or client.code_mode)
-        assert merged.hybrid_mode == (server.hybrid_mode or client.hybrid_mode)
 
         server = replace(server, preview_toolsets=merged.preview_toolsets)
         client = replace(client, preview_toolsets=merged.preview_toolsets)
