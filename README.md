@@ -183,7 +183,7 @@ Without the header, a dynamic-mode server lists only the three meta-tools and re
 
 Code mode replaces the three dynamic-mode tools with two, so every API call goes through a program:
 
-- **`get_stubs(query?, toolset?, tools?)`** — With no arguments, the catalog: every toolset with its description and tool names, write tools marked with `*`. With a keyword `query`, a `toolset`, or a list of `tools`, typed Python signatures (with docstrings) for the `check` module, one `async def` per tool.
+- **`get_stubs(query?, toolset?, tools?, full?)`** — With no arguments, the catalog: every toolset with its description and tool names, write tools marked with `*`. With a keyword `query` or a `toolset`, typed Python signatures for the `check` module, one `async def` per tool with a one-line summary. With a list of `tools`, or `full=True`, each stub carries the tool's full docstring. The `check://stubs` resource is the compact stub file for every tool the request may see, so a client can hold it for a whole session and call `get_stubs(tools=[...])` only for the documentation of the tools it is about to use.
 - **`run_code(code, writes?)`** — Run a program. The `check` module is pre-imported and exposes every allowed tool as an async function; the program's last expression is returned along with anything it printed and a trace of every tool call it made (tool, arguments, status, duration). The `CHECK_MAX_RESULT_CHARS` budget applies to the program's result and logs only, not to the call trace; past 40 calls the trace drops each call's arguments and says so.
 
 ```python

@@ -125,8 +125,11 @@ calls the program made. When you report the result, tell the user which calls \
 ran (tool, key arguments, and any failures), always for writes, so they can \
 see what touched their account.
 - Look up signatures first: get_stubs() with no arguments lists every toolset \
-and its tool names; get_stubs(tools=[...]), get_stubs(toolset=...), or \
-get_stubs(query="...") return signatures with docstrings.
+and its tool names; get_stubs(toolset=...) and get_stubs(query="...") return \
+each matching tool's signature with a one-line summary; get_stubs(tools=[...]) \
+returns full docstrings (pass full=True to get them for a toolset or query). \
+A client that already holds the stubs (the check://stubs resource) can skip \
+the catalog and ask only for the full documentation of the tools it will call.
 - Paginate with next_cursor until it is null. List pages carry full records \
 inside a program, so filter them there instead of calling get_* per record. \
 search_* results are only id and names; call the get_* tool for a full \
@@ -417,26 +420,33 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         toolset: str | None = None,
         tools: list[str] | None = None,
         limit: int = 20,
+        full: bool = False,
     ) -> str:
         """Find the `check` module's tools and their typed Python signatures.
 
         With no arguments, returns the catalog: every toolset with its
-        description and tool names (write tools marked with `*`). With any
-        argument, returns a stub file: one `async def` per matching tool with
-        its docstring. Start from the catalog, then fetch signatures for the
-        tools you need; a whole toolset at a time is fine, the full set is not.
-        Tools marked as write tools must be named in run_code's writes argument.
+        description and tool names (write tools marked with `*`). With a
+        `toolset` or `query`, returns a stub file: one `async def` per
+        matching tool with a one-line summary, enough to pick a tool and name
+        its arguments. With `tools`, or `full=True`, each stub carries the
+        tool's full docstring: what each argument accepts and what the result
+        contains. Fetch the full stub for a tool before calling it in a way
+        its summary does not settle. Tools marked as write tools must be named
+        in run_code's writes argument.
 
         query: Search keywords with synonym matching (e.g. "pay employees").
         toolset: Restrict to one toolset (e.g. "employees").
-        tools: Restrict to specific tool names.
+        tools: Restrict to specific tool names; their stubs are always full.
         limit: Most tools a query returns (default 20).
+        full: Return full docstrings for a toolset or query too.
         """
         from mcp_server_check.tool_index import _TOOLSET_DESCRIPTIONS
 
         tf = server.active_tool_filter()
         if query is None and toolset is None and tools is None:
             return render_catalog(runner.visible_entries(tf), _TOOLSET_DESCRIPTIONS)
+        # Naming tools is asking for their documentation.
+        full = full or bool(tools)
         if query:
             found = index.search(query, tool_filter=tf, toolset=toolset, limit=limit)
             names = [r["name"] for r in found if "name" in r]
@@ -448,8 +458,30 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
                 )
             tools = names
         return render_stubs(
-            runner.visible_entries(tf, toolset=toolset, tools=tools), mark_writes=True
+            runner.visible_entries(tf, toolset=toolset, tools=tools),
+            mark_writes=True,
+            full=full,
         )
+
+    # The compact stubs for every tool this request may see, as a resource,
+    # so a client can hold them for a whole session (a harness can put them
+    # in its system prompt once) instead of calling get_stubs for the catalog
+    # and then for each toolset. Honors the request's tool filter, so a
+    # read-only or preview-toolset session reads its own set.
+    @server.resource(
+        "check://stubs",
+        name="code_stubs",
+        description=(
+            "Compact Python stubs for every tool run_code programs may call in "
+            "this session: the `check` module header, its TypedDicts, and one "
+            "signature with a one-line summary per tool. The same text "
+            "get_stubs(toolset=...) returns, for every toolset at once."
+        ),
+        mime_type="text/x-python",
+    )
+    def code_stubs() -> str:
+        tf = server.active_tool_filter()
+        return render_stubs(runner.visible_entries(tf), mark_writes=True, full=False)
 
     @server.tool(
         title="Run Code",
