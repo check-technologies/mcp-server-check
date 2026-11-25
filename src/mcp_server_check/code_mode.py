@@ -114,6 +114,18 @@ from typing_extensions import TypedDict
 
 
 _WRITE_NOTE = "# write tool: name it in run_code(writes=[...]) to call it"
+_COMPACT_WRITE_NOTE = "# write tool"
+
+# Closes a compact stub file. The one-line summaries settle which tool to
+# call and what its arguments are named; the full docstring settles what an
+# argument accepts and what the result contains, so the footer says where
+# that lives rather than leaving the model to guess from a signature.
+_COMPACT_FOOTER = """\
+# Each stub above is a signature and a one-line summary. For a tool's full
+# documentation (what each argument accepts, what the result contains, the
+# Returns block of a composite) call get_stubs(tools=[...]) before using it
+# in a way the summary does not settle.
+"""
 
 
 def _microvm():
@@ -195,6 +207,27 @@ def render_stub(entry: ToolEntry, *, mark_writes: bool = False) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_compact_stub(entry: ToolEntry, *, mark_writes: bool = False) -> str:
+    """A compact stub for one tool: signature plus a one-line summary.
+
+    About a fifth the size of the full stub, so a whole toolset, or every
+    tool a session can see, fits where the full docstrings would not.
+    """
+    summary = _first_line(entry.tool.fn.__doc__) or entry.description
+    lines = []
+    if mark_writes and entry.is_write:
+        lines.append(_COMPACT_WRITE_NOTE)
+    lines += [f"{render_signature(entry)}:", f'    """{summary}"""']
+    return "\n".join(lines) + "\n"
+
+
+def _first_line(docstring: str | None) -> str:
+    for line in (docstring or "").splitlines():
+        if line.strip():
+            return line.strip()
+    return ""
+
+
 def _render_typed_dicts() -> str:
     """Stub definitions for the TypedDicts tool signatures refer to."""
     out: list[str] = []
@@ -243,7 +276,9 @@ def render_catalog(
     lines = [
         f'"""Toolsets of the `{MODULE_NAME}` module. `*` marks a write tool, which',
         "run_code's writes argument must name. For signatures call",
-        "get_stubs(tools=[...]), get_stubs(toolset=...), or get_stubs(query=...).",
+        "get_stubs(toolset=...) or get_stubs(query=...), which give each tool's",
+        "signature and a one-line summary, and get_stubs(tools=[...]) for a",
+        "tool's full documentation.",
         "",
         *_CATALOG_GUIDANCE,
         '"""',
@@ -259,15 +294,25 @@ def render_catalog(
     return "\n".join(lines) + "\n"
 
 
-def render_stubs(entries: Iterable[ToolEntry], *, mark_writes: bool = False) -> str:
-    """The ``check`` module's stub file for the given tools, grouped by toolset."""
+def render_stubs(
+    entries: Iterable[ToolEntry], *, mark_writes: bool = False, full: bool = True
+) -> str:
+    """The ``check`` module's stub file for the given tools, grouped by toolset.
+
+    ``full`` carries every tool's whole docstring; otherwise each tool is a
+    signature and a one-line summary, and a footer says where the full
+    documentation is. Both open with the same header and TypedDicts.
+    """
     by_toolset: dict[str, list[ToolEntry]] = {}
     for entry in entries:
         by_toolset.setdefault(entry.toolset, []).append(entry)
+    render = render_stub if full else render_compact_stub
     parts = [_STUB_HEADER, _render_typed_dicts()]
     for toolset, toolset_entries in by_toolset.items():
         parts.append(f"# ---- {toolset} ----\n")
-        parts.extend(render_stub(e, mark_writes=mark_writes) for e in toolset_entries)
+        parts.extend(render(e, mark_writes=mark_writes) for e in toolset_entries)
+    if not full:
+        parts.append(_COMPACT_FOOTER)
     return "\n".join(parts)
 
 

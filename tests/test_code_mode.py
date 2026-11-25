@@ -17,6 +17,7 @@ from mcp_server_check.code_mode import (
     CallRecord,
     CodeModeSettings,
     call_log,
+    render_compact_stub,
     render_signature,
     render_stub,
     render_stubs,
@@ -146,6 +147,31 @@ class TestStubs:
         assert "# ---- companies ----" in stubs
         assert "class Address(TypedDict, total=False):" in stubs
         assert "from typing import Any" in stubs
+
+    def test_compact_stub_is_the_signature_and_one_line(self, index):
+        stub = render_compact_stub(index.get_entry("list_companies"))
+        assert stub.startswith("async def list_companies(")
+        assert '    """List companies in your Check account."""' in stub
+        assert "cursor: Pagination cursor" not in stub
+        assert len(stub) < len(render_stub(index.get_entry("list_companies")))
+        write = index.get_entry("create_company")
+        assert render_compact_stub(write, mark_writes=True).startswith("# write tool\n")
+        assert "# write tool" not in render_compact_stub(write)
+
+    def test_compact_stubs_keep_the_header_and_say_where_the_docs_are(self, index):
+        """A client holding the compact file for a whole session still needs
+        the program-writing rules, and must know a one-line summary is not the
+        tool's documentation."""
+        full = render_stubs(index.entries.values(), mark_writes=True)
+        compact = render_stubs(index.entries.values(), mark_writes=True, full=False)
+        assert "already imported in programs run with run_code" in compact
+        assert "class Address(TypedDict, total=False):" in compact
+        assert "# ---- companies ----" in compact
+        assert "async def list_companies(" in compact
+        assert "cursor: Pagination cursor" in full
+        assert "cursor: Pagination cursor" not in compact
+        assert "call get_stubs(tools=[...])" in compact
+        assert len(compact) < len(full) / 2
 
 
 # --- mode resolution ---
@@ -586,6 +612,88 @@ async def test_get_stubs_by_toolset(code_server):
 
 
 @pytest.mark.anyio
+async def test_get_stubs_toolset_and_query_are_compact_unless_asked(code_server):
+    """A toolset fetch was the median get_stubs call and carried every
+    docstring in the toolset to use one or two tools. The toolset and query
+    forms now give signatures with one-line summaries; the full docstrings
+    come with full=True."""
+    async with Client(code_server) as client:
+        by_toolset = (
+            (await client.call_tool("get_stubs", {"toolset": "companies"}))
+            .content[0]
+            .text
+        )
+        by_query = (
+            (await client.call_tool("get_stubs", {"query": "list companies"}))
+            .content[0]
+            .text
+        )
+        full = (
+            (
+                await client.call_tool(
+                    "get_stubs", {"toolset": "companies", "full": True}
+                )
+            )
+            .content[0]
+            .text
+        )
+    for compact in (by_toolset, by_query):
+        assert "async def list_companies(" in compact
+        assert '"""List companies in your Check account."""' in compact
+        assert "cursor: Pagination cursor" not in compact
+        assert "call get_stubs(tools=[...])" in compact
+    assert "cursor: Pagination cursor" in full
+    assert len(by_toolset) < len(full) / 2
+
+
+@pytest.mark.anyio
+async def test_get_stubs_named_tools_carry_full_docstrings(code_server):
+    """Naming a tool is asking for its documentation, with or without a query."""
+    async with Client(code_server) as client:
+        named = (
+            (await client.call_tool("get_stubs", {"tools": ["list_companies"]}))
+            .content[0]
+            .text
+        )
+        queried = (
+            (
+                await client.call_tool(
+                    "get_stubs",
+                    {"query": "list companies", "tools": ["list_companies"]},
+                )
+            )
+            .content[0]
+            .text
+        )
+    for stubs in (named, queried):
+        assert "async def list_companies(" in stubs
+        assert "cursor: Pagination cursor" in stubs
+        assert "call get_stubs(tools=[...])" not in stubs
+
+
+@pytest.mark.anyio
+async def test_stubs_resource_is_the_compact_file_for_every_visible_tool(code_server):
+    """A harness reads check://stubs once per session and puts it in its
+    system prompt, so it has to be the whole visible set, compact, with the
+    header, and shaped by the same filter get_stubs honors."""
+    async with Client(code_server) as client:
+        stubs = (await client.read_resource("check://stubs"))[0].text
+    assert "already imported in programs run with run_code" in stubs
+    assert "# ---- workplaces ----" in stubs
+    assert "# ---- companies ----" in stubs
+    assert "async def list_workplaces(" in stubs
+    assert "# write tool\nasync def create_workplace(" in stubs
+    assert "cursor: Pagination cursor" not in stubs
+    assert "call get_stubs(tools=[...])" in stubs
+
+    code_server._static_filter = ToolFilter(read_only=True, code_mode=True)
+    async with Client(code_server) as client:
+        read_only = (await client.read_resource("check://stubs"))[0].text
+    assert "async def list_workplaces(" in read_only
+    assert "create_workplace" not in read_only
+
+
+@pytest.mark.anyio
 async def test_get_stubs_header_shows_search_then_get_in_one_program(code_server):
     """Every get_stubs answer, keyword queries included, opens with the header
     that tells the model search_* results are thin and shows the branch that
@@ -601,7 +709,12 @@ async def test_get_stubs_header_shows_search_then_get_in_one_program(code_server
             .content[0]
             .text
         )
-    for stubs in (by_query, by_toolset):
+        named = (
+            (await client.call_tool("get_stubs", {"tools": ["search_companies"]}))
+            .content[0]
+            .text
+        )
+    for stubs in (by_query, by_toolset, named):
         assert "search_* results are" in stubs
         assert 'hits = (await check.search_companies(query="Golden Crust"))' in stubs
         assert 'company = await check.get_company(company_id=hits[0]["id"])' in stubs
@@ -612,7 +725,9 @@ async def test_get_stubs_header_shows_search_then_get_in_one_program(code_server
         assert "List results are summaries" not in stubs
         assert "com_* ->" not in stubs
         assert "{summary_fields}" not in stubs
-    assert "Results carry only id, legal_name, and trade_name" in by_query
+    # The thin-result warning is in search_companies' own docstring too, which
+    # the compact query form leaves out and the named form carries.
+    assert "Results carry only id, legal_name, and trade_name" in named
 
 
 @pytest.mark.anyio
@@ -1638,7 +1753,11 @@ async def test_get_stubs_header_and_stubs_say_how_composites_nest(code_server):
     the nesting rule and each composite's stub carries its Returns block."""
     async with Client(code_server) as client:
         stubs = (
-            (await client.call_tool("get_stubs", {"toolset": "workflows"}))
+            (
+                await client.call_tool(
+                    "get_stubs", {"toolset": "workflows", "full": True}
+                )
+            )
             .content[0]
             .text
         )
