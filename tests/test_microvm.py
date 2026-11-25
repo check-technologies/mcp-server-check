@@ -140,6 +140,62 @@ outcome
 
 
 @pytest.mark.anyio
+async def test_api_error_crosses_the_wire_with_its_attributes(mock_api, monkeypatch):
+    mock_api.get("/companies/com_missing").mock(
+        return_value=httpx.Response(
+            403, json={"error": {"type": "permission_denied", "message": "no"}}
+        )
+    )
+    code = """
+try:
+    await check.get_company(company_id="com_missing")
+except check.APIError as e:
+    outcome = [e.status_code, e.type, e.detail["error"]["message"], str(e) == json.dumps(e.payload)]
+outcome
+"""
+    is_error, payload = await _run_in_microvm(monkeypatch, code)
+    assert not is_error, payload
+    assert payload["result"] == [403, "permission_denied", "no", True]
+
+
+def test_runner_rebuilds_api_error_and_keeps_the_old_mapping():
+    """The runner image and the host deploy separately. An "APIError" reply
+    with its payload becomes check.APIError; one without a payload (a host
+    older than the runner), and every other kind, map as they did before."""
+    payload = {
+        "error": True,
+        "status_code": 400,
+        "detail": {"error": {"type": "validation_error", "input_errors": []}},
+    }
+    reply = {"error_type": "APIError", "message": json.dumps(payload)}
+    error = microvm_runner.host_error({**reply, "payload": payload})
+    assert type(error) is microvm_runner.APIError
+    assert isinstance(error, RuntimeError)
+    assert (error.status_code, error.type) == (400, "validation_error")
+    assert error.detail == payload["detail"]
+    assert error.payload == payload
+    assert str(error) == json.dumps(payload)
+    assert f"{type(error).__module__}.{type(error).__name__}" == "check.APIError"
+    # A dropped connection has no status code and no API error type.
+    transport = microvm_runner.APIError(
+        {"error": True, "transport_error": "ReadError", "detail": "ReadError"}
+    )
+    assert (transport.status_code, transport.type) == (None, None)
+
+    old = microvm_runner.host_error(reply)
+    assert type(old) is RuntimeError
+    assert str(old) == json.dumps(payload)
+    assert (
+        type(microvm_runner.host_error({"error_type": "ValueError", "message": "x"}))
+        is ValueError
+    )
+    assert (
+        type(microvm_runner.host_error({"error_type": "SystemExit", "message": "x"}))
+        is RuntimeError
+    )
+
+
+@pytest.mark.anyio
 async def test_undeclared_write_is_not_in_the_module(mock_api, monkeypatch):
     is_error, payload = await _run_in_microvm(
         monkeypatch, 'await check.create_company(legal_name="x")'

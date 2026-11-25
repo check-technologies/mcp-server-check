@@ -22,7 +22,7 @@ import boto3
 from websockets.asyncio.client import connect
 
 from mcp_server_check.code_mode import ProgramFailed, timeout_detail
-from mcp_server_check.microvm_runner import MAX_MESSAGE_BYTES, PORT
+from mcp_server_check.microvm_runner import MAX_MESSAGE_BYTES, PORT, APIError
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +128,12 @@ async def execute(
                 raise ValueError(f"Tool {call.get('tool')!r} is not callable")
             value = await fn(*call.get("args", ()), **call.get("kwargs", {}))
             reply.update(type="result", value=value)
+        except APIError as e:
+            # The payload lets the runner rebuild check.APIError with its
+            # status_code and type; the message keeps str(e) the JSON text.
+            reply.update(
+                type="error", error_type="APIError", message=str(e), payload=e.payload
+            )
         except Exception as e:
             reply.update(type="error", error_type=type(e).__name__, message=str(e))
         await ws.send(json.dumps(reply, default=str))

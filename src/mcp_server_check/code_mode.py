@@ -31,6 +31,7 @@ from typing_extensions import is_typeddict
 from mcp_server_check import types as check_types
 from mcp_server_check.errors import CheckToolError
 from mcp_server_check.helpers import code_mode_full_records
+from mcp_server_check.microvm_runner import APIError
 from mcp_server_check.tool_filter import PREVIEW_TOOLSETS, ToolFilter
 from mcp_server_check.tool_index import ToolEntry, ToolIndex
 
@@ -48,7 +49,13 @@ asyncio.gather for independent calls; `asyncio` and `json` are already
 imported, like `{MODULE_NAME}`. A program already runs inside an event loop
 with top-level await, so do not call asyncio.run: await directly (the runtime
 rewrites asyncio.run(x) to await x). A failed Check API call raises
-RuntimeError whose message is a JSON object with "status_code" and "detail".
+{MODULE_NAME}.APIError (a RuntimeError) with `.status_code` (404, 403, 400),
+`.type` (the API's error type: "not_found", "permission_denied",
+"validation_error"), `.detail`, and `.payload`; str(e) is the JSON payload.
+One uncaught failure ends the whole program and throws away every other
+call's result. To keep a batch going, wrap the one call that may fail in
+try/except {MODULE_NAME}.APIError, or use asyncio.gather(...,
+return_exceptions=True) and check isinstance(r, Exception) per result.
 Throttled calls, and reads whose connection dropped, are retried for you. List
 results carry "results",
 "result_count" and "next_cursor"; pass the cursor back to page. Write tools
@@ -70,9 +77,9 @@ already seen in a result from this session: a response can omit a field a
 docstring lists (some vary by caller), and an uncaught KeyError ends the
 program, throws away every call it already made, and costs a rerun. Prefer
 record.get("x") or (record.get("a") or {{}}).get("b") over record["x"], and
-wrap the one call you expect might fail in try/except RuntimeError. A field
-can be present and null: record.get("taxes", []) still returns None when
-taxes is null, so write record.get("taxes") or [] before iterating.
+wrap the one call you expect might fail in try/except {MODULE_NAME}.APIError.
+A field can be present and null: record.get("taxes", []) still returns None
+when taxes is null, so write record.get("taxes") or [] before iterating.
 
 Each program starts empty. Nothing from an earlier program survives: not
 its variables, not its imports, not the records it fetched. A NameError on
@@ -454,6 +461,30 @@ CallListener = Callable[[CallRecord, int], Awaitable[None]]
 _THROTTLE_HINT = re.compile(r"available in (\d+(?:\.\d+)?) second")
 _MISSING_MEMBER = re.compile(r"module '" + MODULE_NAME + r"' has no attribute '(\w+)'")
 _UNDEFINED_NAME = re.compile(r"NameError: name '(\w+)' is not defined")
+# The last line of a traceback for a check.APIError the program did not catch.
+_UNCAUGHT_API_ERROR = re.compile(rf"^(?:{MODULE_NAME}\.)?APIError: ", re.MULTILINE)
+
+API_ERROR_NOTE = (
+    f"A failed Check API call raises {MODULE_NAME}.APIError (a RuntimeError) "
+    "with .status_code and .type. To keep a batch going, wrap the one call "
+    f"that may fail in try/except {MODULE_NAME}.APIError, or use "
+    "asyncio.gather(..., return_exceptions=True) and check "
+    "isinstance(r, Exception) per result."
+)
+
+
+def api_error_notes(errors: Iterable[str]) -> list[str]:
+    """How to keep a program going when one call fails, for one that did not.
+
+    In one week, seven of 26 failed production programs were a single 404,
+    403, or 400 inside an asyncio.gather ending the whole program and
+    discarding every other call's result. The stub header says how to catch
+    it; this repeats the advice at the moment it matters.
+    """
+    if any(_UNCAUGHT_API_ERROR.search(line) for line in errors):
+        return [API_ERROR_NOTE]
+    return []
+
 
 # The server's own tools. A model that has just called get_stubs as a tool
 # sometimes calls it again from inside a program, where it does not exist.
@@ -948,7 +979,11 @@ class CodeRunner:
             except CheckToolError as e:
                 record.status = "error"
                 record.error = e.payload
-                raise RuntimeError(json.dumps(e.payload)) from e
+                # check.APIError inside the program: a RuntimeError whose
+                # message is still the JSON payload, with status_code and
+                # type as attributes so a program can branch on a 404
+                # without parsing the message.
+                raise APIError(e.payload) from e
             except (ToolError, ValidationError, ValueError) as e:
                 record.status = "error"
                 record.error = str(e)
@@ -1008,7 +1043,7 @@ class CodeRunner:
             except ProgramFailed as e:
                 notes = missing_member_notes(
                     [e.detail], self._index.entries, tool_filter, writes
-                )
+                ) + api_error_notes([e.detail])
                 raise _program_failure(
                     e.kind,
                     "\n".join([e.detail, *notes]),

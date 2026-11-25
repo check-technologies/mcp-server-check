@@ -134,8 +134,10 @@ the catalog and ask only for the full documentation of the tools it will call.
 inside a program, so filter them there instead of calling get_* per record. \
 search_* results are only id and names; call the get_* tool for a full \
 record, in the same program as the lookup that found the id.
-- A failed API call raises RuntimeError whose message is a JSON object with \
-status_code and detail; catch it to continue. Throttled calls, and reads whose \
+- A failed API call raises check.APIError (a RuntimeError) with .status_code \
+and .type; wrap the one call that may fail in try/except check.APIError, or \
+gather with return_exceptions=True, so one 404 does not end the program and \
+discard every other call's result. Throttled calls, and reads whose \
 connection dropped, are retried for you.
 - Make the answer the program's last expression and let the server serialize \
 it; do not json.dumps or print it. Programs run in CPython 3.13 with the \
@@ -514,13 +516,15 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         finishes. Tell the user which calls ran when you report the result.
 
         Check the signatures first with get_stubs. A failed Check API call
-        raises RuntimeError whose message is a JSON object with status_code
-        and detail; catch it to continue. Throttled calls and reads whose
-        connection dropped are retried. The program runs in CPython 3.13 with
-        the standard library and holds no Check credentials; only `check.*`
-        calls reach the Check API. Each program starts empty: no variable,
-        import, or fetched record from an earlier program exists in the
-        next one, so carry IDs forward as literals or refetch them.
+        raises check.APIError (a RuntimeError) with .status_code and .type;
+        catch it around the one call that may fail, or gather with
+        return_exceptions=True, so one failure does not end the program.
+        Throttled calls and reads whose connection dropped are retried. The
+        program runs in CPython 3.13 with the standard library and holds no
+        Check credentials; only `check.*` calls reach the Check API.
+        Each program starts empty: no variable, import, or fetched record
+        from an earlier program exists in the next one, so carry IDs forward
+        as literals or refetch them.
 
         code: The Python source to run.
         writes: Names of write tools (create_*, update_*, approve_*, ...) the
