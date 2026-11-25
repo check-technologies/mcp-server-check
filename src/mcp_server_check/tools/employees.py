@@ -24,6 +24,11 @@ from mcp_server_check.helpers import (
     merge_metadata_filter_params,
 )
 
+# The API serialises a list page with the minimal employee serializer when
+# asked; it still carries every field the list summary keeps, and the full
+# serializer costs 25 to 70 ms per employee on large companies.
+EMPLOYEE_LIST_REPRESENTATION = "minimal"
+
 CLEARABLE_EMPLOYEE_FIELDS = frozenset(
     {"start_date", "termination_date", "mailing_address"}
 )
@@ -37,17 +42,25 @@ async def list_employees(
     cursor: str | None = None,
     workplace: str | None = None,
     active: bool | None = None,
+    residence_state: str | None = None,
     metadata: dict[str, str] | None = None,
 ) -> dict:
     """List employees, optionally filtered by company.
 
+    Results are summaries (id, name, email, status, start_date); call
+    get_employee for a full record. Filter on the server with the arguments
+    below rather than paging a whole company and filtering in a program: a
+    page of 1000 summaries costs about as much as one full get_employee.
+
     Args:
         company: Filter to employees belonging to this Check company ID (e.g. "com_xxxxx").
-        limit: Maximum number of results to return (max 100, default 100).
+        limit: Maximum number of results to return (max 1000, default 100).
         ids: Filter to specific employee IDs.
         cursor: Pagination cursor from a previous response.
         workplace: Filter by workplace ID(s).
         active: Filter by active status.
+        residence_state: Filter to employees whose residence address is in this
+            state, as a two-letter code (e.g. "CA").
         metadata: Return only employees whose metadata contains every given key and value
             (for example {"external_id": "123"}). Multiple keys are combined with AND.
     """
@@ -62,6 +75,11 @@ async def list_employees(
                 cursor=cursor,
                 workplace=workplace,
                 active=active,
+                residence_state=residence_state,
+                # The list is summarised to a handful of fields anyway, and the
+                # API's minimal representation is an order of magnitude cheaper
+                # per page than the default one on large companies.
+                representation=EMPLOYEE_LIST_REPRESENTATION,
             ),
             metadata,
         ),

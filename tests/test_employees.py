@@ -39,6 +39,23 @@ async def test_list_employees_with_filters(mock_api, ctx):
     assert req.url.params["company"] == "com_123"
     assert req.url.params["workplace"] == "wrk_456"
     assert req.url.params["active"] == "true"
+    # The list is summarised anyway, so always ask for the cheap representation.
+    assert req.url.params["representation"] == "minimal"
+
+
+@pytest.mark.anyio
+async def test_list_employees_filters_by_residence_state(mock_api, ctx):
+    mock_api.get("/employees").mock(
+        return_value=httpx.Response(
+            200,
+            json={"next": None, "previous": None, "results": [{"id": "emp_001"}]},
+        )
+    )
+    await list_employees(ctx, company="com_123", residence_state="CA", limit=1000)
+    req = mock_api.calls.last.request
+    assert req.url.params["residence_state"] == "CA"
+    assert req.url.params["limit"] == "1000"
+    assert req.url.params["representation"] == "minimal"
 
 
 @pytest.mark.anyio

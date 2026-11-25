@@ -38,6 +38,10 @@ async def test_get_company_overview_full(mock_api, ctx):
     )
 
     result = await get_company_overview(ctx, company_id="com_001")
+    employees_req = next(
+        c.request for c in mock_api.calls if c.request.url.path == "/employees"
+    )
+    assert employees_req.url.params["representation"] == "minimal"
 
     assert result["company"]["id"] == "com_001"
     assert result["employees"]["results"][0]["id"] == "emp_001"
