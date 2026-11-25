@@ -28,6 +28,8 @@ CHECK_API_KEY=your-key uv run mcp-server-check
 | `CHECK_CODE_CONCURRENCY` | No | `8` | Code mode: most tool calls one program runs at once |
 | `CHECK_CODE_MAX_RETRIES` | No | `8` | Code mode: retries of a throttled (HTTP 429) call, or of a read whose connection dropped, before the program sees the error |
 | `CHECK_CODE_MAX_PROGRAMS` | No | `4` | Code mode: most programs (each in its own sandbox) one server runs at once; more wait their turn |
+| `CHECK_CODE_STATE` | No | — | Code mode: set to `memory` to let programs keep values for later programs with `check.save` / `check.load`, held in this process. For one client (stdio or a single local process); a multi-process deployment passes a shared store to `setup_tools(code_state_store=...)` instead. Over HTTP, values are scoped to the request's credential and its `X-MCP-Conversation-Id` header |
+| `CHECK_CODE_STATE_TTL_SECS` | No | `21600` | Code mode: how long a saved value lives. `CHECK_CODE_STATE_MAX_VALUE_BYTES` (256 KiB), `CHECK_CODE_STATE_MAX_TOTAL_BYTES` (2 MiB per conversation) and `CHECK_CODE_STATE_MAX_KEYS` (50) cap the rest |
 | `CHECK_TOOLSETS` | No | — | Comma-separated list of toolsets to enable (e.g. `companies,employees`) |
 | `CHECK_TOOLS` | No | — | Comma-separated allowlist of individual tool names |
 | `CHECK_EXCLUDE_TOOLS` | No | — | Comma-separated list of tool names to hide |

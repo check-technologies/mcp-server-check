@@ -23,6 +23,7 @@ from mcp_server_check.code_mode import (
     render_stubs,
     render_trace,
 )
+from mcp_server_check.code_state import KeyValueStore, state_scope
 from mcp_server_check.errors import CheckToolError
 from mcp_server_check.helpers import CheckContext
 from mcp_server_check.middleware import (
@@ -302,7 +303,11 @@ class CheckMCP(FastMCP):
         return await super().call_tool(name, arguments, **kwargs)
 
 
-def _setup_dynamic_mode(server: CheckMCP) -> None:
+def _setup_dynamic_mode(
+    server: CheckMCP,
+    code_state_store: KeyValueStore | None = None,
+    code_state_local_scope: bool = False,
+) -> None:
     """Configure the server with meta-tools instead of individual tools.
 
     Registers search_tools, list_toolsets, and run_tool, plus get_stubs and
@@ -312,7 +317,7 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
     index = ToolIndex()
     index.build()
     server._tool_index = index
-    runner = CodeRunner(index)
+    runner = CodeRunner(index, state_store=code_state_store)
     server._code_runner = runner
 
     @server.tool(
@@ -461,6 +466,7 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
             runner.visible_entries(tf, toolset=toolset, tools=tools),
             mark_writes=True,
             full=full,
+            state=runner.state_enabled,
         )
 
     # The compact stubs for every tool this request may see, as a resource,
@@ -481,7 +487,12 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
     )
     def code_stubs() -> str:
         tf = server.active_tool_filter()
-        return render_stubs(runner.visible_entries(tf), mark_writes=True, full=False)
+        return render_stubs(
+            runner.visible_entries(tf),
+            mark_writes=True,
+            full=False,
+            state=runner.state_enabled,
+        )
 
     @server.tool(
         title="Run Code",
@@ -520,7 +531,8 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         the standard library and holds no Check credentials; only `check.*`
         calls reach the Check API. Each program starts empty: no variable,
         import, or fetched record from an earlier program exists in the
-        next one, so carry IDs forward as literals or refetch them.
+        next one, so carry IDs forward as literals or refetch them, or, when
+        the stubs header documents check.save, save them for later programs.
 
         code: The Python source to run.
         writes: Names of write tools (create_*, update_*, approve_*, ...) the
@@ -532,7 +544,13 @@ def _setup_dynamic_mode(server: CheckMCP) -> None:
         async def report(record: CallRecord, finished: int) -> None:
             await ctx.report_progress(progress=finished, message=record.summary())
 
-        result = await runner.run(code, tf, writes or [], on_call=report)
+        result = await runner.run(
+            code,
+            tf,
+            writes or [],
+            on_call=report,
+            state_scope=_request_state_scope(server, code_state_local_scope),
+        )
         trace = render_trace(
             [CallRecord.from_dict(c) for c in result["calls"]], result["duration_ms"]
         )
@@ -667,17 +685,55 @@ def _register_resources(server: CheckMCP) -> None:
         )
 
 
-def setup_tools(server: CheckMCP, tool_mode: str = "dynamic") -> None:
+def _request_state_scope(server: CheckMCP, allow_local: bool) -> str | None:
+    """Where this run_code request's check.save values live, or None."""
+    try:
+        request = server._mcp_server.request_context.request
+    except Exception:
+        # No request context at all: nothing identifies the caller.
+        return None
+    return state_scope(request, allow_local=allow_local)
+
+
+def _code_state_store_from_env() -> KeyValueStore | None:
+    """CHECK_CODE_STATE=memory keeps check.save values in this process.
+
+    Right for stdio and a single long-lived HTTP process. A deployment that
+    runs many processes (Lambda) must pass a shared store to setup_tools
+    instead, or a later program may land on a process that never saw the
+    save.
+    """
+    if os.environ.get("CHECK_CODE_STATE", "").lower() != "memory":
+        return None
+    from key_value.aio.stores.memory import MemoryStore
+
+    return MemoryStore()
+
+
+def setup_tools(
+    server: CheckMCP,
+    tool_mode: str = "dynamic",
+    *,
+    code_state_store: KeyValueStore | None = None,
+    code_state_local_scope: bool = False,
+) -> None:
     """Register tools, resources, and dynamic mode on a CheckMCP instance.
 
     This is the public entry point for configuring a CheckMCP server with
     all Check API tools.  The ``mcp-server-check-hosted`` package calls
     this on its own server instance to reuse the tool definitions.
+
+    ``code_state_store`` is where run_code programs' check.save values live
+    (any key_value AsyncKeyValue store). None leaves programs stateless.
+    Over HTTP a request's values are scoped to its credential and its
+    X-MCP-Conversation-Id header. ``code_state_local_scope`` lets a request
+    with no HTTP request behind it (stdio) use one process-wide scope; set it
+    only for a server that serves a single client.
     """
     if tool_mode == "all":
         register_all(server, registry=server._registry)
     else:
-        _setup_dynamic_mode(server)
+        _setup_dynamic_mode(server, code_state_store, code_state_local_scope)
     _register_resources(server)
 
 
@@ -689,7 +745,15 @@ def _create_server() -> CheckMCP:
     if tool_mode != "all" and env_filter.code_mode and code_mode_available():
         instructions += CODE_MODE_INSTRUCTIONS
     server = CheckMCP("Check Payroll API", instructions=instructions, lifespan=lifespan)
-    setup_tools(server, tool_mode)
+    store = _code_state_store_from_env()
+    # A memory store lives in this one process, which serves one client
+    # over stdio, so a request-less call may use the process-wide scope.
+    setup_tools(
+        server,
+        tool_mode,
+        code_state_store=store,
+        code_state_local_scope=store is not None,
+    )
     return server
 
 

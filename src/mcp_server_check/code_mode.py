@@ -29,6 +29,14 @@ from fastmcp.tools import ToolResult
 from typing_extensions import is_typeddict
 
 from mcp_server_check import types as check_types
+from mcp_server_check.code_state import (
+    CONVERSATION_HEADER,
+    STATE_FUNCTIONS,
+    KeyValueStore,
+    ProgramState,
+    StateLimits,
+    unavailable_functions,
+)
 from mcp_server_check.errors import CheckToolError
 from mcp_server_check.helpers import code_mode_full_records
 from mcp_server_check.tool_filter import PREVIEW_TOOLSETS, ToolFilter
@@ -112,6 +120,23 @@ from typing import Any
 from typing_extensions import TypedDict
 '''
 
+
+# The header's statelessness paragraph ends here; when the server keeps saved
+# values, _STATE_NOTE follows it.
+_STATELESS_PARAGRAPH_END = "prefer one program\nthat does them all.\n"
+
+_STATE_NOTE = f"""
+The exception is what a program saves. `await {MODULE_NAME}.save("name",
+value)` keeps a JSON-serializable value (IDs, a filtered list, a few fields
+per record) for the later programs of this conversation, and `await
+{MODULE_NAME}.load("name")` returns it, or None when nothing was saved under
+that name; `await {MODULE_NAME}.saved()` maps each saved name to its size in
+bytes. Save what a later step will need instead of printing it for the next
+program to retype, and load it rather than fetching the same records again.
+A value is capped at 256 KB, so save the IDs and fields you need, not whole
+pages. Saved values expire after a few hours. save, load and saved are not
+Check API calls and need no writes entry.
+"""
 
 _WRITE_NOTE = "# write tool: name it in run_code(writes=[...]) to call it"
 _COMPACT_WRITE_NOTE = "# write tool"
@@ -294,20 +319,34 @@ def render_catalog(
     return "\n".join(lines) + "\n"
 
 
+def stub_header(*, state: bool = False) -> str:
+    """The stub file's header; ``state`` adds how check.save / load work."""
+    if not state:
+        return _STUB_HEADER
+    return _STUB_HEADER.replace(
+        _STATELESS_PARAGRAPH_END, _STATELESS_PARAGRAPH_END + _STATE_NOTE, 1
+    )
+
+
 def render_stubs(
-    entries: Iterable[ToolEntry], *, mark_writes: bool = False, full: bool = True
+    entries: Iterable[ToolEntry],
+    *,
+    mark_writes: bool = False,
+    full: bool = True,
+    state: bool = False,
 ) -> str:
     """The ``check`` module's stub file for the given tools, grouped by toolset.
 
     ``full`` carries every tool's whole docstring; otherwise each tool is a
     signature and a one-line summary, and a footer says where the full
     documentation is. Both open with the same header and TypedDicts.
+    ``state`` says the server keeps values programs save (check.save).
     """
     by_toolset: dict[str, list[ToolEntry]] = {}
     for entry in entries:
         by_toolset.setdefault(entry.toolset, []).append(entry)
     render = render_stub if full else render_compact_stub
-    parts = [_STUB_HEADER, _render_typed_dicts()]
+    parts = [stub_header(state=state), _render_typed_dicts()]
     for toolset, toolset_entries in by_toolset.items():
         parts.append(f"# ---- {toolset} ----\n")
         parts.extend(render(e, mark_writes=mark_writes) for e in toolset_entries)
@@ -813,16 +852,45 @@ class CodeRunner:
     """Runs programs against the tools in a ToolIndex, honoring a ToolFilter."""
 
     def __init__(
-        self, index: ToolIndex, settings: CodeModeSettings | None = None
+        self,
+        index: ToolIndex,
+        settings: CodeModeSettings | None = None,
+        state_store: KeyValueStore | None = None,
+        state_limits: StateLimits | None = None,
     ) -> None:
         self._index = index
         self._settings = settings or CodeModeSettings.from_env()
         # Each program holds a MicroVM; cap them across requests.
         self._programs = asyncio.Semaphore(self._settings.max_programs)
+        # Where check.save keeps values; None leaves every program stateless.
+        self._state_store = state_store
+        self._state_limits = state_limits or StateLimits.from_env()
+        clash = STATE_FUNCTIONS & set(index.entries)
+        if clash:
+            raise ValueError(f"Tool names clash with check.save/load: {clash}")
 
     @property
     def settings(self) -> CodeModeSettings:
         return self._settings
+
+    @property
+    def state_enabled(self) -> bool:
+        """Whether programs can save values for later programs."""
+        return self._state_store is not None
+
+    def _state_functions(
+        self, state_scope: str | None
+    ) -> dict[str, Callable[..., Awaitable[Any]]]:
+        if self._state_store is None:
+            return {}
+        if state_scope is None:
+            return unavailable_functions(
+                "Nothing can be saved in this request: the client did not name "
+                f"its conversation in the {CONVERSATION_HEADER} header. Carry "
+                "the values forward as literals instead."
+            )
+        state = ProgramState(self._state_store, state_scope, self._state_limits)
+        return state.functions()
 
     def visible_entries(
         self,
@@ -979,6 +1047,7 @@ class CodeRunner:
         tool_filter: ToolFilter,
         writes: Sequence[str] = (),
         on_call: CallListener | None = None,
+        state_scope: str | None = None,
     ) -> dict[str, Any]:
         """Run a program and return its value, printed output, and call trace.
 
@@ -987,15 +1056,19 @@ class CodeRunner:
         while the program runs. Raises CheckToolError, with the trace so far,
         when the program raises or exhausts a budget. Waiting for a free
         program slot does not count against the time budget.
+
+        state_scope names where check.save keeps values (see code_state); it
+        matters only when the runner has a state store.
         """
         entries = self.callable_entries(tool_filter, writes)
         code = await_asyncio_run(code)
         program = ProgramRun(on_call=on_call)
         semaphore = asyncio.Semaphore(self._settings.concurrency)
-        functions = {
+        functions: dict[str, Callable[..., Awaitable[Any]]] = {
             entry.name: self._host_function(entry, tool_filter, semaphore, program)
             for entry in entries
         }
+        functions.update(self._state_functions(state_scope))
         async with self._programs:
             started = time.monotonic()
             try:
