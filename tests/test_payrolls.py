@@ -17,6 +17,7 @@ from mcp_server_check.tools.payrolls import (
     list_payrolls,
     preview_payroll,
     reopen_payroll,
+    simulate_fulfill_wire_drawdown,
     simulate_refuse_wire_drawdown,
     simulate_start_processing,
     simulate_time_out_wire_drawdown,
@@ -252,6 +253,7 @@ async def test_simulate_start_processing(mock_api, ctx):
 @pytest.mark.parametrize(
     ("tool", "action"),
     [
+        (simulate_fulfill_wire_drawdown, "simulate/fulfill_wire_drawdown"),
         (simulate_refuse_wire_drawdown, "simulate/refuse_wire_drawdown"),
         (simulate_time_out_wire_drawdown, "simulate/time_out_wire_drawdown"),
     ],
