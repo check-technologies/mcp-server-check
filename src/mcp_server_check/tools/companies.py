@@ -369,6 +369,9 @@ async def get_company_report(
         report_type: One of: "payroll_journal", "payroll_summary",
             "tax_liabilities", "contractor_payments", "child_support_payments",
             "w4_exemption_status", "applied_for_ids_detailed", "w2_preview".
+            "payroll_summary" is deprecated: for CSV, use create_report_run
+            with report "payroll_summary"; for JSON, add up the `totals` and
+            `taxes` of list_payroll_items for each payroll.
         start_date: Report start date (YYYY-MM-DD). Required for payroll_journal,
             payroll_summary, tax_liabilities, contractor_payments, and
             child_support_payments.
