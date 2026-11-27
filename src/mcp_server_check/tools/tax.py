@@ -130,7 +130,7 @@ async def list_company_tax_param_settings(
         cursor: Pagination cursor.
         as_of: Return as ``value`` what applies on this date (YYYY-MM-DD).
             Defaults to today.
-        jurisdiction: Filter by tax jurisdiction.
+        jurisdiction: Filter by lowercase jurisdiction code (e.g. "fed", "ny", "pa").
         submitter: Filter by submitter.
     """
     return await check_api_list(
@@ -216,7 +216,7 @@ async def list_employee_tax_params(
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
         as_of: Filter as of a specific date (YYYY-MM-DD).
-        jurisdiction: Filter by tax jurisdiction.
+        jurisdiction: Filter by lowercase jurisdiction code (e.g. "fed", "ny", "pa").
         submitter: Filter by submitter.
     """
     return await check_api_list(
@@ -341,7 +341,7 @@ async def list_employee_tax_param_settings(
         cursor: Pagination cursor.
         as_of: Return as ``value`` what applies on this date (YYYY-MM-DD).
             Defaults to today.
-        jurisdiction: Filter by tax jurisdiction.
+        jurisdiction: Filter by lowercase jurisdiction code (e.g. "fed", "ny", "pa").
         submitter: Filter by submitter.
     """
     return await check_api_list(
@@ -427,7 +427,7 @@ async def bulk_get_employee_tax_param_settings(
         employee: Narrow to these Check employee IDs (up to 100).
         as_of: Return as ``value`` what applies on this date (YYYY-MM-DD).
             Defaults to today.
-        jurisdiction: Filter by tax jurisdiction.
+        jurisdiction: Filter by lowercase jurisdiction code (e.g. "fed", "ny", "pa").
         submitter: Filter by submitter: "employee" or "company".
         limit: Maximum number of employees per page (default 100, max 100).
             Each employee brings every applicable parameter, so a full page
