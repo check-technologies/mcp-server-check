@@ -158,6 +158,36 @@ class TestStubs:
         assert render_compact_stub(write, mark_writes=True).startswith("# write tool\n")
         assert "# write tool" not in render_compact_stub(write)
 
+    def test_compact_stub_lists_the_allowed_values(self, index):
+        """The summary line does not carry the Args text, so a closed set of
+        values has to be in the signature: list_filings(period="Q3") was a
+        guess at what the API spells "q3"."""
+        stub = render_compact_stub(index.get_entry("list_filings"))
+        assert (
+            "period: Literal['annual', 'q1', 'q2', 'q3', 'q4', 'january', "
+            "'february', 'march', 'april', 'may', 'june', 'july', 'august', "
+            "'september', 'october', 'november', 'december'] | None = None"
+        ) in stub
+        assert (
+            "status: Literal['pending', 'blocked', 'submitted', 'filed', "
+            "'inapplicable'] | None = None"
+        ) in stub
+        assert "typing." not in stub
+
+    def test_factory_generated_literal_reads_like_a_module_annotation(self, index):
+        """A factory tool's Literal | None is a typing object, not source
+        text; it still renders as Literal[...] | None, not Optional[...]."""
+        values = (
+            "'weekly', 'biweekly', 'semimonthly', 'monthly', 'quarterly', 'annually'"
+        )
+        create = render_signature(index.get_entry("create_pay_schedule"))
+        assert f"pay_frequency: Literal[{values}]," in create
+        update = render_signature(index.get_entry("update_pay_schedule"))
+        assert f"pay_frequency: Literal[{values}] | None = None" in update
+        for sig in (create, update):
+            assert "typing." not in sig
+            assert "Optional" not in sig
+
     def test_compact_stubs_keep_the_header_and_say_where_the_docs_are(self, index):
         """A client holding the compact file for a whole session still needs
         the program-writing rules, and must know a one-line summary is not the
@@ -1249,6 +1279,40 @@ async def test_run_code_wraps_a_string_passed_for_a_list(mock_api, code_server):
     assert not is_error, payload
     assert route.calls.last.request.url.params.get_list("jurisdiction") == ["nm"]
     assert payload["calls"][0]["arguments"] == {"jurisdiction": ["nm"]}
+
+
+@pytest.mark.anyio
+async def test_run_code_wraps_a_string_passed_for_a_list_of_literals(
+    mock_api, code_server
+):
+    """list_payrolls(type="regular") means ["regular"] when type is a list of
+    Literal strings, as it does for a plain list[str]."""
+    route = mock_api.get("/payrolls").mock(
+        return_value=httpx.Response(200, json={"results": [], "next": None})
+    )
+    is_error, payload = await _run(
+        code_server, 'await check.list_payrolls(type="regular")'
+    )
+    assert not is_error, payload
+    assert route.calls.last.request.url.params.get_list("type") == ["regular"]
+
+
+@pytest.mark.anyio
+async def test_run_code_value_outside_a_literal_names_the_allowed_values(
+    mock_api, code_server
+):
+    """A value the API would reject never leaves the server, and the error
+    says which values are allowed."""
+    route = mock_api.get("/filings")
+    is_error, payload = await _run(
+        code_server, 'await check.list_filings(company="com_1", period="Q3")'
+    )
+    assert is_error
+    assert not route.called
+    assert "ValueError: 1 validation error for call[list_filings]" in payload["detail"]
+    assert "Input should be 'annual', 'q1', 'q2', 'q3'" in payload["detail"]
+    assert "list_filings takes: async def list_filings(" in payload["detail"]
+    assert payload["calls"][0]["status"] == "error"
 
 
 @pytest.mark.anyio

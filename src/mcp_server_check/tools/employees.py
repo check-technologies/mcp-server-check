@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
@@ -143,7 +145,8 @@ async def create_employee(
     workplaces: list[str] | None = None,
     primary_workplace: str | None = None,
     ssn: str | None = None,
-    payment_method_preference: str | None = None,
+    payment_method_preference: Literal["direct_deposit", "manual", "cash_app"]
+    | None = None,
     default_net_pay_split: str | None = None,
     w2_electronic_consent_provided: bool | None = None,
     metadata: dict | None = None,
@@ -168,7 +171,8 @@ async def create_employee(
         workplaces: List of workplace IDs where the employee works.
         primary_workplace: Workplace ID of the employee's primary workplace.
         ssn: Employee's Social Security Number. Only last four digits available after set.
-        payment_method_preference: "direct_deposit" or "manual".
+        payment_method_preference: "direct_deposit", "manual", or "cash_app"
+            (Square only).
         default_net_pay_split: ID of employee's default net pay split.
         w2_electronic_consent_provided: Whether the employee has agreed to receive
             their W-2 electronically instead of on paper. Set to true only after
@@ -216,12 +220,14 @@ async def update_employee(
     workplaces: list[str] | None = None,
     primary_workplace: str | None = None,
     ssn: str | None = None,
-    payment_method_preference: str | None = None,
+    payment_method_preference: Literal["direct_deposit", "manual", "cash_app"]
+    | None = None,
     default_net_pay_split: str | None = None,
     active: bool | None = None,
     w2_electronic_consent_provided: bool | None = None,
     metadata: dict | None = None,
-    clear_fields: list[str] | None = None,
+    clear_fields: list[Literal["start_date", "termination_date", "mailing_address"]]
+    | None = None,
 ) -> dict:
     """Update an existing employee.
 
@@ -244,7 +250,8 @@ async def update_employee(
         workplaces: List of workplace IDs where the employee works.
         primary_workplace: Workplace ID of the employee's primary workplace.
         ssn: Employee's Social Security Number.
-        payment_method_preference: "direct_deposit" or "manual".
+        payment_method_preference: "direct_deposit", "manual", or "cash_app"
+            (Square only).
         default_net_pay_split: ID of employee's default net pay split.
         active: Whether the employee is active. Pass false to deactivate.
         w2_electronic_consent_provided: Whether the employee has agreed to receive
@@ -302,10 +309,16 @@ async def list_employee_paystubs(
     limit: int | None = None,
     cursor: str | None = None,
     payroll: str | None = None,
-    status: str | None = None,
+    status: Literal[
+        "draft", "pending", "processing", "paid", "failed", "partially_paid"
+    ]
+    | None = None,
     start: str | None = None,
     end: str | None = None,
-    type: str | None = None,
+    type: Literal[
+        "regular", "off_cycle", "amendment", "third_party_sick_pay", "balancing"
+    ]
+    | None = None,
 ) -> dict:
     """List paystubs for an employee.
 
@@ -314,10 +327,13 @@ async def list_employee_paystubs(
         limit: Maximum number of results to return.
         cursor: Pagination cursor.
         payroll: Filter by payroll ID.
-        status: Filter by status — "pending", "processing", "failed", or "paid".
+        status: Filter by payment status — "draft", "pending", "processing",
+            "paid", "failed", or "partially_paid".
         start: Filter to paystubs from payrolls with payday on or after this date (YYYY-MM-DD).
         end: Filter to paystubs from payrolls with payday on or before this date (YYYY-MM-DD).
-        type: Filter by payroll type — "regular", "balancing", or "amendment".
+        type: Filter by payroll type — "regular", "off_cycle", "amendment",
+            "third_party_sick_pay", or "balancing". Without it the API leaves
+            out balancing and amendment payrolls.
     """
     return await check_api_list(
         ctx,

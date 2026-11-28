@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
@@ -24,8 +26,8 @@ REPORT_RUN_TYPES = [
 async def list_report_runs(
     ctx: Ctx,
     company: str | None = None,
-    report_type: str | None = None,
-    status: str | None = None,
+    report_type: Literal["payroll_journal", "payroll_summary"] | None = None,
+    status: Literal["generating", "completed", "failed"] | None = None,
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
@@ -81,7 +83,7 @@ async def download_report_run(ctx: Ctx, report_run_id: str) -> dict:
 
 async def create_report_run(
     ctx: Ctx,
-    report: str,
+    report: Literal["payroll_journal", "payroll_summary"],
     parameters: dict,
     company: str | None = None,
     metadata: dict | None = None,

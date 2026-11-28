@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
@@ -62,7 +64,7 @@ async def create_contractor_payment(
     ctx: Ctx,
     contractor: str,
     payroll: str,
-    payment_method: str | None = None,
+    payment_method: Literal["direct_deposit", "manual", "cash_app"] | None = None,
     amount: str | None = None,
     reimbursement_amount: str | None = None,
     workplace: str | None = None,
@@ -75,8 +77,8 @@ async def create_contractor_payment(
     Args:
         contractor: The Check contractor ID.
         payroll: The Check payroll ID.
-        payment_method: How the contractor will be paid — "direct_deposit" or "manual".
-            Default: "direct_deposit".
+        payment_method: How the contractor will be paid — "direct_deposit",
+            "manual", or "cash_app" (Square only). Default: "direct_deposit".
         amount: The amount to pay the contractor (e.g. "1500.00"). Default: "0.00".
         reimbursement_amount: Reimbursement amount (e.g. "50.00"). Default: "0.00".
         workplace: Workplace ID associated with this payment.
@@ -109,7 +111,7 @@ async def update_contractor_payment(
     ctx: Ctx,
     contractor_payment_id: str,
     contractor: str | None = None,
-    payment_method: str | None = None,
+    payment_method: Literal["direct_deposit", "manual", "cash_app"] | None = None,
     amount: str | None = None,
     reimbursement_amount: str | None = None,
     workplace: str | None = None,
@@ -121,7 +123,8 @@ async def update_contractor_payment(
     Args:
         contractor_payment_id: The Check contractor payment ID.
         contractor: The Check contractor ID.
-        payment_method: How the contractor will be paid — "direct_deposit" or "manual".
+        payment_method: How the contractor will be paid — "direct_deposit",
+            "manual", or "cash_app" (Square only).
         amount: The amount to pay the contractor (e.g. "1500.00").
         reimbursement_amount: Reimbursement amount (e.g. "50.00").
         workplace: Workplace ID associated with this payment.

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
@@ -24,7 +26,8 @@ async def list_corrections(
     ctx: Ctx,
     company: str | None = None,
     year: int | None = None,
-    status: str | None = None,
+    status: Literal["draft", "pending", "processing", "settled", "failed"]
+    | None = None,
     payroll: str | None = None,
     limit: int | None = None,
     cursor: str | None = None,
@@ -77,7 +80,7 @@ async def create_correction(
     bank_account: str | None = None,
     description: str | None = None,
     metadata: dict | None = None,
-    simulation_mode: str | None = None,
+    simulation_mode: Literal["automatic", "manual"] | None = None,
 ) -> dict:
     """Create a draft correction for a company and tax year.
 
@@ -123,7 +126,7 @@ async def update_correction(
     bank_account: str | None = None,
     description: str | None = None,
     metadata: dict | None = None,
-    simulation_mode: str | None = None,
+    simulation_mode: Literal["automatic", "manual"] | None = None,
 ) -> dict:
     """Update a draft correction's settlement date, bank account, description, metadata, or simulation mode.
 
@@ -195,7 +198,10 @@ async def add_payroll_to_correction(
     period_start: str,
     period_end: str,
     payday: str,
-    pay_frequency: str | None = None,
+    pay_frequency: Literal[
+        "weekly", "biweekly", "semimonthly", "monthly", "quarterly", "annually"
+    ]
+    | None = None,
     pay_schedule: str | None = None,
     items: list[dict] | None = None,
     contractor_payments: list[dict] | None = None,
@@ -275,7 +281,10 @@ async def add_external_payroll(
     period_start: str,
     period_end: str,
     payday: str,
-    pay_frequency: str | None = None,
+    pay_frequency: Literal[
+        "weekly", "biweekly", "semimonthly", "monthly", "quarterly", "annually"
+    ]
+    | None = None,
     items: list[dict] | None = None,
     contractor_payments: list[dict] | None = None,
     idempotency_key: str | None = None,

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
@@ -66,7 +68,7 @@ async def create_payroll_item(
     ctx: Ctx,
     payroll: str,
     employee: str,
-    payment_method: str | None = None,
+    payment_method: Literal["direct_deposit", "manual", "cash_app"] | None = None,
     earnings: list[dict] | None = None,
     reimbursements: list[dict] | None = None,
     idempotency_key: str | None = None,
@@ -76,7 +78,8 @@ async def create_payroll_item(
     Args:
         payroll: The Check payroll ID.
         employee: The Check employee ID.
-        payment_method: Payment method — "direct_deposit" or "manual".
+        payment_method: Payment method — "direct_deposit", "manual", or "cash_app"
+            (Square only).
         earnings: List of earning dicts. Each requires "workplace" and may include
             "type", "earning_code", "description", "earning_rate", "amount", "hours",
             "piece_units", "metadata".
@@ -102,14 +105,14 @@ async def create_payroll_item(
 async def update_payroll_item(
     ctx: Ctx,
     payroll_item_id: str,
-    payment_method: str | None = None,
+    payment_method: Literal["direct_deposit", "manual", "cash_app"] | None = None,
     earnings: list[dict] | None = None,
     reimbursements: list[dict] | None = None,
     benefit_overrides: list[dict] | None = None,
     post_tax_deduction_overrides: list[dict] | None = None,
     pto_balance_hours: float | None = None,
     sick_balance_hours: float | None = None,
-    supplemental_tax_calc_method: str | None = None,
+    supplemental_tax_calc_method: Literal["flat", "aggregate"] | None = None,
     paper_check_number: str | None = None,
     metadata: dict | None = None,
 ) -> dict:
@@ -117,7 +120,8 @@ async def update_payroll_item(
 
     Args:
         payroll_item_id: The Check payroll item ID.
-        payment_method: Payment method — "direct_deposit" or "manual".
+        payment_method: Payment method — "direct_deposit", "manual", or "cash_app"
+            (Square only).
         earnings: List of earning dicts (see create_payroll_item for shape).
         reimbursements: List of reimbursement dicts (see create_payroll_item for shape).
         benefit_overrides: List of benefit override dicts. Each requires "benefit" and

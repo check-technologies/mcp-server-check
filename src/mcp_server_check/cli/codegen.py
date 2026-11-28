@@ -241,7 +241,18 @@ def _build_params(func: Callable) -> list[click.Parameter]:
             )
             continue
 
-        # list[str] → CSV list
+        # Literal["a", "b"] → one of the listed strings
+        if typing.get_origin(base_type) is typing.Literal:
+            params.append(
+                click.Option(
+                    [f"--{cli_name}"],
+                    type=click.Choice(typing.get_args(base_type)),
+                    **opt_kwargs,
+                )
+            )
+            continue
+
+        # list[str] (or list of Literal strings) → CSV list
         if typing.get_origin(base_type) is list:
             params.append(click.Option([f"--{cli_name}"], type=CSVList(), **opt_kwargs))
             continue

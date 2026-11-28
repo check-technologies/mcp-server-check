@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 import uuid
 
 from fastmcp import FastMCP
@@ -164,7 +166,7 @@ async def list_webhook_deliveries(
     webhook_config: str | None = None,
     company: str | None = None,
     topic: str | None = None,
-    status: str | None = None,
+    status: Literal["pending", "retrying", "delivered", "failed"] | None = None,
     created_after: str | None = None,
     created_before: str | None = None,
     limit: int | None = None,

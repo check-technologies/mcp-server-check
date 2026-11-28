@@ -48,7 +48,8 @@ class Field:
 
     Attributes:
         name: API field name (e.g. "employee", "description").
-        type: Python type annotation (str, int, float, bool, dict, list[str], etc.).
+        type: Python type annotation (str, int, float, bool, dict, list[str],
+            a Literal of allowed strings, etc.).
         required_for: If "create", this field is required in the create tool.
             If None, the field is optional for both create and update.
         doc: Documentation string for this field.
@@ -57,7 +58,7 @@ class Field:
     """
 
     name: str
-    type: type = str
+    type: Any = str
     required_for: str | None = None
     doc: str = ""
     create_only: bool = False

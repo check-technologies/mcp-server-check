@@ -7,6 +7,8 @@ Replaces 35 individual component tools with 2 generic tools:
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
@@ -70,7 +72,9 @@ _ENTITY_PATH: dict[str, str] = {
 }
 
 
-async def list_component_types(ctx: Ctx, entity_type: str | None = None) -> dict:
+async def list_component_types(
+    ctx: Ctx, entity_type: Literal["company", "employee", "contractor"] | None = None
+) -> dict:
     """List available embedded UI component types.
 
     Returns the component types that can be created for each entity type.
@@ -99,7 +103,7 @@ async def list_component_types(ctx: Ctx, entity_type: str | None = None) -> dict
 
 async def create_component(
     ctx: Ctx,
-    entity_type: str,
+    entity_type: Literal["company", "employee", "contractor"],
     entity_id: str,
     component_type: str,
     subtype: str | None = None,
