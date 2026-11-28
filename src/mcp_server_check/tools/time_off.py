@@ -7,6 +7,8 @@ time_off_not_enabled.
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastmcp import FastMCP
 
 from mcp_server_check import helpers
@@ -82,7 +84,7 @@ def _idempotency_headers(idempotency_key: str | None) -> dict | None:
 async def list_time_off_policies(
     ctx: Ctx,
     company: str | None = None,
-    status: str | None = None,
+    status: Literal["active", "archived"] | None = None,
     limit: int = 100,
     cursor: str | None = None,
 ) -> dict:
@@ -114,7 +116,7 @@ async def create_time_off_policy(
     ctx: Ctx,
     company: str,
     label: str,
-    accrual_method: str,
+    accrual_method: Literal["annual_grant", "per_payroll", "per_hour_worked", "none"],
     policy_year: dict,
     annual_grant_options: dict | None = None,
     per_payroll_options: dict | None = None,
@@ -176,7 +178,9 @@ async def create_time_off_policy(
     )
 
 
-async def update_time_off_policy(ctx: Ctx, policy_id: str, status: str) -> dict:
+async def update_time_off_policy(
+    ctx: Ctx, policy_id: str, status: Literal["active", "archived"]
+) -> dict:
     """Archive or reactivate a time off policy. Status is the only mutable field.
 
     An archived policy takes no new enrollments, and its enrollments can end but
@@ -343,7 +347,7 @@ async def update_time_off_enrollment(
     enrollment_id: str,
     effective_end: str | None = None,
     metadata: dict | None = None,
-    clear_fields: list[str] | None = None,
+    clear_fields: list[Literal["effective_end"]] | None = None,
 ) -> dict:
     """End, extend, or reopen a time off enrollment, or update its metadata.
 

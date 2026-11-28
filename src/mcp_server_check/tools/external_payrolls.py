@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
@@ -81,7 +83,10 @@ async def create_external_payroll(
     period_start: str,
     period_end: str,
     payday: str,
-    pay_frequency: str | None = None,
+    pay_frequency: Literal[
+        "weekly", "biweekly", "semimonthly", "monthly", "quarterly", "annually"
+    ]
+    | None = None,
     items: list[dict] | None = None,
     contractor_payments: list[dict] | None = None,
     idempotency_key: str | None = None,
@@ -134,7 +139,10 @@ async def update_external_payroll(
     period_start: str | None = None,
     period_end: str | None = None,
     payday: str | None = None,
-    pay_frequency: str | None = None,
+    pay_frequency: Literal[
+        "weekly", "biweekly", "semimonthly", "monthly", "quarterly", "annually"
+    ]
+    | None = None,
     items: list[dict] | None = None,
     contractor_payments: list[dict] | None = None,
 ) -> dict:

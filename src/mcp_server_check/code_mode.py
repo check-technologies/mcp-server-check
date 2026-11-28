@@ -20,9 +20,11 @@ import os
 import random
 import re
 import time
+import types
+import typing
 from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal, Union
 
 from fastmcp.exceptions import ToolError, ValidationError
 from fastmcp.tools import ToolResult
@@ -150,6 +152,18 @@ def _annotation_text(annotation: Any) -> str:
         return annotation
     if isinstance(annotation, type):
         return annotation.__name__
+    origin = typing.get_origin(annotation)
+    args = typing.get_args(annotation)
+    if origin is Literal:
+        return f"Literal[{', '.join(repr(value) for value in args)}]"
+    # str() spells a factory-built Literal[...] | None as Optional[Literal[...]];
+    # write it the way a module's own annotations read.
+    if origin in (Union, types.UnionType) and any(
+        typing.get_origin(arg) is Literal for arg in args
+    ):
+        return " | ".join(
+            "None" if arg is type(None) else _annotation_text(arg) for arg in args
+        )
     return str(annotation).replace("typing_extensions.", "").replace("typing.", "")
 
 
@@ -168,9 +182,17 @@ _STRING_LIST_ANNOTATIONS = frozenset(
 )
 
 
+_LITERAL = re.compile(r"Literal\[[^\]]*\]")
+
+
 def _takes_string_list(annotation: Any) -> bool:
-    """Whether a parameter is a list of strings and nothing else."""
-    return _annotation_text(annotation).replace(" ", "") in _STRING_LIST_ANNOTATIONS
+    """Whether a parameter is a list of strings and nothing else.
+
+    A list of Literal strings counts: list_payrolls(type="regular") still
+    means ["regular"].
+    """
+    text = _LITERAL.sub("str", _annotation_text(annotation))
+    return text.replace(" ", "") in _STRING_LIST_ANNOTATIONS
 
 
 def tool_parameters(fn: Any) -> list[inspect.Parameter]:

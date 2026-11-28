@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
@@ -32,8 +34,11 @@ async def list_payrolls(
     limit: int | None = None,
     ids: list[str] | None = None,
     cursor: str | None = None,
-    type: list[str] | None = None,
-    status: str | None = None,
+    type: list[Literal["regular", "off_cycle", "amendment", "balancing"]] | None = None,
+    status: Literal[
+        "draft", "pending", "processing", "paid", "partially_paid", "failed"
+    ]
+    | None = None,
     is_void: bool | None = None,
     managed: bool | None = None,
     approved: bool | None = None,
@@ -120,17 +125,22 @@ async def create_payroll(
     period_start: str,
     period_end: str,
     payday: str,
-    type: str | None = None,
-    processing_period: str | None = None,
-    pay_frequency: str | None = None,
-    funding_payment_method: str | None = None,
+    type: Literal["regular", "off_cycle"] | None = None,
+    processing_period: Literal["four_day", "three_day", "two_day", "one_day"]
+    | None = None,
+    pay_frequency: Literal[
+        "weekly", "biweekly", "semimonthly", "monthly", "quarterly", "annually"
+    ]
+    | None = None,
+    funding_payment_method: Literal["ach", "wire", "wire_drawdown", "square_banking"]
+    | None = None,
     pay_schedule: str | None = None,
     off_cycle_options: OffCycleOptions | None = None,
     items: list[dict] | None = None,
     contractor_payments: list[dict] | None = None,
     metadata: dict | None = None,
     bank_account: str | None = None,
-    simulation_mode: str | None = None,
+    simulation_mode: Literal["automatic", "manual"] | None = None,
     idempotency_key: str | None = None,
 ) -> dict:
     """Create a new payroll.
@@ -140,12 +150,16 @@ async def create_payroll(
         period_start: Pay period start date (YYYY-MM-DD).
         period_end: Pay period end date (YYYY-MM-DD).
         payday: Payday date (YYYY-MM-DD).
-        type: Payroll type — "regular", "off_cycle", or "amendment". Default: "regular".
-        processing_period: Processing period — "three_day", "two_day", or "one_day".
+        type: Payroll type — "regular" or "off_cycle" (the API creates no other
+            type). Default: "regular".
+        processing_period: Processing period — "four_day" (stored as
+            "three_day"), "three_day", "two_day", or "one_day".
         pay_frequency: Pay frequency — "weekly", "biweekly", "semimonthly", "monthly",
             "quarterly", or "annually". Default: "biweekly". Omit when passing
             pay_schedule.
-        funding_payment_method: Funding method — "ach" or "wire". Default: "ach".
+        funding_payment_method: Funding method — "ach", "wire", "wire_drawdown"
+            (company must be enrolled), or "square_banking" (Square only).
+            Default: "ach".
         pay_schedule: ID of the pay schedule this payroll relates to. Pass this or
             pay_frequency, not both: Check API rejects a payroll that sets both
             ("Payroll may not have 'pay_frequency' and 'pay_schedule'"). The
@@ -211,10 +225,15 @@ async def update_payroll(
     period_start: str | None = None,
     period_end: str | None = None,
     payday: str | None = None,
-    type: str | None = None,
-    processing_period: str | None = None,
-    pay_frequency: str | None = None,
-    funding_payment_method: str | None = None,
+    type: Literal["regular", "off_cycle"] | None = None,
+    processing_period: Literal["four_day", "three_day", "two_day", "one_day"]
+    | None = None,
+    pay_frequency: Literal[
+        "weekly", "biweekly", "semimonthly", "monthly", "quarterly", "annually"
+    ]
+    | None = None,
+    funding_payment_method: Literal["ach", "wire", "wire_drawdown", "square_banking"]
+    | None = None,
     pay_schedule: str | None = None,
     off_cycle_options: OffCycleOptions | None = None,
     items: list[dict] | None = None,
@@ -222,7 +241,7 @@ async def update_payroll(
     metadata: dict | None = None,
     bank_account: str | None = None,
     correction: str | None = None,
-    simulation_mode: str | None = None,
+    simulation_mode: Literal["automatic", "manual"] | None = None,
 ) -> dict:
     """Update an existing payroll.
 
@@ -231,12 +250,14 @@ async def update_payroll(
         period_start: Pay period start date (YYYY-MM-DD).
         period_end: Pay period end date (YYYY-MM-DD).
         payday: Payday date (YYYY-MM-DD).
-        type: Payroll type — "regular", "off_cycle", or "amendment".
-        processing_period: Processing period — "three_day", "two_day", or "one_day".
+        type: Payroll type — "regular" or "off_cycle".
+        processing_period: Processing period — "four_day" (stored as
+            "three_day"), "three_day", "two_day", or "one_day".
         pay_frequency: Pay frequency — "weekly", "biweekly", "semimonthly", "monthly",
             "quarterly", or "annually". Omit when the payroll has or is given a
             pay_schedule.
-        funding_payment_method: Funding method — "ach" or "wire".
+        funding_payment_method: Funding method — "ach", "wire", "wire_drawdown"
+            (company must be enrolled), or "square_banking" (Square only).
         pay_schedule: ID of the pay schedule this payroll relates to. Pass this or
             pay_frequency, not both: Check API rejects a payroll that sets both
             ("Payroll may not have 'pay_frequency' and 'pay_schedule'"). The

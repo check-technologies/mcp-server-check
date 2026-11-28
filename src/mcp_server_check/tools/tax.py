@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
@@ -90,7 +92,7 @@ async def list_company_tax_param_settings(
     cursor: str | None = None,
     as_of: str | None = None,
     jurisdiction: str | None = None,
-    submitter: str | None = None,
+    submitter: Literal["employee", "company"] | None = None,
 ) -> dict:
     """List tax parameter settings for a company.
 
@@ -202,7 +204,7 @@ async def list_employee_tax_params(
     cursor: str | None = None,
     as_of: str | None = None,
     jurisdiction: str | None = None,
-    submitter: str | None = None,
+    submitter: Literal["employee", "company"] | None = None,
 ) -> dict:
     """List a company's employees' tax parameters, optionally narrowed to some employees.
 
@@ -301,7 +303,7 @@ async def list_employee_tax_param_settings(
     cursor: str | None = None,
     as_of: str | None = None,
     jurisdiction: str | None = None,
-    submitter: str | None = None,
+    submitter: Literal["employee", "company"] | None = None,
 ) -> dict:
     """List tax parameter settings for an employee.
 
@@ -408,7 +410,7 @@ async def bulk_get_employee_tax_param_settings(
     employee: list[str] | None = None,
     as_of: str | None = None,
     jurisdiction: str | None = None,
-    submitter: str | None = None,
+    submitter: Literal["employee", "company"] | None = None,
     limit: int | None = None,
     cursor: str | None = None,
 ) -> dict:
@@ -689,8 +691,28 @@ async def list_filings(
     limit: int | None = None,
     cursor: str | None = None,
     year: int | None = None,
-    period: str | None = None,
-    status: str | None = None,
+    period: Literal[
+        "annual",
+        "q1",
+        "q2",
+        "q3",
+        "q4",
+        "january",
+        "february",
+        "march",
+        "april",
+        "may",
+        "june",
+        "july",
+        "august",
+        "september",
+        "october",
+        "november",
+        "december",
+    ]
+    | None = None,
+    status: Literal["pending", "blocked", "submitted", "filed", "inapplicable"]
+    | None = None,
     correction: list[str] | None = None,
 ) -> dict:
     """List filings, optionally filtered by company.
@@ -708,7 +730,8 @@ async def list_filings(
         limit: Maximum number of results to return (1-500, default 25).
         cursor: Pagination cursor.
         year: Filter by tax year.
-        period: Filter by filing period (e.g. "annual", "q1", "q2", "q3", "q4", "january", etc.).
+        period: Filter by filing period: "annual", a quarter ("q1" to "q4"), or a
+            month in lowercase ("january" to "december").
         status: Filter by filing status ("pending", "blocked", "submitted", "filed", or "inapplicable").
         correction: Filter to filings produced by these correction sessions (e.g. "cor_xxxxx").
             Multiple values are OR'd (max 500 per request). Requires the corrections API for
@@ -788,7 +811,7 @@ async def list_employee_tax_statements(
     company: str | None = None,
     company_copy_bundle: str | None = None,
     year: int | None = None,
-    form: str | None = None,
+    form: Literal["fed_w2", "vi_w2vi"] | None = None,
     published_from: str | None = None,
     correction: list[str] | None = None,
 ) -> dict:
@@ -881,7 +904,8 @@ async def list_contractor_tax_statements(
     company: str | None = None,
     company_copy_bundle: str | None = None,
     year: int | None = None,
-    publication_status: str | None = None,
+    publication_status: Literal["draft", "published", "pending_correction"]
+    | None = None,
     published_from: str | None = None,
     correction: list[str] | None = None,
     limit: int | None = None,
@@ -903,7 +927,7 @@ async def list_contractor_tax_statements(
             (document ID, e.g. "doc_xxxxx"). May also be used alone to scope
             the list.
         year: Filter by tax year.
-        publication_status: "draft" or "published".
+        publication_status: "draft", "published", or "pending_correction".
         published_from: ISO-8601 datetime lower bound on published_at
             (inclusive), e.g. "2026-01-15T00:00:00Z".
         correction: Filter to tax statements produced by these correction sessions
@@ -1107,7 +1131,7 @@ async def request_tax_package(
     employee_tax_statements: list[str] | None = None,
     contractor_tax_statements: list[str] | None = None,
     filings: list[str] | None = None,
-    statement_csv_format: str | None = None,
+    statement_csv_format: Literal["standard", "with_ids"] | None = None,
 ) -> dict:
     """Request a tax package.
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
@@ -97,7 +99,7 @@ async def get_contractor(ctx: Ctx, contractor_id: str) -> dict:
 async def create_contractor(
     ctx: Ctx,
     company: str,
-    type: str | None = None,
+    type: Literal["individual", "business"] | None = None,
     first_name: str | None = None,
     middle_name: str | None = None,
     last_name: str | None = None,
@@ -111,7 +113,8 @@ async def create_contractor(
     ssn: str | None = None,
     ein: str | None = None,
     default_net_pay_split: str | None = None,
-    payment_method_preference: str | None = None,
+    payment_method_preference: Literal["direct_deposit", "manual", "cash_app"]
+    | None = None,
     address: Address | None = None,
     mailing_address: Address | None = None,
     nec_1099_electronic_consent_provided: bool | None = None,
@@ -136,7 +139,8 @@ async def create_contractor(
         ssn: Contractor's Social Security Number.
         ein: Contractor's Employer Identification Number (for businesses).
         default_net_pay_split: ID of contractor's default net pay split.
-        payment_method_preference: "direct_deposit" or "manual".
+        payment_method_preference: "direct_deposit", "manual", or "cash_app"
+            (Square only).
         address: Address with keys: line1, line2, city, state, postal_code, country.
         mailing_address: Envelope-only mailing address (not used for tax).
             Same keys as address. Requires the payee mailing address feature
@@ -182,7 +186,7 @@ async def create_contractor(
 async def update_contractor(
     ctx: Ctx,
     contractor_id: str,
-    type: str | None = None,
+    type: Literal["individual", "business"] | None = None,
     first_name: str | None = None,
     middle_name: str | None = None,
     last_name: str | None = None,
@@ -196,13 +200,15 @@ async def update_contractor(
     ssn: str | None = None,
     ein: str | None = None,
     default_net_pay_split: str | None = None,
-    payment_method_preference: str | None = None,
+    payment_method_preference: Literal["direct_deposit", "manual", "cash_app"]
+    | None = None,
     address: Address | None = None,
     mailing_address: Address | None = None,
     clear_mailing_address: bool | None = None,
     nec_1099_electronic_consent_provided: bool | None = None,
     metadata: dict | None = None,
-    clear_fields: list[str] | None = None,
+    clear_fields: list[Literal["start_date", "termination_date", "mailing_address"]]
+    | None = None,
 ) -> dict:
     """Update an existing contractor.
 
@@ -222,7 +228,8 @@ async def update_contractor(
         ssn: Contractor's Social Security Number.
         ein: Contractor's Employer Identification Number (for businesses).
         default_net_pay_split: ID of contractor's default net pay split.
-        payment_method_preference: "direct_deposit" or "manual".
+        payment_method_preference: "direct_deposit", "manual", or "cash_app"
+            (Square only).
         address: Address with keys: line1, line2, city, state, postal_code, country.
         mailing_address: Envelope-only mailing address (not used for tax).
             Same keys as address. Requires the payee mailing address feature
@@ -285,7 +292,10 @@ async def list_contractor_payments_for_contractor(
     limit: int | None = None,
     cursor: str | None = None,
     payroll: str | None = None,
-    status: str | None = None,
+    status: Literal[
+        "draft", "pending", "processing", "paid", "failed", "partially_paid"
+    ]
+    | None = None,
 ) -> dict:
     """List payments for a specific contractor.
 
@@ -298,7 +308,8 @@ async def list_contractor_payments_for_contractor(
         limit: Maximum number of results to return (max 25).
         cursor: Pagination cursor.
         payroll: Filter by payroll ID.
-        status: Filter by status — "pending", "processing", "failed", or "paid".
+        status: Filter by payment status — "draft", "pending", "processing",
+            "paid", "failed", or "partially_paid".
     """
     return await check_api_list(
         ctx,

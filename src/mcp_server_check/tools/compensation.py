@@ -6,6 +6,8 @@ with manual functions for non-standard endpoints.
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
@@ -34,7 +36,9 @@ _pay_schedules = Resource(
         Field("company", str, required_for="create", doc="The Check company ID."),
         Field(
             "pay_frequency",
-            str,
+            Literal[
+                "weekly", "biweekly", "semimonthly", "monthly", "quarterly", "annually"
+            ],
             required_for="create",
             doc='Pay frequency — "weekly", "biweekly", "semimonthly", "monthly", "quarterly", or "annually".',
         ),
@@ -187,7 +191,7 @@ _benefits = Resource(
         ),
         Field(
             "period",
-            str,
+            Literal["monthly"],
             doc='Period over which a period amount is distributed — "monthly" or null.',
         ),
         Field(
@@ -257,7 +261,7 @@ _post_tax_deductions = Resource(
         Field("employee", str, required_for="create", doc="The Check employee ID."),
         Field(
             "type",
-            str,
+            Literal["miscellaneous", "child_support", "miscellaneous_garnishment"],
             required_for="create",
             doc='Deduction type — "miscellaneous", "child_support", or "miscellaneous_garnishment".',
             create_only=True,
@@ -353,7 +357,7 @@ _company_benefits = Resource(
         ),
         Field(
             "period",
-            str,
+            Literal["monthly"],
             doc='Period over which a period amount is distributed — "monthly" or null.',
         ),
         Field(
@@ -434,7 +438,7 @@ _earning_rates = Resource(
         ),
         Field(
             "period",
-            str,
+            Literal["hourly", "annually", "piece"],
             required_for="create",
             doc='Period type — "hourly", "annually", or "piece".',
             create_only=True,

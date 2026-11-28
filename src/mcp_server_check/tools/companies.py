@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
@@ -28,7 +30,8 @@ async def list_companies(
     active: bool | None = None,
     ids: list[str] | None = None,
     cursor: str | None = None,
-    implementation_status: str | None = None,
+    implementation_status: Literal["needs_attention", "in_review", "completed"]
+    | None = None,
     metadata: dict[str, str] | None = None,
 ) -> dict:
     """List companies in your Check account.
@@ -121,13 +124,24 @@ async def create_company(
     legal_name: str,
     trade_name: str | None = None,
     other_business_name: str | None = None,
-    business_type: str | None = None,
+    business_type: Literal[
+        "sole_proprietorship",
+        "partnership",
+        "c_corporation",
+        "s_corporation",
+        "llc",
+        "government_entity",
+    ]
+    | None = None,
     industry_type: str | None = None,
     website: str | None = None,
     email: str | None = None,
     phone: str | None = None,
     address: Address | None = None,
-    pay_frequency: str | None = None,
+    pay_frequency: Literal[
+        "weekly", "biweekly", "semimonthly", "monthly", "quarterly", "annually"
+    ]
+    | None = None,
     start_date: str | None = None,
     metadata: dict | None = None,
     idempotency_key: str | None = None,
@@ -139,7 +153,7 @@ async def create_company(
         trade_name: Trade name (DBA) of the company.
         other_business_name: Other business name used by the company.
         business_type: One of "sole_proprietorship", "partnership", "c_corporation",
-            "s_corporation", or "llc".
+            "s_corporation", "llc", or "government_entity".
         industry_type: Industry classification (e.g. "health_care", "restaurant",
             "financial_services", "general_construction_or_general_contracting", etc.).
         website: Company website URL.
@@ -179,15 +193,27 @@ async def update_company(
     legal_name: str | None = None,
     trade_name: str | None = None,
     other_business_name: str | None = None,
-    business_type: str | None = None,
+    business_type: Literal[
+        "sole_proprietorship",
+        "partnership",
+        "c_corporation",
+        "s_corporation",
+        "llc",
+        "government_entity",
+    ]
+    | None = None,
     industry_type: str | None = None,
     website: str | None = None,
     email: str | None = None,
     phone: str | None = None,
     address: Address | None = None,
     principal_place_of_business: str | None = None,
-    pay_frequency: str | None = None,
-    processing_period: str | None = None,
+    pay_frequency: Literal[
+        "weekly", "biweekly", "semimonthly", "monthly", "quarterly", "annually"
+    ]
+    | None = None,
+    processing_period: Literal["four_day", "three_day", "two_day", "one_day"]
+    | None = None,
     start_date: str | None = None,
     metadata: dict | None = None,
     default_bank_account: str | None = None,
@@ -200,7 +226,7 @@ async def update_company(
         trade_name: Trade name (DBA) of the company.
         other_business_name: Other business name used by the company.
         business_type: One of "sole_proprietorship", "partnership", "c_corporation",
-            "s_corporation", or "llc".
+            "s_corporation", "llc", or "government_entity".
         industry_type: Industry classification.
         website: Company website URL.
         email: Email of the payroll department or administrator.
@@ -209,7 +235,8 @@ async def update_company(
         principal_place_of_business: Workplace ID whose address prints on paystubs.
         pay_frequency: Default pay frequency — "weekly", "biweekly", "semimonthly",
             "monthly", "quarterly", or "annually".
-        processing_period: Processing period — "three_day", "two_day", or "one_day".
+        processing_period: Processing period — "four_day", "three_day", "two_day",
+            or "one_day".
         start_date: Date the company will start using Check (YYYY-MM-DD).
         metadata: Arbitrary key-value object stored on the company.
         default_bank_account: ID of the company's default bank account.
@@ -354,13 +381,22 @@ async def get_company_benefit_aggregations(
 async def get_company_report(
     ctx: Ctx,
     company_id: str,
-    report_type: str,
+    report_type: Literal[
+        "payroll_journal",
+        "payroll_summary",
+        "tax_liabilities",
+        "contractor_payments",
+        "child_support_payments",
+        "w4_exemption_status",
+        "applied_for_ids_detailed",
+        "w2_preview",
+    ],
     start_date: str | None = None,
     end_date: str | None = None,
     year: str | None = None,
     payroll: list[str] | None = None,
     include_contractor_id: bool | None = None,
-    response_format: str = "json",
+    response_format: Literal["json", "csv"] = "json",
 ) -> dict:
     """Get a report for a company.
 
@@ -526,18 +562,31 @@ async def create_enrollment_profile(
     user_since: str | None = None,
     expected_first_payday: str | None = None,
     approved_for_payment_processing: bool | None = None,
-    existing_payroll_customer_processing_period: str | None = None,
+    existing_payroll_customer_processing_period: Literal[
+        "four_day", "three_day", "two_day", "one_day"
+    ]
+    | None = None,
     average_monthly_revenue: float | None = None,
     earliest_known_revenue: str | None = None,
     months_on_previous_payroll_provider: int | None = None,
     social_media: list[str] | None = None,
-    products_actively_used: list[str] | None = None,
+    products_actively_used: list[
+        Literal["timetracking", "payments", "scheduling", "tax_services"]
+    ]
+    | None = None,
     account_contacts: list[str] | None = None,
     fraud_score: float | None = None,
     predicted_fraud: bool | None = None,
     paying_user: bool | None = None,
     missed_payments_count: int | None = None,
-    payroll_history_access_method: str | None = None,
+    payroll_history_access_method: Literal[
+        "authorized_access_to_previous_provider",
+        "provided_credentials",
+        "provided_reports",
+        "provided_previous_payroll_provider_account_id",
+        "other",
+    ]
+    | None = None,
     implementation_services_submission_comment: str | None = None,
 ) -> dict:
     """Create the enrollment profile for a company.
@@ -555,19 +604,21 @@ async def create_enrollment_profile(
         expected_first_payday: Expected first payday on Check (YYYY-MM-DD).
         approved_for_payment_processing: Whether approved for payment processing.
         existing_payroll_customer_processing_period: Current processing period —
-            "four_day", "two_day", or "one_day".
+            "four_day", "three_day", "two_day", or "one_day".
         average_monthly_revenue: Average monthly revenue.
         earliest_known_revenue: Earliest revenue date (YYYY-MM-DD).
         months_on_previous_payroll_provider: Months using previous provider.
         social_media: List of social media URLs.
-        products_actively_used: Products used — "timetracking", "payments", "scheduling".
+        products_actively_used: Products used — "timetracking", "payments",
+            "scheduling", or "tax_services".
         account_contacts: Partner employee emails associated with the company.
         fraud_score: Fraud risk value between 0 and 100.
         predicted_fraud: Whether company is predicted fraudulent.
         paying_user: Whether company pays your platform for services.
         missed_payments_count: Number of failed payments to your platform.
         payroll_history_access_method: One of "authorized_access_to_previous_provider",
-            "provided_credentials", or "provided_reports".
+            "provided_credentials", "provided_reports",
+            "provided_previous_payroll_provider_account_id", or "other".
         implementation_services_submission_comment: Optional comment for submission.
     """
     return await check_api_put(
@@ -615,18 +666,31 @@ async def update_enrollment_profile(
     user_since: str | None = None,
     expected_first_payday: str | None = None,
     approved_for_payment_processing: bool | None = None,
-    existing_payroll_customer_processing_period: str | None = None,
+    existing_payroll_customer_processing_period: Literal[
+        "four_day", "three_day", "two_day", "one_day"
+    ]
+    | None = None,
     average_monthly_revenue: float | None = None,
     earliest_known_revenue: str | None = None,
     months_on_previous_payroll_provider: int | None = None,
     social_media: list[str] | None = None,
-    products_actively_used: list[str] | None = None,
+    products_actively_used: list[
+        Literal["timetracking", "payments", "scheduling", "tax_services"]
+    ]
+    | None = None,
     account_contacts: list[str] | None = None,
     fraud_score: float | None = None,
     predicted_fraud: bool | None = None,
     paying_user: bool | None = None,
     missed_payments_count: int | None = None,
-    payroll_history_access_method: str | None = None,
+    payroll_history_access_method: Literal[
+        "authorized_access_to_previous_provider",
+        "provided_credentials",
+        "provided_reports",
+        "provided_previous_payroll_provider_account_id",
+        "other",
+    ]
+    | None = None,
     implementation_services_submission_comment: str | None = None,
 ) -> dict:
     """Update the enrollment profile for a company.
@@ -648,14 +712,16 @@ async def update_enrollment_profile(
         earliest_known_revenue: Earliest revenue date (YYYY-MM-DD).
         months_on_previous_payroll_provider: Months using previous provider.
         social_media: List of social media URLs.
-        products_actively_used: Products used — "timetracking", "payments", "scheduling".
+        products_actively_used: Products used — "timetracking", "payments",
+            "scheduling", or "tax_services".
         account_contacts: Partner employee emails.
         fraud_score: Fraud risk value between 0 and 100.
         predicted_fraud: Whether company is predicted fraudulent.
         paying_user: Whether company pays your platform for services.
         missed_payments_count: Number of failed payments.
         payroll_history_access_method: One of "authorized_access_to_previous_provider",
-            "provided_credentials", or "provided_reports".
+            "provided_credentials", "provided_reports",
+            "provided_previous_payroll_provider_account_id", or "other".
         implementation_services_submission_comment: Optional comment.
     """
     return await check_api_patch(

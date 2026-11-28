@@ -288,6 +288,35 @@ class TestBuildParams:
         params = _build_params(sample)
         assert isinstance(params[0].type, CSVList)
 
+    def test_literal_is_a_choice(self):
+        async def sample(
+            ctx: Ctx, period: typing.Literal["q1", "q2"] | None = None
+        ) -> dict:
+            pass
+
+        params = _build_params(sample)
+        assert isinstance(params[0], click.Option)
+        assert isinstance(params[0].type, click.Choice)
+        assert list(params[0].type.choices) == ["q1", "q2"]
+        assert params[0].required is False
+
+    def test_required_literal_is_a_required_choice(self):
+        async def sample(ctx: Ctx, report: typing.Literal["a", "b"]) -> dict:
+            pass
+
+        params = _build_params(sample)
+        assert isinstance(params[0].type, click.Choice)
+        assert params[0].required is True
+
+    def test_list_of_literals_is_csv(self):
+        async def sample(
+            ctx: Ctx, type: list[typing.Literal["regular", "off_cycle"]] | None = None
+        ) -> dict:
+            pass
+
+        params = _build_params(sample)
+        assert isinstance(params[0].type, CSVList)
+
     def test_list_dict(self):
         async def sample(ctx: Ctx, parameters: list[dict] | None = None) -> dict:
             pass

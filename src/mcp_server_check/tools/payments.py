@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Literal
 
 from fastmcp import FastMCP
 
@@ -24,10 +25,17 @@ async def list_payments(
     payroll: str | None = None,
     payroll_item: str | None = None,
     contractor_payment: str | None = None,
-    direction: str | None = None,
+    direction: Literal["credit", "debit"] | None = None,
     amount_min: str | None = None,
     amount_max: str | None = None,
-    type: str | None = None,
+    type: Literal[
+        "company_cash_requirement",
+        "employee_net_pay",
+        "net_pay_refund",
+        "collection",
+        "refund",
+    ]
+    | None = None,
     completion_date_after: str | None = None,
     completion_date_before: str | None = None,
     parent_id: list[str] | None = None,
@@ -133,7 +141,7 @@ async def retry_payment(
     ctx: Ctx,
     payment_id: str,
     bank_account: str | None = None,
-    payment_type: str | None = None,
+    payment_type: Literal["ach", "instant", "wire"] | None = None,
 ) -> dict:
     """Retry a failed payment.
 
@@ -218,7 +226,7 @@ async def cancel_payment(ctx: Ctx, payment_id: str) -> dict:
 async def reverse_payment(
     ctx: Ctx,
     payment_id: str,
-    reason: str,
+    reason: Literal["duplicate", "incorrect_amount", "incorrect_receiving_account"],
     idempotency_key: str | None = None,
 ) -> dict:
     """Reverse a completed payout payment.

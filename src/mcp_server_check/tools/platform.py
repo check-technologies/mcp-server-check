@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastmcp import FastMCP
 
 from mcp_server_check.annotations import add_annotated_tool
@@ -651,7 +653,9 @@ async def get_requirement(ctx: Ctx, requirement_id: str) -> dict:
 
 
 @recoverable(AppliedForIdsReportRequest.recover)
-async def get_applied_for_ids_report(ctx: Ctx, response_format: str = "json") -> dict:
+async def get_applied_for_ids_report(
+    ctx: Ctx, response_format: Literal["json", "csv"] = "json"
+) -> dict:
     """Get the applied-for IDs report (by individual tax ID) for every company of the provider.
 
     Only Console sessions can read the provider-wide report. When it fails as
